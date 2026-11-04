@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=CatOS Boot Manager
+Name[zh_CN]=CatOS 引导管理器
+Comment=Manage boot loaders and UEFI firmware entries
+Comment[zh_CN]=管理引导器及 UEFI 固件启动项
+Exec=catos-boot-manager
+Icon=catos-logo
+Terminal=false
+Categories=Settings;System;
