@@ -178,6 +178,13 @@ void MenuPage::loadMenu()
             for (auto *action : {add_, kernel_, uki_, remove_, default_, timeout_})
                 action->setEnabled(true);
         } else {
+            const QString textTree = BootProbe::runReadOnly(QStringLiteral("limine-list"));
+            if (!textTree.trimmed().isEmpty()) {
+                auto *item = new QTreeWidgetItem(menu_);
+                item->setText(0, tr("Limine menu (read-only)"));
+                item->setText(1, tr("Older limine-tool"));
+                item->setData(0, Qt::UserRole + 3, textTree);
+            }
             details_->setPlainText(tr("This version of limine-tool does not provide a structured boot menu. Update limine-tool to manage entries."));
         }
         break;

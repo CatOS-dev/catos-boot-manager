@@ -1,9 +1,11 @@
 #include "SettingsPage.h"
+#include "services/BootProbe.h"
 #include "services/BootSettings.h"
 #include "widgets/BootUi.h"
 
 #include <QComboBox>
 #include <QFormLayout>
+#include <QJsonDocument>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
@@ -25,13 +27,13 @@ SettingsPage::SettingsPage(QWidget *parent) : QWidget(parent)
     fields_ = new QFormLayout;
     fields_->setSpacing(11);
     layout_->addLayout(fields_);
-    auto *queue = new QPushButton(tr("Queue setting changes"), content);
-    queue->setMinimumHeight(36);
-    layout_->addWidget(queue, 0, Qt::AlignRight);
+    queue_ = new QPushButton(tr("Queue setting changes"), content);
+    queue_->setMinimumHeight(36);
+    layout_->addWidget(queue_, 0, Qt::AlignRight);
     layout_->addStretch();
     connect(selector_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
             &SettingsPage::showSettings);
-    connect(queue, &QPushButton::clicked, this, &SettingsPage::stageChanges);
+    connect(queue_, &QPushButton::clicked, this, &SettingsPage::stageChanges);
 }
 
 void SettingsPage::updateSnapshot(const BootSnapshot &snapshot)
@@ -64,6 +66,7 @@ void SettingsPage::showSettings()
     }
     edits_.clear();
     baseline_.clear();
+    queue_->setEnabled(false);
     const int index = selector_->currentIndex();
     if (index < 0 || index >= manageable_.size()) {
         location_->setText(tr("No boot loader configuration is available."));
@@ -71,12 +74,18 @@ void SettingsPage::showSettings()
     }
     const auto &loader = manageable_.at(index);
     const QString config = BootSettings::configPath(loader.kind, loader.esp);
-    location_->setText(tr("Configuration: %1").arg(config));
+    const bool canEdit = loader.kind != LoaderKind::Limine ||
+        QJsonDocument::fromJson(BootProbe::runReadOnly(QStringLiteral("limine-entry-tool"),
+            {QStringLiteral("--config-json")}).toUtf8()).isObject();
+    location_->setText(canEdit ? tr("Configuration: %1").arg(config)
+        : tr("Read-only: installed limine-tool lacks the structured settings API. Update limine-tool to edit settings."));
+    queue_->setEnabled(canEdit);
     for (const auto &setting : BootSettings::settings(loader.kind)) {
         auto *edit = new QLineEdit(fields_->parentWidget());
         edit->setObjectName(setting.key);
-        const QString current = BootSettings::read(loader.kind, loader.esp, setting.key);
+        const QString current = canEdit ? BootSettings::read(loader.kind, loader.esp, setting.key) : QString();
         edit->setText(current);
+        edit->setEnabled(canEdit);
         baseline_.append(current);
         edit->setToolTip(setting.description);
         edit->setPlaceholderText(setting.description);
@@ -87,6 +96,7 @@ void SettingsPage::showSettings()
 
 void SettingsPage::stageChanges()
 {
+    if (!queue_->isEnabled()) return;
     const int index = selector_->currentIndex();
     if (index < 0 || index >= manageable_.size()) return;
     const auto &loader = manageable_.at(index);
@@ -98,7 +108,7 @@ void SettingsPage::stageChanges()
         const QString after = edits_[i]->text();
         // Also stage unchanged values: the transaction removes a previously
         // queued setting when the user returns it to its original value.
-        if (!BootSettings::allowed(loader.kind, spec.key, after)) {
+        if (before != after && !BootSettings::allowed(loader.kind, spec.key, after)) {
             QMessageBox::warning(this, tr("Invalid setting"),
                 tr("Invalid value for %1. Check the field description.").arg(spec.title));
             return;

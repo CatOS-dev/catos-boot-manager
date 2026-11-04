@@ -23,6 +23,8 @@ private:
     void moveSelected(int delta);
     void queueOrder();
     void queueNext();
+    void clearNext();
+    void queueRename();
     void queueToggle();
     void queueRemoval();
     void queueCreation();
@@ -32,5 +34,6 @@ private:
     QStringList displayOrder_;
     QTableWidget *table_ = nullptr;
     QLabel *detail_ = nullptr;
+    QPushButton *clearNext_ = nullptr;
     QList<QPushButton *> actions_;
 };

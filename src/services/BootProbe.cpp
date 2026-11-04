@@ -8,6 +8,7 @@
 #include <QProcess>
 #include <QRegularExpression>
 #include <QSet>
+#include <QStandardPaths>
 
 namespace {
 QString cleanPath(QString path)
@@ -77,8 +78,25 @@ void addInstallation(BootSnapshot &state, LoaderKind kind, const QString &esp,
 
 QString BootProbe::runReadOnly(const QString &program, const QStringList &arguments)
 {
+    QString executable = program;
+    QStringList args = arguments;
+    if (executable == QLatin1String("limine-list")) {
+        executable = QStringLiteral("limine-entry-tool");
+        args.prepend(QStringLiteral("--tree"));
+    }
+    if (executable == QLatin1String("limine-entry-tool")) {
+        // Older Limine packages have a bash launcher which asks for sudo even
+        // for harmless queries. Query its underlying CLI directly so opening
+        // the graphical manager never triggers a second authorization.
+        const QString launcher = QStandardPaths::findExecutable(executable);
+        QFile file(launcher);
+        if (file.open(QIODevice::ReadOnly) && file.read(2) == QByteArrayLiteral("#!")) {
+            const QString legacy = QStringLiteral("/usr/lib/limine/limine-entry-tool");
+            if (QFileInfo(legacy).isExecutable()) executable = legacy;
+        }
+    }
     QProcess process;
-    process.start(program, arguments);
+    process.start(executable, args);
     if (!process.waitForStarted(2000) || !process.waitForFinished(6500)
         || process.exitStatus() != QProcess::NormalExit || process.exitCode() != 0) {
         if (process.state() != QProcess::NotRunning) process.kill();
@@ -93,11 +111,18 @@ QStringList BootProbe::espMounts()
                                     {QStringLiteral("-rn"), QStringLiteral("-t"),
                                      QStringLiteral("vfat"), QStringLiteral("-o"), QStringLiteral("TARGET")});
     QSet<QString> mounts;
+    static const QString efiPartitionType = QStringLiteral("c12a7328-f81f-11d2-ba4b-00a0c93ec93b");
     for (const auto &line : output.split(QLatin1Char('\n'), Qt::SkipEmptyParts)) {
         const QString path = cleanPath(line.trimmed());
+        const QString source = runReadOnly(QStringLiteral("findmnt"),
+            {QStringLiteral("-rn"), QStringLiteral("-M"), path,
+             QStringLiteral("-o"), QStringLiteral("SOURCE")}).trimmed();
+        const QString partitionType = runReadOnly(QStringLiteral("lsblk"),
+            {QStringLiteral("-dn"), QStringLiteral("-o"), QStringLiteral("PARTTYPE"), source}).trimmed().toLower();
         if (QDir(path + QStringLiteral("/EFI")).exists()
             || QFileInfo::exists(path + QStringLiteral("/limine.conf"))
-            || QDir(path + QStringLiteral("/loader")).exists()) mounts.insert(path);
+            || QDir(path + QStringLiteral("/loader")).exists()
+            || partitionType == efiPartitionType) mounts.insert(path);
     }
     QStringList result = mounts.values();
     result.sort();

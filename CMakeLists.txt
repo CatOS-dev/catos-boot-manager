@@ -15,6 +15,10 @@ add_library(catos-boot-core STATIC
     src/services/BootProbe.cpp
     src/services/BootSettings.h
     src/services/BootSettings.cpp
+    src/services/BootDevices.h
+    src/services/BootDevices.cpp
+    src/services/BootRepair.h
+    src/services/BootRepair.cpp
 )
 target_include_directories(catos-boot-core PUBLIC src)
 target_link_libraries(catos-boot-core PUBLIC Qt6::Core)

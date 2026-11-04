@@ -1,5 +1,6 @@
 #include "ApplyDialog.h"
 #include "widgets/BootUi.h"
+#include "services/BootRepair.h"
 
 #include <QCloseEvent>
 #include <QCoreApplication>
@@ -46,8 +47,14 @@ ApplyResult ApplyDialog::execute(QWidget *parent, const BootTransaction &transac
     scroll->setFrameShape(QFrame::NoFrame);
     auto *content = new QWidget(scroll);
     auto *items = new QVBoxLayout(content);
-    for (const auto &op : transaction.operations())
+    for (const auto &op : transaction.operations()) {
         BootUi::line(items, content, op.description, {}, QStringLiteral("document-edit"));
+        if (BootRepair::supports(op.kind)) {
+            auto *detail = BootUi::muted(BootRepair::preview(op).join(QLatin1Char('\n')), content);
+            detail->setTextInteractionFlags(Qt::TextSelectableByMouse);
+            items->addWidget(detail);
+        }
+    }
     items->addStretch();
     scroll->setWidget(content);
     layout->addWidget(scroll, 1);
@@ -110,8 +117,11 @@ ApplyResult ApplyDialog::execute(QWidget *parent, const BootTransaction &transac
         close->setEnabled(true);
     });
     QObject::connect(close, &QPushButton::clicked, &running, &QDialog::accept);
-    process.start(QStringLiteral("pkexec"), {executor, QStringLiteral("--apply"),
-                                            QString::fromLatin1(transaction.encoded())});
+    QObject::connect(&process, &QProcess::started, &running, [&] {
+        process.write(transaction.encoded());
+        process.closeWriteChannel();
+    });
+    process.start(QStringLiteral("pkexec"), {executor, QStringLiteral("--apply-stdin")});
     running.exec();
     return running.succeeded() ? ApplyResult::Applied : ApplyResult::Failed;
 }

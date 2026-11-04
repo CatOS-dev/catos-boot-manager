@@ -9,6 +9,7 @@ class QComboBox;
 class QFormLayout;
 class QLineEdit;
 class QLabel;
+class QPushButton;
 class QVBoxLayout;
 
 class SettingsPage : public QWidget {
@@ -28,6 +29,7 @@ private:
     QList<BootInstallation> manageable_;
     QComboBox *selector_ = nullptr;
     QLabel *location_ = nullptr;
+    QPushButton *queue_ = nullptr;
     QFormLayout *fields_ = nullptr;
     QList<QLineEdit *> edits_;
     QStringList baseline_;

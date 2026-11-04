@@ -129,11 +129,11 @@ bool BootSettings::allowed(LoaderKind loader, const QString &key, const QString 
     if (!known || value.size() > 2048 || value.contains(QLatin1Char('\n'))
         || value.contains(QLatin1Char('\r')) || value.contains(QChar::Null)) return false;
     for (QChar ch : value) if (ch.unicode() < 32 || ch.unicode() == 127) return false;
-    if (key == QLatin1String("GRUB_TIMEOUT")
-        || (loader == LoaderKind::SystemdBoot && key == QLatin1String("timeout"))) {
-        if (!QRegularExpression(QStringLiteral("^(?:[0-9]{1,4}|-1|menu-force|menu-hidden|menu-disabled)$"))
-            .match(value).hasMatch()) return false;
-    }
+    if (key == QLatin1String("GRUB_TIMEOUT"))
+        return QRegularExpression(QStringLiteral("^(?:[0-9]{1,4}|-1)$")).match(value).hasMatch();
+    if (loader == LoaderKind::SystemdBoot && key == QLatin1String("timeout"))
+        return QRegularExpression(QStringLiteral("^(?:[0-9]{1,4}|menu-force|menu-hidden|menu-disabled)$"))
+            .match(value).hasMatch();
     if (key == QLatin1String("GRUB_DISABLE_OS_PROBER")
         || key == QLatin1String("GRUB_DISABLE_LINUX_UUID"))
         return value == QLatin1String("true") || value == QLatin1String("false");

@@ -45,10 +45,15 @@ FirmwarePage::FirmwarePage(QWidget *parent) : QWidget(parent)
     BootUi::section(layout, content, tr("Entry operations"));
     auto *buttons = new QHBoxLayout;
     auto *next = new QPushButton(tr("Boot once"), content);
+    clearNext_ = new QPushButton(tr("Clear next boot"), content);
     auto *toggle = new QPushButton(tr("Enable / Disable"), content);
+    auto *rename = new QPushButton(tr("Rename"), content);
     auto *remove = new QPushButton(tr("Remove entry"), content);
     auto *add = new QPushButton(tr("Add EFI entry"), content);
-    for (auto *button : {next, toggle, remove, add}) { buttons->addWidget(button); actions_.append(button); }
+    for (auto *button : {next, clearNext_, toggle, rename, remove, add}) {
+        buttons->addWidget(button);
+        actions_.append(button);
+    }
     layout->addLayout(buttons);
     layout->addWidget(BootUi::muted(tr("Removing a firmware entry does not delete EFI files from disk."), content));
     layout->addStretch();
@@ -56,7 +61,9 @@ FirmwarePage::FirmwarePage(QWidget *parent) : QWidget(parent)
     connect(down, &QPushButton::clicked, this, [this] { moveSelected(1); });
     connect(saveOrder, &QPushButton::clicked, this, &FirmwarePage::queueOrder);
     connect(next, &QPushButton::clicked, this, &FirmwarePage::queueNext);
+    connect(clearNext_, &QPushButton::clicked, this, &FirmwarePage::clearNext);
     connect(toggle, &QPushButton::clicked, this, &FirmwarePage::queueToggle);
+    connect(rename, &QPushButton::clicked, this, &FirmwarePage::queueRename);
     connect(remove, &QPushButton::clicked, this, &FirmwarePage::queueRemoval);
     connect(add, &QPushButton::clicked, this, &FirmwarePage::queueCreation);
 }
@@ -70,6 +77,7 @@ void FirmwarePage::updateSnapshot(const BootSnapshot &snapshot)
     const bool available = snapshot.uefi && !snapshot.firmware.isEmpty();
     for (auto *button : actions_) button->setEnabled(available);
     if (!actions_.isEmpty()) actions_.last()->setEnabled(snapshot.uefi && !BootProbe::espMounts().isEmpty());
+    clearNext_->setEnabled(snapshot.uefi && !snapshot.bootNext.isEmpty());
     if (snapshot.uefi && snapshot.firmware.isEmpty()) {
         detail_->setText(tr("No UEFI entries could be read. EFI variables may be unavailable."));
     } else {
@@ -139,6 +147,31 @@ void FirmwarePage::queueNext()
     if (id.isEmpty()) return;
     emit operationRequested({QStringLiteral("firmware-next"), QStringLiteral("BootNext"), id,
                              snapshot_.bootNext, tr("Boot%1 once on next restart").arg(id)});
+}
+
+void FirmwarePage::clearNext()
+{
+    if (snapshot_.bootNext.isEmpty()) return;
+    emit operationRequested({QStringLiteral("firmware-next"), QStringLiteral("BootNext"), {},
+                             snapshot_.bootNext, tr("Clear one-time UEFI boot selection")});
+}
+
+void FirmwarePage::queueRename()
+{
+    const auto *entry = snapshot_.entry(selectedId());
+    if (!entry) return;
+    bool ok = false;
+    const QString label = QInputDialog::getText(this, tr("Rename UEFI boot entry"),
+        tr("New firmware entry label:"), QLineEdit::Normal, entry->label, &ok).trimmed();
+    if (!ok || label.isEmpty() || label == entry->label) return;
+    if (label.size() > 80 || label.contains(QLatin1Char('\n'))
+        || label.contains(QLatin1Char('\r'))) {
+        QMessageBox::warning(this, tr("Invalid EFI label"), tr("Enter a short single-line label."));
+        return;
+    }
+    emit operationRequested({QStringLiteral("firmware-rename"), entry->number, label,
+        entry->identity(), tr("Rename firmware entry Boot%1: %2 → %3")
+            .arg(entry->number, entry->label, label)});
 }
 
 void FirmwarePage::queueToggle()

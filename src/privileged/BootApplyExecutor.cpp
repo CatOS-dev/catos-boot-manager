@@ -1,6 +1,7 @@
 #include "model/BootTransaction.h"
 #include "services/BootProbe.h"
 #include "services/BootSettings.h"
+#include "services/BootRepair.h"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -8,6 +9,7 @@
 #include <QCryptographicHash>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QFile>
 #include <QProcess>
 #include <QRegularExpression>
 #include <QSet>
@@ -165,6 +167,14 @@ bool preflight(const QList<BootOperation> &operations, const BootSnapshot &snaps
                 || (op.value != QLatin1String("1") && op.value != QLatin1String("0"))) {
                 *error = QStringLiteral("Firmware entry changed"); return false;
             }
+        } else if (op.kind == QLatin1String("firmware-rename")) {
+            const auto *entry = snapshot.entry(op.target);
+            bool invalid = !entry || entry->identity() != op.expected
+                || op.value.trimmed().isEmpty() || op.value.size() > 80;
+            for (QChar ch : op.value) if (ch.unicode() < 32 || ch.unicode() == 127) invalid = true;
+            if (invalid) {
+                *error = QStringLiteral("Firmware entry changed or label is invalid"); return false;
+            }
         } else if (op.kind == QLatin1String("firmware-remove")) {
             const auto *entry = snapshot.entry(op.target);
             if (!entry || entry->identity() != op.expected || entry->current) {
@@ -222,6 +232,8 @@ bool preflight(const QList<BootOperation> &operations, const BootSnapshot &snaps
                 if (loader.kind == LoaderKind::SystemdBoot && loader.esp == op.target)
                     found = true;
             if (!found) { *error = QStringLiteral("systemd-boot not found on selected ESP"); return false; }
+        } else if (BootRepair::supports(op.kind)) {
+            if (!BootRepair::validate(op, error)) return false;
         } else {
             *error = QStringLiteral("Unknown operation type"); return false;
         }
@@ -295,6 +307,9 @@ bool apply(const QList<BootOperation> &operations)
         } else if (op.kind == QLatin1String("firmware-toggle")) {
             if (!run(QStringLiteral("efibootmgr"), {QStringLiteral("-b"), op.target,
                 op.value == QLatin1String("1") ? QStringLiteral("-a") : QStringLiteral("-A")})) return false;
+        } else if (op.kind == QLatin1String("firmware-rename")) {
+            if (!run(QStringLiteral("efibootmgr"), {QStringLiteral("-b"), op.target,
+                QStringLiteral("-L"), op.value})) return false;
         } else if (op.kind == QLatin1String("firmware-remove")) {
             if (!run(QStringLiteral("efibootmgr"), {QStringLiteral("-b"), op.target,
                 QStringLiteral("-B")})) return false;
@@ -325,6 +340,12 @@ bool apply(const QList<BootOperation> &operations)
         } else if (op.kind == QLatin1String("update-systemd")) {
             if (!run(QStringLiteral("bootctl"),
                      {QStringLiteral("--esp-path=") + op.target, QStringLiteral("update")})) return false;
+        } else if (BootRepair::supports(op.kind)) {
+            QString error;
+            if (!BootRepair::execute(op, &error)) {
+                QTextStream(stderr) << "Boot repair failed: " << error << Qt::endl;
+                return false;
+            }
         }
     }
     return true;
@@ -336,12 +357,22 @@ int main(int argc, char **argv)
     QCoreApplication app(argc, argv);
     const QStringList args = app.arguments();
     QTextStream errors(stderr);
-    if (geteuid() != 0 || args.size() != 3 || args[1] != QLatin1String("--apply")) {
+    if (geteuid() != 0 || args.size() != 2 || args[1] != QLatin1String("--apply-stdin")) {
         errors << "Administrator authorization required" << Qt::endl;
         return 2;
     }
+    QFile stream;
+    if (!stream.open(stdin, QIODevice::ReadOnly)) {
+        errors << "Cannot read transaction input" << Qt::endl;
+        return 2;
+    }
     QString error;
-    const auto operations = BootTransaction::decode(args[2].toLatin1(), &error);
+    const QByteArray payload = stream.readAll();
+    if (payload.size() > 1048576) {
+        errors << "Transaction payload is too large" << Qt::endl;
+        return 2;
+    }
+    const auto operations = BootTransaction::decode(payload, &error);
     if (!error.isEmpty()) { errors << error << Qt::endl; return 2; }
     const auto snapshot = BootProbe::inspect();
     if (!preflight(operations, snapshot, &error)) {
