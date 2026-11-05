@@ -60,6 +60,10 @@ QString formattedLine(LoaderKind loader, const QString &key, const QString &valu
 QList<BootSettings::Setting> BootSettings::settings(LoaderKind loader)
 {
     switch (loader) {
+    case LoaderKind::Refind:
+    case LoaderKind::Uki:
+    case LoaderKind::EfiStub:
+        return {};
     case LoaderKind::Grub:
         return {{QStringLiteral("GRUB_DEFAULT"), QObject::tr("Default entry"), QObject::tr("Entry index, ID or saved")},
                 {QStringLiteral("GRUB_TIMEOUT"), QObject::tr("Menu timeout (seconds)"), QObject::tr("Time to wait before starting the default entry")},
@@ -86,6 +90,10 @@ QList<BootSettings::Setting> BootSettings::settings(LoaderKind loader)
 QString BootSettings::configPath(LoaderKind loader, const QString &esp)
 {
     switch (loader) {
+    case LoaderKind::Refind:
+    case LoaderKind::Uki:
+    case LoaderKind::EfiStub:
+        return {};
     case LoaderKind::Grub: return QStringLiteral("/etc/default/grub");
     case LoaderKind::Limine: return QStringLiteral("/etc/default/limine");
     case LoaderKind::SystemdBoot: return QDir(esp).filePath(QStringLiteral("loader/loader.conf"));

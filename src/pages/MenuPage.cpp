@@ -1,8 +1,8 @@
 #include "MenuPage.h"
 #include "services/BootProbe.h"
 #include "widgets/BootUi.h"
+#include "widgets/LoaderSelector.h"
 
-#include <QComboBox>
 #include <QCryptographicHash>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -69,7 +69,7 @@ MenuPage::MenuPage(QWidget *parent) : QWidget(parent)
     auto *content = layout->parentWidget();
     BootUi::title(layout, content, tr("Boot menu"),
                   tr("Inspect the entries provided by an installed boot loader."));
-    selector_ = new QComboBox(content);
+    selector_ = new LoaderSelector(content);
     layout->addWidget(selector_);
     menu_ = new QTreeWidget(content);
     menu_->setHeaderLabels({tr("Boot entry"), tr("Type")});
@@ -103,8 +103,11 @@ MenuPage::MenuPage(QWidget *parent) : QWidget(parent)
                              tr("Configure Limine menu delay, in seconds or 'no'."),
                              QStringLiteral("preferences-system-time"));
     layout->addStretch();
-    connect(selector_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
-            &MenuPage::loadMenu);
+    connect(selector_, &LoaderSelector::selectionChanged, this, [this] {
+        manageable_ = selector_->installations();
+        loadMenu();
+    });
+    connect(selector_, &LoaderSelector::methodChanged, this, &MenuPage::methodChanged);
     connect(add_, &QPushButton::clicked, this, &MenuPage::addEfi);
     connect(kernel_, &QPushButton::clicked, this, &MenuPage::addKernel);
     connect(uki_, &QPushButton::clicked, this, &MenuPage::addUki);
@@ -118,23 +121,10 @@ MenuPage::MenuPage(QWidget *parent) : QWidget(parent)
 void MenuPage::updateSnapshot(const BootSnapshot &snapshot)
 {
     snapshot_ = snapshot;
-    manageable_ = snapshot.manageableInstallations();
-    const QString previous = selector_->currentData().toString();
-    selector_->blockSignals(true);
-    selector_->clear();
-    for (const auto &loader : manageable_)
-        selector_->addItem(loaderName(loader.kind)
-            + (loader.kind == LoaderKind::SystemdBoot ? QStringLiteral(" · ") + loader.esp : QString()), loader.id);
-    int index = selector_->findData(previous);
-    if (index < 0) {
-        index = 0;
-        for (int i = 0; i < manageable_.size(); ++i)
-            if (manageable_.at(i).current) { index = i; break; }
-    }
-    selector_->setCurrentIndex(manageable_.isEmpty() ? -1 : index);
-    selector_->blockSignals(false);
-    loadMenu();
+    selector_->updateSnapshot(snapshot);
 }
+
+void MenuPage::selectMethod(LoaderKind kind) { selector_->selectMethod(kind); }
 
 void MenuPage::loadMenu()
 {
@@ -160,6 +150,11 @@ void MenuPage::loadMenu()
         action->setEnabled(false);
     QString output;
     switch (loader.kind) {
+    case LoaderKind::Refind:
+    case LoaderKind::Uki:
+    case LoaderKind::EfiStub:
+        details_->setPlainText(tr("Menu management is not available for this method."));
+        break;
     case LoaderKind::Limine: {
         output = BootProbe::runReadOnly(QStringLiteral("limine-entry-tool"),
                                         {QStringLiteral("--tree-json")});

@@ -639,6 +639,8 @@
             <translation type="vanished">删除 Limine 菜单路径：%1</translation>
         </message>
         <message><source>Detecting boot state…</source><translation>正在检测引导状态…</translation></message>
+
+        <message><source>Menu management is not available for this method.</source><translation>此方式尚不支持菜单管理。</translation></message>
     </context>
     <context>
         <name>OverviewPage</name>
@@ -1315,6 +1317,8 @@ You can review the exact command sequence before applying.</source>
             <source>Nothing changed on this page.</source>
             <translation type="vanished">本页面没有需要暂存的修改。</translation>
         </message>
+
+        <message><source>Configuration editing is not available for this method.</source><translation>此方式尚不支持配置编辑。</translation></message>
     </context>
     <context>
         <name>PendingPage</name>
@@ -1328,5 +1332,11 @@ Pending value: %2</source><translation>
 原值：%1
 待应用值：%2</translation></message>
         <message><source>No pending changes</source><translation>没有待应用的修改</translation></message>
+    </context>
+    <context>
+        <name>LoaderSelector</name>
+        <message><source>No installation detected for this method</source><translation>未检测到此方式的安装实例</translation></message>
+        <message><source>Detected manageable installations: %1</source><translation>检测到可管理的安装实例：%1</translation></message>
+        <message><source>Current system</source><translation>当前系统</translation></message>
     </context>
 </TS>

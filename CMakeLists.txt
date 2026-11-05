@@ -33,6 +33,8 @@ qt_add_executable(catos-boot-manager
     src/app/BootManagerWindow.cpp
     src/widgets/BootUi.h
     src/widgets/BootUi.cpp
+    src/widgets/LoaderSelector.h
+    src/widgets/LoaderSelector.cpp
     src/pages/OverviewPage.h
     src/pages/OverviewPage.cpp
     src/pages/SettingsPage.h
@@ -69,6 +71,7 @@ if(BUILD_TESTING)
         tests/SettingsDraftTest.cpp
         src/pages/SettingsPage.cpp
         src/widgets/BootUi.cpp
+        src/widgets/LoaderSelector.cpp
     )
     target_link_libraries(boot-settings-draft-test PRIVATE catos-boot-core Qt6::Widgets Qt6::Test)
     add_test(NAME boot-settings-draft COMMAND boot-settings-draft-test)
@@ -76,6 +79,10 @@ if(BUILD_TESTING)
     qt_add_executable(boot-scan-test tests/BootScanTest.cpp)
     target_link_libraries(boot-scan-test PRIVATE catos-boot-core Qt6::Test)
     add_test(NAME boot-scan COMMAND boot-scan-test)
+    qt_add_executable(boot-loader-selector-test tests/LoaderSelectorTest.cpp src/widgets/LoaderSelector.cpp)
+    target_link_libraries(boot-loader-selector-test PRIVATE catos-boot-core Qt6::Widgets Qt6::Test)
+    add_test(NAME boot-loader-selector COMMAND boot-loader-selector-test)
+    set_tests_properties(boot-loader-selector PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 endif()
 
 qt_add_lrelease(catos-boot-manager

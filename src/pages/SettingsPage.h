@@ -6,7 +6,7 @@
 #include <QWidget>
 #include <QHash>
 
-class QComboBox;
+class LoaderSelector;
 class QFormLayout;
 class QLineEdit;
 class QLabel;
@@ -19,9 +19,11 @@ public:
     explicit SettingsPage(QWidget *parent = nullptr);
     void updateSnapshot(const BootSnapshot &snapshot);
     void discardOperation(const BootOperation &operation);
+    void selectMethod(LoaderKind kind);
 
 signals:
     void operationRequested(const BootOperation &operation);
+    void methodChanged(LoaderKind kind);
 
 private:
     void showSettings();
@@ -29,7 +31,7 @@ private:
 
     BootSnapshot snapshot_;
     QList<BootInstallation> manageable_;
-    QComboBox *selector_ = nullptr;
+    LoaderSelector *selector_ = nullptr;
     QLabel *location_ = nullptr;
     QPushButton *queue_ = nullptr;
     QFormLayout *fields_ = nullptr;

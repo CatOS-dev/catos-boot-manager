@@ -5,7 +5,7 @@
 
 #include <QWidget>
 
-class QComboBox;
+class LoaderSelector;
 class QPlainTextEdit;
 class QPushButton;
 class QTreeWidget;
@@ -16,9 +16,11 @@ class MenuPage : public QWidget {
 public:
     explicit MenuPage(QWidget *parent = nullptr);
     void updateSnapshot(const BootSnapshot &snapshot);
+    void selectMethod(LoaderKind kind);
 
 signals:
     void operationRequested(const BootOperation &operation);
+    void methodChanged(LoaderKind kind);
 
 private:
     void loadMenu();
@@ -32,7 +34,7 @@ private:
 
     BootSnapshot snapshot_;
     QList<BootInstallation> manageable_;
-    QComboBox *selector_ = nullptr;
+    LoaderSelector *selector_ = nullptr;
     QTreeWidget *menu_ = nullptr;
     QPlainTextEdit *details_ = nullptr;
     QPushButton *add_ = nullptr;

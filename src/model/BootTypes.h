@@ -4,8 +4,14 @@
 #include <QSet>
 #include <QString>
 #include <QStringList>
+#include <array>
 
-enum class LoaderKind { Limine, Grub, SystemdBoot };
+enum class LoaderKind { Grub, Limine, Refind, SystemdBoot, Uki, EfiStub };
+
+inline constexpr std::array<LoaderKind, 6> loaderKinds{
+    LoaderKind::Grub, LoaderKind::Limine, LoaderKind::Refind,
+    LoaderKind::SystemdBoot, LoaderKind::Uki, LoaderKind::EfiStub
+};
 
 inline QString loaderName(LoaderKind kind)
 {
@@ -13,6 +19,9 @@ inline QString loaderName(LoaderKind kind)
     case LoaderKind::Limine: return QStringLiteral("Limine");
     case LoaderKind::Grub: return QStringLiteral("GRUB");
     case LoaderKind::SystemdBoot: return QStringLiteral("systemd-boot");
+    case LoaderKind::Refind: return QStringLiteral("rEFInd");
+    case LoaderKind::Uki: return QStringLiteral("UKI");
+    case LoaderKind::EfiStub: return QStringLiteral("EFI Stub");
     }
     return {};
 }

@@ -37,7 +37,7 @@ void SettingsDraftTest::preserveDraftAndOriginalValue()
     };
     SettingsPage page;
     page.updateSnapshot(snapshot);
-    auto *selector = page.findChild<QComboBox *>("settingsInstallation");
+    auto *selector = page.findChild<QComboBox *>("loaderInstallation");
     auto *queue = page.findChild<QPushButton *>("queueSettings");
     QVERIFY(selector);
     QVERIFY(queue);
@@ -50,6 +50,12 @@ void SettingsDraftTest::preserveDraftAndOriginalValue()
     QVERIFY(timeout);
     QCOMPARE(timeout->text(), QString("3"));
     timeout->setText("5");
+    page.selectMethod(LoaderKind::Uki);
+    QVERIFY(!queue->isEnabled());
+    page.selectMethod(LoaderKind::SystemdBoot);
+    timeout = currentTimeout();
+    QVERIFY(timeout);
+    QCOMPARE(timeout->text(), QString("5"));
     selector->setCurrentIndex(1);
     timeout = currentTimeout();
     QVERIFY(timeout);

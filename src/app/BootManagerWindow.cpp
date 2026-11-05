@@ -108,6 +108,8 @@ BootManagerWindow::BootManagerWindow(QWidget *parent) : QMainWindow(parent)
     });
     connect(apply_, &QPushButton::clicked, this, &BootManagerWindow::applyTransaction);
     connect(menu_, &MenuPage::operationRequested, this, &BootManagerWindow::queue);
+    connect(menu_, &MenuPage::methodChanged, settings_, &SettingsPage::selectMethod);
+    connect(settings_, &SettingsPage::methodChanged, menu_, &MenuPage::selectMethod);
     connect(settings_, &SettingsPage::operationRequested, this, &BootManagerWindow::queue);
     connect(firmware_, &FirmwarePage::operationRequested, this, &BootManagerWindow::queue);
     connect(repair_, &RepairPage::operationRequested, this, &BootManagerWindow::queue);
