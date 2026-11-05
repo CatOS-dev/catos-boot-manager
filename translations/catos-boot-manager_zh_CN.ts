@@ -1051,6 +1051,8 @@
 
         <message><source>Unknown / could not read</source><translation>未知／读取失败</translation></message>
         <message><source>Not available in BIOS mode</source><translation>BIOS 模式下不可用</translation></message>
+
+        <message><source>Before applying, configuration files edited by this GUI and the observed firmware state are saved privately. Generator outputs, kernels and EFI programs are outside this backup; it is not a complete rollback.</source><translation>应用前将私密保存本界面修改的配置文件及读取到的固件状态。生成器输出、内核和 EFI 程序不在备份范围内；此备份不代表完整回滚能力。</translation></message>
     </context>
     <context>
         <name>RepairPage</name>

@@ -26,6 +26,12 @@ Firmware writes cannot be made fully atomic by a GUI: an EFI NVRAM change may
 remain if a subsequent operation fails. The review dialog explicitly warns of
 this and shows operation output. EFI files are not deleted when deleting an NVRAM
 entry. All commands are invoked through an argument vector, not shell strings.
+Before applying, the executor saves GUI-edited configuration originals, the
+observed firmware state and its plan under `/var/lib/catos-boot-manager/backups/`.
+The private transaction manifest records direct command and configuration-write
+results, including partial failure. This does not back up generator outputs,
+kernels, EFI programs or raw firmware variables, and provides no automatic
+rollback.
 
 ## Supported workflows
 

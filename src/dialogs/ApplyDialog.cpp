@@ -61,6 +61,7 @@ ApplyResult ApplyDialog::execute(QWidget *parent, const BootTransaction &transac
     auto *warning = BootUi::muted(QObject::tr("Firmware/NVRAM changes are not fully atomic."
         " If an operation fails, earlier changes may remain; review the execution log."), &preview);
     layout->addWidget(warning);
+    layout->addWidget(BootUi::muted(QObject::tr("Before applying, configuration files edited by this GUI and the observed firmware state are saved privately. Generator outputs, kernels and EFI programs are outside this backup; it is not a complete rollback."), &preview));
     auto *controls = new QHBoxLayout;
     controls->addStretch();
     auto *cancel = new QPushButton(QObject::tr("Cancel"), &preview);

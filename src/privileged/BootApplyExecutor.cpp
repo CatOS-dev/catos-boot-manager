@@ -3,6 +3,7 @@
 #include "services/BootProbe.h"
 #include "services/BootSettings.h"
 #include "services/BootRepair.h"
+#include "services/BootBackup.h"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -20,14 +21,25 @@
 #include <unistd.h>
 
 namespace {
-bool run(const QString &program, const QStringList &arguments)
+bool recordResult(BootBackup &backup, const QString &action, bool success)
+{
+    QString error;
+    if (!backup.record(action, success, &error)) {
+        QTextStream(stderr) << "Cannot record execution result: " << error << Qt::endl;
+        return false;
+    }
+    return success;
+}
+
+bool run(BootBackup &backup, const QString &program, const QStringList &arguments)
 {
     QTextStream(stdout) << program << QLatin1Char(' ') << arguments.join(QLatin1Char(' ')) << Qt::endl;
     QProcess process;
     process.setProcessChannelMode(QProcess::ForwardedChannels);
     process.start(program, arguments);
-    return process.waitForStarted(10000) && process.waitForFinished(-1)
+    const bool success = process.waitForStarted(10000) && process.waitForFinished(-1)
         && process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0;
+    return recordResult(backup, program + QLatin1Char(' ') + arguments.join(QLatin1Char(' ')), success);
 }
 
 bool available(const QString &name)
@@ -276,7 +288,7 @@ bool preflight(const QList<BootOperation> &operations, const BootSnapshot &snaps
     return true;
 }
 
-bool apply(const QList<BootOperation> &operations)
+bool apply(const QList<BootOperation> &operations, BootBackup &backup)
 {
     bool grubEdited = false;
     bool limineEdited = false;
@@ -300,7 +312,8 @@ bool apply(const QList<BootOperation> &operations)
             key = key.mid(marker + 1);
         }
         QString error;
-        if (!BootSettings::write(loader, esp, key, op.value, &error)) {
+        const bool written = BootSettings::write(loader, esp, key, op.value, &error);
+        if (!recordResult(backup, op.kind + QLatin1Char(':') + op.target, written)) {
             QTextStream(stderr) << "Configuration write failed: " << error << Qt::endl;
             return false;
         }
@@ -312,35 +325,35 @@ bool apply(const QList<BootOperation> &operations)
         rebuildLimine |= op.kind == QLatin1String("rebuild-limine");
     }
     if ((grubEdited || rebuildGrub)
-        && !run(QStringLiteral("grub-mkconfig"), {QStringLiteral("-o"), QStringLiteral("/boot/grub/grub.cfg")})) return false;
-    if ((limineEdited || rebuildLimine) && !run(QStringLiteral("limine-mkinitcpio"), {})) return false;
+        && !run(backup, QStringLiteral("grub-mkconfig"), {QStringLiteral("-o"), QStringLiteral("/boot/grub/grub.cfg")})) return false;
+    if ((limineEdited || rebuildLimine) && !run(backup, QStringLiteral("limine-mkinitcpio"), {})) return false;
     // Firmware operations are deliberately last; they can be partially applied
     // by UEFI firmware even when another later operation fails.
     for (const auto &op : operations) {
         if (op.kind == QLatin1String("firmware-order")) {
-            if (!run(QStringLiteral("efibootmgr"), {QStringLiteral("-o"), op.value})) return false;
+            if (!run(backup, QStringLiteral("efibootmgr"), {QStringLiteral("-o"), op.value})) return false;
         } else if (op.kind == QLatin1String("firmware-next")) {
-            if (!run(QStringLiteral("efibootmgr"), op.value.isEmpty()
+            if (!run(backup, QStringLiteral("efibootmgr"), op.value.isEmpty()
                 ? QStringList{QStringLiteral("-N")}
                 : QStringList{QStringLiteral("-n"), op.value})) return false;
         } else if (op.kind == QLatin1String("firmware-toggle")) {
-            if (!run(QStringLiteral("efibootmgr"), {QStringLiteral("-b"), op.target,
+            if (!run(backup, QStringLiteral("efibootmgr"), {QStringLiteral("-b"), op.target,
                 op.value == QLatin1String("1") ? QStringLiteral("-a") : QStringLiteral("-A")})) return false;
         } else if (op.kind == QLatin1String("firmware-rename")) {
-            if (!run(QStringLiteral("efibootmgr"), {QStringLiteral("-b"), op.target,
+            if (!run(backup, QStringLiteral("efibootmgr"), {QStringLiteral("-b"), op.target,
                 QStringLiteral("-L"), op.value})) return false;
         } else if (op.kind == QLatin1String("firmware-remove")) {
-            if (!run(QStringLiteral("efibootmgr"), {QStringLiteral("-b"), op.target,
+            if (!run(backup, QStringLiteral("efibootmgr"), {QStringLiteral("-b"), op.target,
                 QStringLiteral("-B")})) return false;
         } else if (op.kind == QLatin1String("firmware-add")) {
             QStringList arguments;
             QString error;
             if (!firmwareAddArguments(op.target, op.value, &arguments, &error)
-                || !run(QStringLiteral("efibootmgr"), arguments)) return false;
+                || !run(backup, QStringLiteral("efibootmgr"), arguments)) return false;
         } else if (op.kind == QLatin1String("limine-add-efi")) {
-            if (!run(QStringLiteral("limine-entry-tool"), {QStringLiteral("--add-efi"), op.value, op.target})) return false;
+            if (!run(backup, QStringLiteral("limine-entry-tool"), {QStringLiteral("--add-efi"), op.value, op.target})) return false;
         } else if (op.kind == QLatin1String("limine-remove-entry")) {
-            if (!run(QStringLiteral("limine-entry-tool"),
+            if (!run(backup, QStringLiteral("limine-entry-tool"),
                      {QStringLiteral("--remove-entry"), op.target, op.value})) return false;
         } else if (op.kind == QLatin1String("limine-add-kernel")) {
             const QJsonObject data = QJsonDocument::fromJson(op.value.toUtf8()).object();
@@ -349,15 +362,15 @@ bool apply(const QList<BootOperation> &operations)
                              data.value(QStringLiteral("kernel")).toString()};
             const QString suffix = data.value(QStringLiteral("suffix")).toString();
             if (!suffix.isEmpty()) args.append(suffix);
-            if (!run(QStringLiteral("limine-entry-tool"), args)) return false;
+            if (!run(backup, QStringLiteral("limine-entry-tool"), args)) return false;
         } else if (op.kind == QLatin1String("limine-add-uki")) {
-            if (!run(QStringLiteral("limine-entry-tool"),
+            if (!run(backup, QStringLiteral("limine-entry-tool"),
                      {QStringLiteral("--add-uki"), op.target, op.value})) return false;
         } else if (op.kind == QLatin1String("limine-global-setting")) {
-            if (!run(QStringLiteral("limine-entry-tool"),
+            if (!run(backup, QStringLiteral("limine-entry-tool"),
                      {QStringLiteral("--set-global"), op.target, op.value})) return false;
         } else if (op.kind == QLatin1String("update-systemd")) {
-            if (!run(QStringLiteral("bootctl"),
+            if (!run(backup, QStringLiteral("bootctl"),
                      {QStringLiteral("--esp-path=") + op.target, QStringLiteral("update")})) return false;
         } else if (BootRepair::supports(op.kind)) {
             QString error;
@@ -398,7 +411,19 @@ int main(int argc, char **argv)
         errors << "Transaction rejected: " << error << Qt::endl;
         return 3;
     }
-    if (!apply(operations)) {
+    BootBackup backup;
+    if (!backup.prepare(operations, snapshot, QStringLiteral("/var/lib/catos-boot-manager/backups"), &error)) {
+        errors << "Backup failed before applying changes: " << error << Qt::endl;
+        return 3;
+    }
+    QTextStream(stdout) << "Configuration backup and execution report: " << backup.directory() << Qt::endl;
+    QTextStream(stdout) << "Backup covers GUI-edited configuration and observed firmware state; generator outputs and EFI programs are not included." << Qt::endl;
+    const bool applied = apply(operations, backup);
+    if (!backup.finish(applied, &error)) {
+        errors << "Execution report could not be finalized: " << error << Qt::endl;
+        return 4;
+    }
+    if (!applied) {
         errors << "Transaction stopped. Some earlier operations may already have been applied."
                << Qt::endl;
         return 4;
