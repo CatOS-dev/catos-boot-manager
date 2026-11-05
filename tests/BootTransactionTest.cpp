@@ -1,8 +1,10 @@
 #include "model/BootTransaction.h"
+#include "model/BootPlan.h"
 #include "pages/FirmwarePage.h"
 #include "pages/PendingPage.h"
 
 #include <QListWidget>
+#include <QLabel>
 #include <QPushButton>
 #include <QTableWidget>
 #include <QtTest>
@@ -15,6 +17,10 @@ private slots:
     void cancelIndividualOperation();
     void clearStagedBootNext();
     void restoreOrderThroughPage();
+    void rejectDeletedNextBoot();
+    void clearNextBeforeRemoval();
+    void rejectEditOfRemovedEntry();
+    void validateRemainingOrder();
 };
 
 void BootTransactionTest::restoreFirmwareValues()
@@ -125,6 +131,64 @@ void BootTransactionTest::restoreOrderThroughPage()
     queue->click();
     QCOMPARE(transaction.count(), 0);
     QCOMPARE(table->item(0, 0)->data(Qt::UserRole).toString(), QString("0001"));
+}
+
+void BootTransactionTest::rejectDeletedNextBoot()
+{
+    BootSnapshot snapshot;
+    snapshot.bootOrder = {"0001", "0002"};
+    snapshot.firmware = {{"0002", "Second", "", "", true, false}};
+    BootTransaction transaction;
+    transaction.stage({"firmware-remove", "0002", "", "", "Remove second"});
+    transaction.stage({"firmware-next", "BootNext", "0002", "", "Boot once"});
+    QVERIFY(!BootPlan::firmwareConflict(transaction.operations(), snapshot).isEmpty());
+    PendingPage page;
+    page.updateTransaction(transaction, snapshot);
+    auto *conflict = page.findChild<QLabel *>("pendingConflict");
+    QVERIFY(conflict);
+    QVERIFY(!conflict->isHidden());
+    transaction.remove("firmware-next:BootNext");
+    page.updateTransaction(transaction, snapshot);
+    QVERIFY(BootPlan::firmwareConflict(transaction.operations(), snapshot).isEmpty());
+    QVERIFY(conflict->isHidden());
+}
+
+void BootTransactionTest::clearNextBeforeRemoval()
+{
+    BootSnapshot snapshot;
+    snapshot.bootNext = "0002";
+    BootTransaction transaction;
+    transaction.stage({"firmware-remove", "0002", "", "", "Remove second"});
+    QVERIFY(!BootPlan::firmwareConflict(transaction.operations(), snapshot).isEmpty());
+    transaction.stage({"firmware-next", "BootNext", "", "0002", "Clear next"});
+    QVERIFY(BootPlan::firmwareConflict(transaction.operations(), snapshot).isEmpty());
+    transaction.stage({"firmware-next", "BootNext", "0002", "0002", "Restore next"});
+    QVERIFY(!BootPlan::firmwareConflict(transaction.operations(), snapshot).isEmpty());
+}
+
+void BootTransactionTest::rejectEditOfRemovedEntry()
+{
+    BootTransaction transaction;
+    transaction.stage({"firmware-rename", "0002", "New name", "", "Rename"});
+    transaction.stage({"firmware-remove", "0002", "", "", "Remove"});
+    QVERIFY(!BootPlan::firmwareConflict(transaction.operations(), {}).isEmpty());
+    transaction.remove("firmware-rename:0002");
+    transaction.stage({"firmware-toggle", "0002", "0", "1", "Disable"});
+    QVERIFY(!BootPlan::firmwareConflict(transaction.operations(), {}).isEmpty());
+}
+
+void BootTransactionTest::validateRemainingOrder()
+{
+    BootSnapshot snapshot;
+    snapshot.bootOrder = {"0001", "0002", "0003"};
+    BootTransaction transaction;
+    transaction.stage({"firmware-remove", "0002", "", "", "Remove"});
+    transaction.stage({"firmware-order", "BootOrder", "0003,0002,0001", "0001,0002,0003", "Order"});
+    QVERIFY(!BootPlan::firmwareConflict(transaction.operations(), snapshot).isEmpty());
+    transaction.stage({"firmware-order", "BootOrder", "0003,0001", "0001,0002,0003", "Order"});
+    QVERIFY(BootPlan::firmwareConflict(transaction.operations(), snapshot).isEmpty());
+    transaction.stage({"firmware-order", "BootOrder", "0003,0001,0001", "0001,0002,0003", "Order"});
+    QVERIFY(!BootPlan::firmwareConflict(transaction.operations(), snapshot).isEmpty());
 }
 
 QTEST_MAIN(BootTransactionTest)

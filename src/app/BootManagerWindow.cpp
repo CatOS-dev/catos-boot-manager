@@ -1,4 +1,5 @@
 #include "BootManagerWindow.h"
+#include "model/BootPlan.h"
 #include "dialogs/ApplyDialog.h"
 #include "pages/FirmwarePage.h"
 #include "pages/MenuPage.h"
@@ -138,15 +139,18 @@ void BootManagerWindow::queue(const BootOperation &operation)
 void BootManagerWindow::updateFooter()
 {
     const int count = transaction_.count();
-    pendingPage_->updateTransaction(transaction_);
+    const QString conflict = BootPlan::firmwareConflict(transaction_.operations(), snapshot_);
+    pendingPage_->updateTransaction(transaction_, snapshot_);
     firmware_->updateTransaction(transaction_);
     pending_->setText(count ? tr("%1 pending change(s)").arg(count) : tr("No pending changes"));
-    apply_->setEnabled(count > 0);
+    apply_->setEnabled(count > 0 && conflict.isEmpty());
+    apply_->setToolTip(conflict);
     discard_->setEnabled(count > 0);
 }
 
 void BootManagerWindow::applyTransaction()
 {
+    if (!BootPlan::firmwareConflict(transaction_.operations(), snapshot_).isEmpty()) return;
     const auto result = ApplyDialog::execute(this, transaction_);
     if (result == ApplyResult::Cancelled) return;
     transaction_.clear();

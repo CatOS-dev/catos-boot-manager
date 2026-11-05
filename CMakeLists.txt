@@ -11,6 +11,8 @@ add_library(catos-boot-core STATIC
     src/model/BootTypes.h
     src/model/BootTransaction.h
     src/model/BootTransaction.cpp
+    src/model/BootPlan.h
+    src/model/BootPlan.cpp
     src/services/BootProbe.h
     src/services/BootProbe.cpp
     src/services/BootSettings.h

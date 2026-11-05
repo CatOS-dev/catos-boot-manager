@@ -1,4 +1,5 @@
 #include "model/BootTransaction.h"
+#include "model/BootPlan.h"
 #include "services/BootProbe.h"
 #include "services/BootSettings.h"
 #include "services/BootRepair.h"
@@ -113,6 +114,8 @@ bool firmwareAddArguments(const QString &path, const QString &label,
 
 bool preflight(const QList<BootOperation> &operations, const BootSnapshot &snapshot, QString *error)
 {
+    *error = BootPlan::firmwareConflict(operations, snapshot);
+    if (!error->isEmpty()) return false;
     QSet<QString> used;
     bool rebuildGrub = false;
     bool rebuildLimine = false;
@@ -151,10 +154,8 @@ bool preflight(const QList<BootOperation> &operations, const BootSnapshot &snaps
                 *error = QStringLiteral("Firmware boot order changed"); return false;
             }
             const QStringList requested = op.value.split(QLatin1Char(','), Qt::SkipEmptyParts);
-            QSet<QString> check(requested.begin(), requested.end());
-            QSet<QString> existing(snapshot.bootOrder.begin(), snapshot.bootOrder.end());
-            if (requested.size() != snapshot.bootOrder.size() || check != existing) {
-                *error = QStringLiteral("Boot order does not match registered entries"); return false;
+            if (requested.isEmpty()) {
+                *error = QStringLiteral("Boot order cannot be empty"); return false;
             }
         } else if (op.kind == QLatin1String("firmware-next")) {
             if (!snapshot.uefi || snapshot.bootNext != op.expected

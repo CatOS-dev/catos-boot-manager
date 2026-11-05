@@ -998,6 +998,11 @@
             <source>Browse</source>
             <translation>浏览</translation>
         </message>
+
+        <message><source>Boot%1 is selected for the next boot and queued for removal. Clear or change the next boot selection.</source><translation>Boot%1 已被选为下次启动项，同时又被暂存删除。请清除或更改下次启动选择。</translation></message>
+        <message><source>Boot%1 is selected for the next boot and queued to be disabled.</source><translation>Boot%1 已被选为下次启动项，同时又被暂存禁用。</translation></message>
+        <message><source>Boot%1 cannot be edited and removed in the same plan.</source><translation>同一计划不能同时编辑和删除 Boot%1。</translation></message>
+        <message><source>The pending boot order must contain each remaining BootOrder entry exactly once.</source><translation>待应用启动顺序必须完整包含所有保留的 BootOrder 启动项，且不得重复。</translation></message>
     </context>
     <context>
         <name>RepairPage</name>

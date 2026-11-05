@@ -1,4 +1,5 @@
 #include "PendingPage.h"
+#include "model/BootPlan.h"
 #include "widgets/BootUi.h"
 
 #include <QLabel>
@@ -12,6 +13,11 @@ PendingPage::PendingPage(QWidget *parent) : QWidget(parent)
     auto *content = layout->parentWidget();
     BootUi::title(layout, content, tr("Pending changes"),
         tr("Review queued operations or cancel an individual change before applying."));
+    conflict_ = new QLabel(content);
+    conflict_->setObjectName(QStringLiteral("pendingConflict"));
+    conflict_->setTextFormat(Qt::PlainText);
+    conflict_->setWordWrap(true);
+    layout->addWidget(conflict_);
     items_ = new QListWidget(content);
     items_->setObjectName(QStringLiteral("pendingOperations"));
     items_->setMinimumHeight(240);
@@ -36,8 +42,11 @@ PendingPage::PendingPage(QWidget *parent) : QWidget(parent)
     });
 }
 
-void PendingPage::updateTransaction(const BootTransaction &transaction)
+void PendingPage::updateTransaction(const BootTransaction &transaction, const BootSnapshot &snapshot)
 {
+    const QString conflict = BootPlan::firmwareConflict(transaction.operations(), snapshot);
+    conflict_->setText(conflict);
+    conflict_->setVisible(!conflict.isEmpty());
     const QString selected = items_->currentItem()
         ? items_->currentItem()->data(Qt::UserRole).toString() : QString();
     items_->clear();
