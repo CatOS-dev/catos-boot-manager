@@ -27,11 +27,16 @@ QString settingValue(const QString &line, LoaderKind loader, const QString &key,
     const QString trimmed = line.trimmed();
     *matched = false;
     if (trimmed.startsWith(QLatin1Char('#'))) return {};
-    if (loader == LoaderKind::SystemdBoot) {
+    if (loader == LoaderKind::SystemdBoot || loader == LoaderKind::Refind) {
         const auto fields = trimmed.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
         if (!fields.isEmpty() && fields[0] == key) {
             *matched = true;
-            return trimmed.mid(key.size()).trimmed();
+            QString value = trimmed.mid(key.size()).trimmed();
+            if (loader == LoaderKind::Refind) {
+                if (value.startsWith(QLatin1Char('"'))) return value.section(QLatin1Char('"'), 1, 1);
+                value = value.section(QLatin1Char('#'), 0, 0).trimmed();
+            }
+            return value;
         }
         return {};
     }
@@ -47,6 +52,9 @@ QString settingValue(const QString &line, LoaderKind loader, const QString &key,
 QString formattedLine(LoaderKind loader, const QString &key, const QString &value)
 {
     if (loader == LoaderKind::SystemdBoot) return key + QLatin1Char(' ') + value;
+    if (loader == LoaderKind::Refind)
+        return key + QLatin1Char(' ') + (key == QLatin1String("default_selection")
+            ? QLatin1Char('"') + value + QLatin1Char('"') : value);
     if (loader == LoaderKind::Limine) {
         if (key.startsWith(QLatin1String("KERNEL_CMDLINE"))) return key + QLatin1Char('=') + value;
         return key + QStringLiteral("=\"") + value + QLatin1Char('"');
@@ -61,6 +69,9 @@ QList<BootSettings::Setting> BootSettings::settings(LoaderKind loader)
 {
     switch (loader) {
     case LoaderKind::Refind:
+        return {{QStringLiteral("timeout"), QObject::tr("Menu timeout (seconds)"), QObject::tr("Seconds, -1 for immediate boot; empty uses the loader default")},
+                {QStringLiteral("default_selection"), QObject::tr("Default entry"), QObject::tr("rEFInd default selection; empty uses the loader default")},
+                {QStringLiteral("resolution"), QObject::tr("Menu resolution"), QObject::tr("For example: 1920 1080; empty uses the loader default")}};
     case LoaderKind::Uki:
     case LoaderKind::EfiStub:
         return {};
@@ -91,6 +102,7 @@ QString BootSettings::configPath(LoaderKind loader, const QString &esp)
 {
     switch (loader) {
     case LoaderKind::Refind:
+        return esp;
     case LoaderKind::Uki:
     case LoaderKind::EfiStub:
         return {};
@@ -137,6 +149,15 @@ bool BootSettings::allowed(LoaderKind loader, const QString &key, const QString 
     if (!known || value.size() > 2048 || value.contains(QLatin1Char('\n'))
         || value.contains(QLatin1Char('\r')) || value.contains(QChar::Null)) return false;
     for (QChar ch : value) if (ch.unicode() < 32 || ch.unicode() == 127) return false;
+    if (loader == LoaderKind::Refind) {
+        if (value.isEmpty()) return true;
+        if (key == QLatin1String("timeout"))
+            return QRegularExpression(QStringLiteral("^(?:[0-9]{1,4}|-1)$")).match(value).hasMatch();
+        if (key == QLatin1String("resolution"))
+            return QRegularExpression(QStringLiteral("^[0-9]{1,5}(?: [0-9]{1,5})?$")).match(value).hasMatch();
+        return !value.contains(QLatin1Char('"')) && !value.contains(QLatin1Char('#'))
+            && !value.contains(QLatin1Char('{')) && !value.contains(QLatin1Char('}'));
+    }
     if (key == QLatin1String("GRUB_TIMEOUT"))
         return QRegularExpression(QStringLiteral("^(?:[0-9]{1,4}|-1)$")).match(value).hasMatch();
     if (loader == LoaderKind::SystemdBoot && key == QLatin1String("timeout"))
@@ -158,6 +179,7 @@ bool BootSettings::write(LoaderKind loader, const QString &esp, const QString &k
 {
     if (!allowed(loader, key, value)) { if (error) *error = QStringLiteral("Unsupported setting or value"); return false; }
     const QString path = configPath(loader, esp);
+    if (loader == LoaderKind::Refind && !refindEditable(path, error)) return false;
     const QFileInfo info(path);
     if (path.isEmpty() || info.isSymLink() || !info.dir().exists()) {
         if (error) *error = QStringLiteral("Configuration path is unavailable");
@@ -178,9 +200,13 @@ bool BootSettings::write(LoaderKind loader, const QString &esp, const QString &k
     for (int i = 0; i < lines.size(); ++i) {
         bool matched = false;
         settingValue(lines[i], loader, key, &matched);
-        if (matched) { lines[i] = replacement; found = true; }
+        if (matched) {
+            if (loader == LoaderKind::Refind && value.isEmpty()) lines.removeAt(i--);
+            else lines[i] = replacement;
+            found = true;
+        }
     }
-    if (!found) lines.append(replacement);
+    if (!found && !(loader == LoaderKind::Refind && value.isEmpty())) lines.append(replacement);
     QSaveFile output(path);
     if (!output.open(QIODevice::WriteOnly | QIODevice::Text)) {
         if (error) *error = output.errorString();
@@ -190,6 +216,29 @@ bool BootSettings::write(LoaderKind loader, const QString &esp, const QString &k
     if (output.write(contents) != contents.size() || !output.commit()) {
         if (error) *error = output.errorString();
         return false;
+    }
+    return true;
+}
+
+bool BootSettings::refindEditable(const QString &path, QString *error)
+{
+    QFile file(path);
+    const QFileInfo info(path);
+    if (info.fileName() != QLatin1String("refind.conf") || info.isSymLink()
+        || !file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        if (error) *error = QObject::tr("The selected rEFInd configuration cannot be read safely.");
+        return false;
+    }
+    QTextStream stream(&file);
+    while (!stream.atEnd()) {
+        const QString line = stream.readLine().trimmed();
+        if (line.isEmpty() || line.startsWith(QLatin1Char('#'))) continue;
+        const QString directive = line.section(QRegularExpression(QStringLiteral("\\s+")), 0, 0);
+        if (directive.compare(QLatin1String("include"), Qt::CaseInsensitive) == 0
+            || line.contains(QLatin1Char('{')) || line.contains(QLatin1Char('}'))) {
+            if (error) *error = QObject::tr("This rEFInd configuration contains includes or manual entry blocks. Basic editing is unavailable because effective values require source-aware editing.");
+            return false;
+        }
     }
     return true;
 }

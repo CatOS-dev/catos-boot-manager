@@ -126,16 +126,32 @@ bool preflight(const QList<BootOperation> &operations, const BootSnapshot &snaps
         if (used.contains(op.key())) { *error = QStringLiteral("Duplicate operation"); return false; }
         used.insert(op.key());
         if (op.kind == QLatin1String("grub-setting")
+            || op.kind == QLatin1String("refind-setting")
             || op.kind == QLatin1String("limine-setting")
             || op.kind == QLatin1String("systemd-setting")) {
             LoaderKind loader;
             if (op.kind == QLatin1String("grub-setting")) { loader = LoaderKind::Grub; rebuildGrub = true; }
             else if (op.kind == QLatin1String("limine-setting")) { loader = LoaderKind::Limine; rebuildLimine = true; }
             else if (op.kind == QLatin1String("systemd-setting")) loader = LoaderKind::SystemdBoot;
+            else if (op.kind == QLatin1String("refind-setting")) loader = LoaderKind::Refind;
             else { *error = QStringLiteral("Unknown setting type"); return false; }
             // For systemd-boot the ESP is encoded in the operation's target as esp|key.
             QString key = op.target;
             QString systemdEsp;
+            if (loader == LoaderKind::Refind) {
+                const int marker = op.target.lastIndexOf(QLatin1Char('|'));
+                if (marker <= 0) { *error = QStringLiteral("Missing rEFInd configuration target"); return false; }
+                systemdEsp = op.target.left(marker);
+                key = op.target.mid(marker + 1);
+                bool bound = false;
+                for (const auto &installation : snapshot.installations)
+                    if (installation.kind == LoaderKind::Refind && installation.config == systemdEsp
+                        && installation.binaryPresent && !installation.espPartuuid.isEmpty()) bound = true;
+                if (!bound || !BootSettings::refindEditable(systemdEsp, error)) {
+                    if (error->isEmpty()) *error = QStringLiteral("rEFInd configuration is not bound to an installed instance");
+                    return false;
+                }
+            }
             if (loader == LoaderKind::SystemdBoot) {
                 const int marker = op.target.lastIndexOf(QLatin1Char('|'));
                 if (marker <= 0) { *error = QStringLiteral("Missing systemd-boot ESP"); return false; }
@@ -269,14 +285,16 @@ bool apply(const QList<BootOperation> &operations)
     // Apply configuration edits before invoking a generator, never per setting.
     for (const auto &op : operations) {
         if (op.kind != QLatin1String("grub-setting")
+            && op.kind != QLatin1String("refind-setting")
             && op.kind != QLatin1String("limine-setting")
             && op.kind != QLatin1String("systemd-setting")) continue;
         LoaderKind loader = LoaderKind::Grub;
         if (op.kind == QLatin1String("limine-setting")) loader = LoaderKind::Limine;
         else if (op.kind == QLatin1String("systemd-setting")) loader = LoaderKind::SystemdBoot;
+        else if (op.kind == QLatin1String("refind-setting")) loader = LoaderKind::Refind;
         QString key = op.target;
         QString esp;
-        if (loader == LoaderKind::SystemdBoot) {
+        if (loader == LoaderKind::SystemdBoot || loader == LoaderKind::Refind) {
             const int marker = key.lastIndexOf(QLatin1Char('|'));
             esp = key.left(marker);
             key = key.mid(marker + 1);

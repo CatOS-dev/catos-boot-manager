@@ -1,4 +1,5 @@
 #include "pages/SettingsPage.h"
+#include "services/BootSettings.h"
 
 #include <QComboBox>
 #include <QDir>
@@ -13,6 +14,8 @@ class SettingsDraftTest : public QObject {
 private slots:
     void preserveDraftAndOriginalValue();
     void rejectUnboundGeneratorConfiguration();
+    void editOnlySelectedRefindConfiguration();
+    void rejectRefindIncludesAndManualBlocks();
 };
 
 void SettingsDraftTest::preserveDraftAndOriginalValue()
@@ -116,6 +119,92 @@ void SettingsDraftTest::rejectUnboundGeneratorConfiguration()
     QVERIFY(!queue->isEnabled());
     queue->click();
     QCOMPARE(operations.count(), 0);
+}
+
+void SettingsDraftTest::editOnlySelectedRefindConfiguration()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString first = directory.path() + "/first";
+    const QString second = directory.path() + "/second";
+    QVERIFY(QDir().mkpath(first));
+    QVERIFY(QDir().mkpath(second));
+    QFile config(first + "/refind.conf");
+    const QByteArray original = "# keep this comment\ntimeout 5 # seconds\ndefault_selection \"CatOS Linux\"\nscanfor internal,external\n";
+    QVERIFY(config.open(QIODevice::WriteOnly));
+    QCOMPARE(config.write(original), qint64(original.size()));
+    config.close();
+    QVERIFY(QFile::copy(config.fileName(), second + "/refind.conf"));
+    BootSnapshot snapshot;
+    snapshot.installations = {
+        {LoaderKind::Refind, "first", first, "first-uuid", first + "/refind_x64.efi", config.fileName(), true},
+        {LoaderKind::Refind, "second", second, "second-uuid", second + "/refind_x64.efi", second + "/refind.conf", true}
+    };
+    SettingsPage page;
+    page.updateSnapshot(snapshot);
+    auto *timeout = page.findChild<QLineEdit *>("timeout");
+    auto *selection = page.findChild<QLineEdit *>("default_selection");
+    auto *queue = page.findChild<QPushButton *>("queueSettings");
+    QVERIFY(timeout);
+    QVERIFY(selection);
+    QVERIFY(queue);
+    QVERIFY(queue->isEnabled());
+    QCOMPARE(timeout->text(), QString("5"));
+    QCOMPARE(selection->text(), QString("CatOS Linux"));
+    timeout->setText("8");
+    selection->setText("CatOS LTS");
+    BootTransaction transaction;
+    connect(&page, &SettingsPage::operationRequested, &page, [&](const BootOperation &op) { transaction.stage(op); });
+    queue->click();
+    QCOMPARE(transaction.count(), 2);
+    QCOMPARE(transaction.operations()[0].kind, QString("refind-setting"));
+    QCOMPARE(transaction.operations()[0].target, config.fileName() + "|timeout");
+    QCOMPARE(transaction.operations()[0].expected, QString("5"));
+    QString error;
+    QVERIFY2(BootSettings::write(LoaderKind::Refind, config.fileName(), "timeout", "8", &error), qPrintable(error));
+    QVERIFY2(BootSettings::write(LoaderKind::Refind, config.fileName(), "default_selection", "CatOS LTS", &error), qPrintable(error));
+    QCOMPARE(BootSettings::read(LoaderKind::Refind, config.fileName(), "timeout"), QString("8"));
+    QCOMPARE(BootSettings::read(LoaderKind::Refind, config.fileName(), "default_selection"), QString("CatOS LTS"));
+    QFile other(second + "/refind.conf");
+    QVERIFY(other.open(QIODevice::ReadOnly));
+    QCOMPARE(other.readAll(), original);
+    QVERIFY(config.open(QIODevice::ReadOnly));
+    const QByteArray changed = config.readAll();
+    config.close();
+    QVERIFY(changed.contains("# keep this comment"));
+    QVERIFY(changed.contains("scanfor internal,external"));
+    QVERIFY2(BootSettings::write(LoaderKind::Refind, config.fileName(), "default_selection", "", &error), qPrintable(error));
+    QVERIFY(config.open(QIODevice::ReadOnly));
+    QVERIFY(!config.readAll().contains("default_selection"));
+}
+
+void SettingsDraftTest::rejectRefindIncludesAndManualBlocks()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    QFile config(directory.path() + "/refind.conf");
+    const QByteArray included = "timeout 5\ninclude themes/dark/theme.conf\n";
+    QVERIFY(config.open(QIODevice::WriteOnly));
+    QCOMPARE(config.write(included), qint64(included.size()));
+    config.close();
+    QString error;
+    QVERIFY(!BootSettings::refindEditable(config.fileName(), &error));
+    QVERIFY(!error.isEmpty());
+    QVERIFY(!BootSettings::write(LoaderKind::Refind, config.fileName(), "timeout", "8", &error));
+    QVERIFY(config.open(QIODevice::ReadOnly));
+    QCOMPARE(config.readAll(), included);
+    config.close();
+    const QByteArray manual = "timeout 5\nmenuentry CatOS {\n loader /vmlinuz\n}\n";
+    QVERIFY(config.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    QCOMPARE(config.write(manual), qint64(manual.size()));
+    config.close();
+    QVERIFY(!BootSettings::refindEditable(config.fileName(), &error));
+    QVERIFY(!BootSettings::write(LoaderKind::Refind, config.fileName(), "timeout", "8", &error));
+    QVERIFY(config.open(QIODevice::ReadOnly));
+    QCOMPARE(config.readAll(), manual);
+    QVERIFY(!BootSettings::allowed(LoaderKind::Refind, "default_selection", "Linux\"\ninclude bad"));
+    QVERIFY(!BootSettings::allowed(LoaderKind::Refind, "resolution", "1920x1080"));
+    QVERIFY(BootSettings::allowed(LoaderKind::Refind, "resolution", "1920 1080"));
 }
 
 QTEST_MAIN(SettingsDraftTest)

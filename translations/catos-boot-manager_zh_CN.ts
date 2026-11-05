@@ -1035,6 +1035,12 @@
         <message><source>Changing this instance requires a verified Secure Boot policy. Secure Boot is enabled or its state is unknown.</source><translation>切换此实例需要验证安全启动策略。当前安全启动已启用或状态未知。</translation></message>
         <message><source>The selected firmware entry does not match the requested boot selection.</source><translation>所选固件启动项与请求的启动选择不匹配。</translation></message>
         <message><source>The selected boot instance is also queued for removal or disabling.</source><translation>所选启动实例同时被暂存删除或禁用。</translation></message>
+
+        <message><source>Seconds, -1 for immediate boot; empty uses the loader default</source><translation>等待秒数，-1 为立即启动；留空使用引导器默认值</translation></message>
+        <message><source>rEFInd default selection; empty uses the loader default</source><translation>rEFInd 默认选择；留空使用引导器默认值</translation></message>
+        <message><source>For example: 1920 1080; empty uses the loader default</source><translation>例如：1920 1080；留空使用引导器默认值</translation></message>
+        <message><source>The selected rEFInd configuration cannot be read safely.</source><translation>无法安全读取所选 rEFInd 配置。</translation></message>
+        <message><source>This rEFInd configuration contains includes or manual entry blocks. Basic editing is unavailable because effective values require source-aware editing.</source><translation>此 rEFInd 配置含有 include 或手工条目块。有效值需要结合来源编辑，暂不支持基础编辑。</translation></message>
     </context>
     <context>
         <name>RepairPage</name>
