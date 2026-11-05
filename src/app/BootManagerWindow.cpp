@@ -5,6 +5,7 @@
 #include "pages/MenuPage.h"
 #include "pages/OverviewPage.h"
 #include "pages/MethodsPage.h"
+#include "pages/SecurityPage.h"
 #include "pages/PendingPage.h"
 #include "pages/RepairPage.h"
 #include "pages/SettingsPage.h"
@@ -57,7 +58,7 @@ BootManagerWindow::BootManagerWindow(QWidget *parent) : QMainWindow(parent)
     navigation_ = new QListWidget(sidebar);
     navigation_->setObjectName(QStringLiteral("navigation"));
     navigation_->addItems({tr("Overview"), tr("Boot methods"), tr("Boot menu"), tr("Loader settings"),
-                           tr("UEFI entries"), tr("Rebuild & update"), tr("Pending changes")});
+                           tr("UEFI entries"), tr("Rebuild & update"), tr("Secure Boot"), tr("Pending changes")});
     navigation_->setFrameShape(QFrame::NoFrame);
     navigation_->setSpacing(7);
     navigation_->setStyleSheet(QStringLiteral(
@@ -77,6 +78,7 @@ BootManagerWindow::BootManagerWindow(QWidget *parent) : QMainWindow(parent)
     pages_ = new QStackedWidget(right);
     overview_ = new OverviewPage(pages_);
     methods_ = new MethodsPage(pages_);
+    security_ = new SecurityPage(pages_);
     menu_ = new MenuPage(pages_);
     settings_ = new SettingsPage(pages_);
     firmware_ = new FirmwarePage(pages_);
@@ -84,7 +86,7 @@ BootManagerWindow::BootManagerWindow(QWidget *parent) : QMainWindow(parent)
     pendingPage_ = new PendingPage(pages_);
     for (QWidget *page : {static_cast<QWidget *>(overview_), static_cast<QWidget *>(methods_), static_cast<QWidget *>(menu_),
                           static_cast<QWidget *>(settings_), static_cast<QWidget *>(firmware_),
-                          static_cast<QWidget *>(repair_), static_cast<QWidget *>(pendingPage_)})
+                          static_cast<QWidget *>(repair_), static_cast<QWidget *>(security_), static_cast<QWidget *>(pendingPage_)})
         pages_->addWidget(page);
     rightLayout->addWidget(pages_, 1);
     footer_ = new QFrame(right);
@@ -116,6 +118,10 @@ BootManagerWindow::BootManagerWindow(QWidget *parent) : QMainWindow(parent)
     connect(settings_, &SettingsPage::methodChanged, methods_, &MethodsPage::selectMethod);
     connect(methods_, &MethodsPage::methodChanged, menu_, &MenuPage::selectMethod);
     connect(methods_, &MethodsPage::methodChanged, settings_, &SettingsPage::selectMethod);
+    connect(methods_, &MethodsPage::methodChanged, security_, &SecurityPage::selectMethod);
+    connect(menu_, &MenuPage::methodChanged, security_, &SecurityPage::selectMethod);
+    connect(settings_, &SettingsPage::methodChanged, security_, &SecurityPage::selectMethod);
+    connect(security_, &SecurityPage::methodChanged, methods_, &MethodsPage::selectMethod);
     connect(methods_, &MethodsPage::operationRequested, this, &BootManagerWindow::queue);
     connect(settings_, &SettingsPage::operationRequested, this, &BootManagerWindow::queue);
     connect(firmware_, &FirmwarePage::operationRequested, this, &BootManagerWindow::queue);
@@ -133,6 +139,7 @@ BootManagerWindow::BootManagerWindow(QWidget *parent) : QMainWindow(parent)
         snapshot_ = snapshot;
         overview_->updateSnapshot(snapshot_);
         methods_->updateSnapshot(snapshot_);
+        security_->updateSnapshot(snapshot_);
         menu_->updateSnapshot(snapshot_);
         settings_->updateSnapshot(snapshot_);
         firmware_->updateSnapshot(snapshot_);

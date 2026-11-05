@@ -18,6 +18,7 @@ class RepairPage;
 class PendingPage;
 class BootScan;
 class MethodsPage;
+class SecurityPage;
 
 class BootManagerWindow : public QMainWindow {
     Q_OBJECT
@@ -38,6 +39,7 @@ private:
     QStackedWidget *pages_ = nullptr;
     OverviewPage *overview_ = nullptr;
     MethodsPage *methods_ = nullptr;
+    SecurityPage *security_ = nullptr;
     MenuPage *menu_ = nullptr;
     SettingsPage *settings_ = nullptr;
     FirmwarePage *firmware_ = nullptr;

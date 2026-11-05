@@ -649,6 +649,8 @@
 %2</translation></message>
 
         <message><source>Boot methods</source><translation>引导方式</translation></message>
+
+        <message><source>Secure Boot</source><translation>安全启动</translation></message>
     </context>
     <context>
         <name>OverviewPage</name>
@@ -1046,6 +1048,9 @@
         <message><source>CatOS snapshot boot integration is not available for this method.</source><translation>此方式尚无 CatOS 快照引导集成。</translation></message>
         <message><source>CatOS automatic Secure Boot integration is not available for this method.</source><translation>此方式尚无 CatOS 自动安全启动集成。</translation></message>
         <message><source>The target package database could not be read. Missing packages are unknown.</source><translation>无法读取目标软件包数据库，缺失软件包状态未知。</translation></message>
+
+        <message><source>Unknown / could not read</source><translation>未知／读取失败</translation></message>
+        <message><source>Not available in BIOS mode</source><translation>BIOS 模式下不可用</translation></message>
     </context>
     <context>
         <name>RepairPage</name>
@@ -1423,5 +1428,38 @@ Already installed: %1
 Missing: %2</source><translation>
 已安装：%1
 缺失：%2</translation></message>
+    </context>
+    <context>
+        <name>SecurityPage</name>
+        <message><source>Secure Boot</source><translation>安全启动</translation></message>
+        <message><source>Firmware state, public MOK certificates and signature information for deployed EFI programs.</source><translation>查看固件状态、公开的 MOK 证书和已部署 EFI 程序的签名信息。</translation></message>
+        <message><source>MOK certificates and pending enrollment</source><translation>MOK 证书与待注册请求</translation></message>
+        <message><source>EFI signature information</source><translation>EFI 签名信息</translation></message>
+        <message><source>A signature table does not prove firmware trust or a verified boot chain. Key creation, enrollment and signing are not yet available here.</source><translation>存在签名表不代表固件信任或启动链验证通过。此处尚未提供密钥生成、注册和签名操作。</translation></message>
+        <message><source>Firmware Secure Boot: %1
+Firmware SetupMode: %2
+Kernel module signature enforcement: %3</source><translation>固件安全启动：%1
+固件 SetupMode：%2
+内核模块强制签名验证：%3</translation></message>
+        <message><source>Enrolled MOK certificates:
+%1
+Pending MOK certificates:
+%2
+Check messages:
+%3</source><translation>已注册的 MOK 证书：
+%1
+待注册的 MOK 证书：
+%2
+检查信息：
+%3</translation></message>
+        <message><source>No EFI program selected.</source><translation>未选择 EFI 程序。</translation></message>
+        <message><source>Signature table present; trust unverified</source><translation>存在签名表；尚未验证信任关系</translation></message>
+        <message><source>No signature table present</source><translation>不存在签名表</translation></message>
+        <message><source>Signature state unknown</source><translation>签名状态未知</translation></message>
+        <message><source>Program: %1
+State: %2
+%3</source><translation>程序：%1
+状态：%2
+%3</translation></message>
     </context>
 </TS>

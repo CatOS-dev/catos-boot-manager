@@ -8,6 +8,7 @@
 
 enum class LoaderKind { Grub, Limine, Refind, SystemdBoot, Uki, EfiStub };
 enum class SecureBootState { Unknown, Disabled, Enabled, Unsupported };
+enum class SignatureState { Unknown, Absent, Present };
 
 inline constexpr std::array<LoaderKind, 6> loaderKinds{
     LoaderKind::Grub, LoaderKind::Limine, LoaderKind::Refind,
@@ -59,6 +60,8 @@ struct BootInstallation {
     bool nextEntry = false;
     QString evidence;
     QString imageType;
+    SignatureState signature = SignatureState::Unknown;
+    QString signatureDetails;
 };
 
 struct BootSnapshot {
@@ -74,6 +77,11 @@ struct BootSnapshot {
     SecureBootState secureBoot = SecureBootState::Unknown;
     QSet<QString> installedPackages;
     bool packageStateAvailable = false;
+    SecureBootState setupMode = SecureBootState::Unknown;
+    SecureBootState moduleSignatureEnforcement = SecureBootState::Unknown;
+    QString enrolledMok;
+    QString pendingMok;
+    QStringList securityMessages;
 
     QList<BootInstallation> manageableInstallations() const
     {

@@ -1,6 +1,7 @@
 #include "BootProbe.h"
 #include "BootDiscovery.h"
 #include "BootPackages.h"
+#include "BootSecurity.h"
 
 #include <QDir>
 #include <QDirIterator>
@@ -121,15 +122,6 @@ BootSnapshot BootProbe::inspect()
     BootSnapshot state;
     BootPackages::inspect(state);
     state.uefi = QDir(QStringLiteral("/sys/firmware/efi")).exists();
-    state.secureBoot = state.uefi ? SecureBootState::Unknown : SecureBootState::Unsupported;
-    if (state.uefi) {
-        QFile secureBoot(QStringLiteral("/sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c"));
-        if (secureBoot.open(QIODevice::ReadOnly)) {
-            const QByteArray value = secureBoot.readAll();
-            if (value.size() == 5 && value[4] == 0) state.secureBoot = SecureBootState::Disabled;
-            if (value.size() == 5 && value[4] == 1) state.secureBoot = SecureBootState::Enabled;
-        }
-    }
     const QString efidata = state.uefi
         ? runReadOnly(QStringLiteral("efibootmgr"), {QStringLiteral("-v")}) : QString();
     static const QRegularExpression currentPattern(QStringLiteral("^BootCurrent:\\s*([0-9A-Fa-f]{4})$"));
@@ -192,6 +184,7 @@ BootSnapshot BootProbe::inspect()
     BootDiscovery::populate(state, partitions, QStringLiteral("/"), [](const QString &path) {
         return runReadOnly(QStringLiteral("bootctl"), {QStringLiteral("kernel-identify"), path});
     });
+    BootSecurity::inspect(state);
     if (!state.uefi) state.messages.append(QObject::tr("This system was not booted in UEFI mode."));
     if (mounts.isEmpty()) state.messages.append(QObject::tr("No mounted EFI system partition was detected."));
     return state;
