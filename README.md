@@ -48,6 +48,12 @@ rollback.
 - View each loader's menu. With the accompanying new `limine-tool`, navigate a
   structured Limine menu; add kernel/initramfs, UKI and EFI entries, remove a
   selected entry, select the default and change menu timeout.
+- View systemd-boot BLS and UKI entries through `bootctl` JSON with their stable
+  IDs and source paths. A selected configured default is staged against the
+  menu fingerprint and rejected if the entry changes or disappears. A firmware
+  `LoaderEntryDefault` override disables config-only default changes. This view
+  currently scopes entries to the selected ESP; separate XBOOTLDR selection
+  and manual BLS editing are not implemented.
 - Manage UEFI BootOrder, BootNext, entry creation/removal, enable/disable and
   entry labels via `efibootmgr`.
 - Select an existing registered instance on the Boot methods page for default

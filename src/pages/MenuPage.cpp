@@ -1,5 +1,6 @@
 #include "MenuPage.h"
 #include "services/BootProbe.h"
+#include "services/BootBls.h"
 #include "widgets/BootUi.h"
 #include "widgets/LoaderSelector.h"
 
@@ -72,6 +73,7 @@ MenuPage::MenuPage(QWidget *parent) : QWidget(parent)
     selector_ = new LoaderSelector(content);
     layout->addWidget(selector_);
     menu_ = new QTreeWidget(content);
+    menu_->setObjectName(QStringLiteral("bootMenuEntries"));
     menu_->setHeaderLabels({tr("Boot entry"), tr("Type")});
     menu_->setAlternatingRowColors(true);
     menu_->setRootIsDecorated(true);
@@ -102,6 +104,10 @@ MenuPage::MenuPage(QWidget *parent) : QWidget(parent)
     timeout_ = BootUi::action(layout, content, tr("Menu timeout"),
                              tr("Configure Limine menu delay, in seconds or 'no'."),
                              QStringLiteral("preferences-system-time"));
+    systemdDefault_ = new QPushButton(tr("Use selected entry as configured default"), content);
+    systemdDefault_->setObjectName(QStringLiteral("systemdConfiguredDefault"));
+    systemdDefault_->setVisible(false);
+    layout->addWidget(systemdDefault_, 0, Qt::AlignRight);
     layout->addStretch();
     connect(selector_, &LoaderSelector::selectionChanged, this, [this] {
         manageable_ = selector_->installations();
@@ -113,6 +119,7 @@ MenuPage::MenuPage(QWidget *parent) : QWidget(parent)
     connect(uki_, &QPushButton::clicked, this, &MenuPage::addUki);
     connect(remove_, &QPushButton::clicked, this, &MenuPage::removeEntry);
     connect(default_, &QPushButton::clicked, this, &MenuPage::setDefault);
+    connect(systemdDefault_, &QPushButton::clicked, this, &MenuPage::setDefault);
     connect(timeout_, &QPushButton::clicked, this, &MenuPage::setTimeout);
     connect(menu_, &QTreeWidget::currentItemChanged, this,
             [this](QTreeWidgetItem *item, QTreeWidgetItem *) { showSelected(item); });
@@ -133,6 +140,8 @@ void MenuPage::loadMenu()
     menuHash_.clear();
     menuTimeout_.clear();
     menuDefault_.clear();
+    systemdDefault_->setVisible(false);
+    systemdDefault_->setEnabled(false);
     const int index = selector_->currentIndex();
     if (index < 0 || index >= manageable_.size()) {
         details_->setPlainText(tr("No installed boot menu was detected."));
@@ -179,14 +188,31 @@ void MenuPage::loadMenu()
         }
         break;
     }
-    case LoaderKind::SystemdBoot:
-        if (!output.trimmed().isEmpty()) {
+    case LoaderKind::SystemdBoot: {
+        QString error;
+        const auto entries = BootBls::entries(output, loader.esp, &error);
+        if (!error.isEmpty()) { details_->setPlainText(error); break; }
+        for (const auto &value : entries) {
+            const auto entry = value.toObject();
             auto *item = new QTreeWidgetItem(menu_);
-            item->setText(0, tr("systemd-boot entries"));
-            item->setText(1, tr("Read-only listing"));
-            item->setData(0, Qt::UserRole + 3, output.trimmed());
+            const QString title = entry.value(QStringLiteral("showTitle")).toString();
+            const QString id = entry.value(QStringLiteral("id")).toString();
+            item->setText(0, title.isEmpty() ? id : title);
+            item->setText(1, entry.value(QStringLiteral("type")).toString() == QLatin1String("type2")
+                ? tr("UKI") : tr("BLS entry"));
+            item->setData(0, Qt::UserRole, id);
+            item->setData(0, Qt::UserRole + 3, tr("Entry ID: %1\nSource: %2\nKernel: %3\nOptions: %4\nReported default: %5")
+                .arg(id, entry.value(QStringLiteral("path")).toString(),
+                     entry.value(QStringLiteral("linux")).toString(), entry.value(QStringLiteral("options")).toString(),
+                     entry.value(QStringLiteral("isDefault")).toBool() ? tr("yes") : tr("no")));
         }
+        systemdDefault_->setVisible(true);
+        systemdDefault_->setEnabled(!entries.isEmpty() && loader.settingsEditable && snapshot_.systemdDefaultOverride.isEmpty());
+        details_->setPlainText(snapshot_.systemdDefaultOverride.isEmpty()
+            ? tr("Entries on the selected ESP. Generated kernel entries are maintained by kernel-install. Selecting a configured default changes loader.conf.")
+            : tr("Firmware default override: %1. Editing the configured default is disabled.").arg(snapshot_.systemdDefaultOverride));
         break;
+    }
     case LoaderKind::Grub: {
         const QRegularExpression entry(QStringLiteral("^\\s*(menuentry|submenu)\\s+(['\"])(.*?)\\2"));
         for (const auto &line : output.split(QLatin1Char('\n'))) {
@@ -248,6 +274,17 @@ void MenuPage::showSelected(QTreeWidgetItem *item)
 void MenuPage::setDefault()
 {
     const auto *selected = menu_->currentItem();
+    const int index = selector_->currentIndex();
+    if (index >= 0 && index < manageable_.size() && manageable_[index].kind == LoaderKind::SystemdBoot) {
+        if (!selected || !systemdDefault_->isEnabled()) return;
+        const auto &loader = manageable_[index];
+        const QString id = selected->data(0, Qt::UserRole).toString();
+        if (!BootBls::validId(id)) return;
+        emit operationRequested({QStringLiteral("systemd-setting"), loader.esp + QStringLiteral("|default"), id,
+            loader.settingValues.value(QStringLiteral("default")), tr("systemd-boot configured default: %1").arg(id),
+            {}, BootBls::fingerprint(loader.menuContent)});
+        return;
+    }
     if (!selected || menuHash_.isEmpty() || selected->childCount() > 0) return;
     const QString value = selected->data(0, Qt::UserRole + 2).toString();
     if (value.isEmpty()) return;

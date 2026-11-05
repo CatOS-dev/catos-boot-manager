@@ -12,6 +12,9 @@ QString BootPlan::firmwareConflict(const QList<BootOperation> &operations, const
     QStringList order;
     bool orderChanged = false;
     for (const auto &op : operations) {
+        if (op.kind == QLatin1String("systemd-setting") && op.target.endsWith(QLatin1String("|default"))
+            && !snapshot.systemdDefaultOverride.isEmpty())
+            return QObject::tr("systemd-boot has a firmware default override. Changing loader.conf would not reliably change the effective default.");
         if (!op.expectedEntry.isEmpty()) {
             const QString number = op.expectedEntry.left(4);
             if ((op.kind != QLatin1String("firmware-order") && op.kind != QLatin1String("firmware-next"))

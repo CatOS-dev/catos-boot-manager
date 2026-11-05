@@ -124,6 +124,21 @@ BootSnapshot BootProbe::inspect()
     BootPackages::inspect(state);
     state.uefi = QDir(QStringLiteral("/sys/firmware/efi")).exists();
     state.efiArchitecture = runReadOnly(QStringLiteral("bootctl"), {QStringLiteral("--print-efi-architecture")}).trimmed();
+    const QString defaultVariable = QStringLiteral("/sys/firmware/efi/efivars/LoaderEntryDefault-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f");
+    if (QFileInfo::exists(defaultVariable)) {
+        QFile file(defaultVariable);
+        state.systemdDefaultOverride = QObject::tr("Present; value could not be read");
+        if (file.open(QIODevice::ReadOnly)) {
+            const QByteArray raw = file.readAll();
+            QString value;
+            for (int i = 4; i + 1 < raw.size(); i += 2) {
+                const ushort code = quint8(raw[i]) | (quint16(quint8(raw[i + 1])) << 8);
+                if (!code) break;
+                value.append(QChar(code));
+            }
+            if (!value.isEmpty()) state.systemdDefaultOverride = value;
+        }
+    }
     const QString efidata = state.uefi
         ? runReadOnly(QStringLiteral("efibootmgr"), {QStringLiteral("-v")}) : QString();
     static const QRegularExpression currentPattern(QStringLiteral("^BootCurrent:\\s*([0-9A-Fa-f]{4})$"));

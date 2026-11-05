@@ -90,6 +90,7 @@ struct BootSnapshot {
     QString enrolledMok;
     QString pendingMok;
     QStringList securityMessages;
+    QString systemdDefaultOverride;
 
     QList<BootInstallation> manageableInstallations() const
     {

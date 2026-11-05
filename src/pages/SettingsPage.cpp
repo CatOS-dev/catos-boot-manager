@@ -80,9 +80,12 @@ void SettingsPage::showSettings()
         auto *edit = new QLineEdit(fields_->parentWidget());
         edit->setObjectName(setting.key);
         edit->setText(draft.values.value(i));
-        edit->setEnabled(canEdit);
+        edit->setEnabled(canEdit && !(loader.kind == LoaderKind::SystemdBoot
+            && setting.key == QLatin1String("default") && !snapshot_.systemdDefaultOverride.isEmpty()));
         baseline_.append(draft.baseline.value(i));
         edit->setToolTip(setting.description);
+        if (!edit->isEnabled() && canEdit)
+            edit->setToolTip(tr("A firmware default override is present: %1").arg(snapshot_.systemdDefaultOverride));
         edit->setPlaceholderText(setting.description);
         fields_->addRow(setting.title, edit);
         edits_.append(edit);

@@ -43,6 +43,7 @@ private:
     QPushButton *remove_ = nullptr;
     QPushButton *default_ = nullptr;
     QPushButton *timeout_ = nullptr;
+    QPushButton *systemdDefault_ = nullptr;
     QString menuHash_;
     QString menuTimeout_;
     QString menuDefault_;

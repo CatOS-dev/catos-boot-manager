@@ -25,6 +25,8 @@ add_library(catos-boot-core STATIC
     src/services/BootBackup.cpp
     src/services/BootContent.h
     src/services/BootContent.cpp
+    src/services/BootBls.h
+    src/services/BootBls.cpp
     src/services/BootScan.h
     src/services/BootScan.cpp
     src/services/BootSettings.h
@@ -108,6 +110,11 @@ if(BUILD_TESTING)
     qt_add_executable(boot-content-test tests/BootContentTest.cpp)
     target_link_libraries(boot-content-test PRIVATE catos-boot-core Qt6::Test)
     add_test(NAME boot-content COMMAND boot-content-test)
+    qt_add_executable(boot-systemd-menu-test tests/SystemdMenuTest.cpp
+        src/pages/MenuPage.cpp src/widgets/LoaderSelector.cpp src/widgets/BootUi.cpp)
+    target_link_libraries(boot-systemd-menu-test PRIVATE catos-boot-core Qt6::Widgets Qt6::Test)
+    add_test(NAME boot-systemd-menu COMMAND boot-systemd-menu-test)
+    set_tests_properties(boot-systemd-menu PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     qt_add_executable(boot-loader-selector-test tests/LoaderSelectorTest.cpp src/widgets/LoaderSelector.cpp)
     target_link_libraries(boot-loader-selector-test PRIVATE catos-boot-core Qt6::Widgets Qt6::Test)
     add_test(NAME boot-loader-selector COMMAND boot-loader-selector-test)

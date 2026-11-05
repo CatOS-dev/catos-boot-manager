@@ -4,6 +4,7 @@
 #include "services/BootSettings.h"
 #include "services/BootRepair.h"
 #include "services/BootBackup.h"
+#include "services/BootBls.h"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -137,6 +138,14 @@ bool preflight(const QList<BootOperation> &operations, const BootSnapshot &snaps
     for (const auto &op : operations) {
         if (used.contains(op.key())) { *error = QStringLiteral("Duplicate operation"); return false; }
         used.insert(op.key());
+        if (!op.expectedMenu.isEmpty()) {
+            const int marker = op.target.lastIndexOf(QLatin1Char('|'));
+            if (op.kind != QLatin1String("systemd-setting") || !op.target.endsWith(QLatin1String("|default"))
+                || marker <= 0 || !BootBls::defaultTargetMatches(snapshot, op.target.left(marker), op.value, op.expectedMenu)) {
+                *error = QStringLiteral("The selected systemd-boot menu changed or its target entry disappeared");
+                return false;
+            }
+        }
         if (op.kind == QLatin1String("grub-setting")
             || op.kind == QLatin1String("refind-setting")
             || op.kind == QLatin1String("limine-setting")

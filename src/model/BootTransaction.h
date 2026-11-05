@@ -11,6 +11,7 @@ struct BootOperation {
     QString expected;
     QString description;
     QString expectedEntry;
+    QString expectedMenu;
 
     QString key() const
     {

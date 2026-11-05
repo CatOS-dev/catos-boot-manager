@@ -653,6 +653,24 @@
         <message><source>Secure Boot</source><translation>安全启动</translation></message>
 
         <message><source>The structured menu snapshot is invalid. Refresh detection.</source><translation>结构化菜单快照无效，请重新检测。</translation></message>
+
+        <message><source>Use selected entry as configured default</source><translation>将选中条目设为配置默认项</translation></message>
+        <message><source>UKI</source><translation>UKI</translation></message>
+        <message><source>BLS entry</source><translation>BLS 条目</translation></message>
+        <message><source>Entry ID: %1
+Source: %2
+Kernel: %3
+Options: %4
+Reported default: %5</source><translation>条目 ID：%1
+来源：%2
+内核：%3
+参数：%4
+工具报告为默认项：%5</translation></message>
+        <message><source>yes</source><translation>是</translation></message>
+        <message><source>no</source><translation>否</translation></message>
+        <message><source>Entries on the selected ESP. Generated kernel entries are maintained by kernel-install. Selecting a configured default changes loader.conf.</source><translation>显示所选 ESP 上的条目。自动生成的内核条目由 kernel-install 维护，选择配置默认项将修改 loader.conf。</translation></message>
+        <message><source>Firmware default override: %1. Editing the configured default is disabled.</source><translation>固件默认项覆盖值：%1。已禁用配置默认项编辑。</translation></message>
+        <message><source>systemd-boot configured default: %1</source><translation>systemd-boot 配置默认项：%1</translation></message>
     </context>
     <context>
         <name>OverviewPage</name>
@@ -1064,6 +1082,10 @@
         <message><source>rEFInd configuration source; automatic entries are discovered by rEFInd at boot.</source><translation>rEFInd 配置来源；自动条目由 rEFInd 在启动时发现。</translation></message>
         <message><source>This direct boot method uses firmware entries rather than an internal boot menu.</source><translation>此直接启动方式通过固件启动项选择，没有内部引导菜单。</translation></message>
         <message><source>No menu content could be read. Check the target and refresh detection.</source><translation>未能读取菜单内容，请检查目标后重新检测。</translation></message>
+
+        <message><source>bootctl did not return a structured entry list. Check the selected ESP and refresh detection.</source><translation>bootctl 未返回结构化条目列表，请检查选定 ESP 后重新检测。</translation></message>
+        <message><source>The structured entry list contains an invalid or duplicate identity.</source><translation>结构化条目列表含有无效或重复的身份标识。</translation></message>
+        <message><source>systemd-boot has a firmware default override. Changing loader.conf would not reliably change the effective default.</source><translation>systemd-boot 存在固件默认项覆盖值，仅修改 loader.conf 无法可靠改变实际默认项。</translation></message>
     </context>
     <context>
         <name>RepairPage</name>
@@ -1379,6 +1401,8 @@ You can review the exact command sequence before applying.</source>
         <message><source>Configuration editing is not available for this method.</source><translation>此方式尚不支持配置编辑。</translation></message>
 
         <message><source>This EFI program is not associated with the current system's generator configuration.</source><translation>此 EFI 程序未关联当前系统的生成器配置。</translation></message>
+
+        <message><source>A firmware default override is present: %1</source><translation>存在固件默认项覆盖值：%1</translation></message>
     </context>
     <context>
         <name>PendingPage</name>

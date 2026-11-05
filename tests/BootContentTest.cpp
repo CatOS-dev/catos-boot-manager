@@ -65,12 +65,12 @@ void BootContentTest::readSystemdConfigurationIntoSnapshot()
     QStringList queries;
     BootContent::populate(snapshot, [&](const QString &program, const QStringList &arguments) {
         queries.append(program + ' ' + arguments.join(' '));
-        return QString("CatOS Linux menu entry");
+        return QString("[]");
     });
-    QCOMPARE(queries, QStringList({"bootctl --esp-path=" + directory.path() + " --no-pager list"}));
+    QCOMPARE(queries, QStringList({"bootctl --esp-path=" + directory.path() + " --boot-path=" + directory.path() + " --no-pager --json=short list"}));
     QVERIFY(snapshot.installations.first().settingsEditable);
     QCOMPARE(snapshot.installations.first().settingValues.value("timeout"), QString("3"));
-    QCOMPARE(snapshot.installations.first().menuContent, QString("CatOS Linux menu entry"));
+    QCOMPARE(snapshot.installations.first().menuContent, QString("[]"));
     QVERIFY(config.open(QIODevice::WriteOnly | QIODevice::Truncate));
     QCOMPARE(config.write("timeout 9\neditor no\n"), qint64(20));
     config.close();

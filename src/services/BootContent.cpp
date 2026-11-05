@@ -1,5 +1,6 @@
 #include "BootContent.h"
 #include "BootSettings.h"
+#include "BootBls.h"
 
 #include <QDir>
 #include <QFile>
@@ -72,7 +73,11 @@ void BootContent::populate(BootSnapshot &snapshot, const Reader &reader, const Q
             loader.menuContent = readText(QDir(systemRoot).filePath(QStringLiteral("boot/grub/grub.cfg")));
         } else if (loader.kind == LoaderKind::SystemdBoot) {
             loader.menuContent = reader(QStringLiteral("bootctl"),
-                {QStringLiteral("--esp-path=") + loader.esp, QStringLiteral("--no-pager"), QStringLiteral("list")});
+                {QStringLiteral("--esp-path=") + loader.esp, QStringLiteral("--boot-path=") + loader.esp,
+                 QStringLiteral("--no-pager"), QStringLiteral("--json=short"), QStringLiteral("list")});
+            const auto entries = BootBls::entries(loader.menuContent, loader.esp, &loader.menuMessage);
+            loader.menuContent = loader.menuMessage.isEmpty()
+                ? QString::fromUtf8(QJsonDocument(entries).toJson(QJsonDocument::Compact)) : QString();
         } else if (loader.kind == LoaderKind::Refind) {
             loader.menuContent = readText(loader.config);
             loader.menuMessage = QObject::tr("rEFInd configuration source; automatic entries are discovered by rEFInd at boot.");
