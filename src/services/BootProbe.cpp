@@ -1,4 +1,5 @@
 #include "BootProbe.h"
+#include "BootDiscovery.h"
 
 #include <QDir>
 #include <QDirIterator>
@@ -21,6 +22,7 @@ QString firmwareLoader(const QString &path, const QString &label)
     const QString name = path.toLower();
     if (name.contains(QLatin1String("limine"))) return QStringLiteral("Limine");
     if (name.contains(QLatin1String("systemd-boot"))) return QStringLiteral("systemd-boot");
+    if (name.contains(QLatin1String("refind"))) return QStringLiteral("rEFInd");
     if (name.contains(QLatin1String("grub"))) return QStringLiteral("GRUB");
     if (name.contains(QLatin1String("shim"))) return QObject::tr("shim (may chainload GRUB)");
     if (name.contains(QLatin1String("bootx64.efi"))) return QObject::tr("EFI fallback (not identified)");
@@ -46,33 +48,6 @@ QString readLoaderInfo()
         if (!text.isEmpty()) return text;
     }
     return {};
-}
-
-void addInstallation(BootSnapshot &state, LoaderKind kind, const QString &esp,
-                     const QString &binary, const QString &config)
-{
-    const QString id = loaderName(kind) + QLatin1Char(':') + esp;
-    for (auto &entry : state.installations) {
-        if (entry.id != id) continue;
-        if (entry.binary.isEmpty()) entry.binary = binary;
-        if (entry.config.isEmpty()) entry.config = config;
-        entry.binaryPresent |= !binary.isEmpty();
-        entry.configPresent |= QFileInfo::exists(config);
-        return;
-    }
-    QString partuuid;
-    if (!esp.isEmpty()) {
-        const QString source = BootProbe::runReadOnly(QStringLiteral("findmnt"),
-            {QStringLiteral("-rn"), QStringLiteral("-T"), esp,
-             QStringLiteral("-o"), QStringLiteral("SOURCE")}).trimmed();
-        if (!source.isEmpty()) {
-            partuuid = BootProbe::runReadOnly(QStringLiteral("lsblk"),
-                {QStringLiteral("-dn"), QStringLiteral("-o"), QStringLiteral("PARTUUID"), source})
-                .trimmed().toLower();
-        }
-    }
-    state.installations.append({kind, id, esp, partuuid, binary, config,
-                                QFileInfo::exists(config), !binary.isEmpty(), false, false});
 }
 }
 
@@ -195,47 +170,17 @@ BootSnapshot BootProbe::inspect()
         state.messages.append(QObject::tr("Could not read UEFI variables; firmware management is unavailable."));
 
     const QStringList mounts = espMounts();
+    QList<BootDiscovery::Esp> partitions;
     for (const auto &esp : mounts) {
-        QDirIterator iterator(esp + QStringLiteral("/EFI"), QDir::Files,
-                              QDirIterator::Subdirectories);
-        while (iterator.hasNext()) {
-            const QString path = iterator.next();
-            const QString lower = path.toLower();
-            if (!lower.endsWith(QLatin1String(".efi"))) continue;
-            if (lower.contains(QLatin1String("limine")))
-                addInstallation(state, LoaderKind::Limine, esp, path, esp + QStringLiteral("/limine.conf"));
-            else if (lower.endsWith(QLatin1String("/grubx64.efi")))
-                addInstallation(state, LoaderKind::Grub, esp, path, QStringLiteral("/etc/default/grub"));
-            else if (lower.endsWith(QLatin1String("/systemd-bootx64.efi")))
-                addInstallation(state, LoaderKind::SystemdBoot, esp, path,
-                                esp + QStringLiteral("/loader/loader.conf"));
-        }
-        if (QFileInfo::exists(esp + QStringLiteral("/limine.conf")))
-            addInstallation(state, LoaderKind::Limine, esp, {}, esp + QStringLiteral("/limine.conf"));
-        if (QFileInfo::exists(esp + QStringLiteral("/loader/loader.conf")))
-            addInstallation(state, LoaderKind::SystemdBoot, esp, {}, esp + QStringLiteral("/loader/loader.conf"));
+        const QString source = runReadOnly(QStringLiteral("findmnt"),
+            {QStringLiteral("-rn"), QStringLiteral("-M"), esp, QStringLiteral("-o"), QStringLiteral("SOURCE")}).trimmed();
+        const QString uuid = runReadOnly(QStringLiteral("lsblk"),
+            {QStringLiteral("-dn"), QStringLiteral("-o"), QStringLiteral("PARTUUID"), source}).trimmed();
+        partitions.append({esp, uuid});
     }
-    if (QFileInfo::exists(QStringLiteral("/etc/default/grub"))
-        || QFileInfo::exists(QStringLiteral("/boot/grub/grub.cfg")))
-        addInstallation(state, LoaderKind::Grub, QString(), QString(), QStringLiteral("/etc/default/grub"));
-    if (QFileInfo::exists(QStringLiteral("/etc/default/limine"))
-        || QFileInfo::exists(QStringLiteral("/boot/limine.conf")))
-        addInstallation(state, LoaderKind::Limine, QString(), QString(), QStringLiteral("/etc/default/limine"));
-
-    for (auto &loader : state.installations) {
-        if (loader.esp.isEmpty() || loader.espPartuuid.isEmpty() || loader.binary.isEmpty()) continue;
-        QString relative = QDir(loader.esp).relativeFilePath(loader.binary);
-        relative.replace(QLatin1Char('/'), QLatin1Char('\\'));
-        relative.prepend(QLatin1Char('\\'));
-        for (const auto &entry : state.firmware) {
-            if (!entry.partitionUuid.isEmpty()
-                && entry.partitionUuid == loader.espPartuuid
-                && relative.compare(entry.path, Qt::CaseInsensitive) == 0) {
-                loader.firmwareRegistered = true;
-                loader.current |= entry.current;
-            }
-        }
-    }
+    BootDiscovery::populate(state, partitions, QStringLiteral("/"), [](const QString &path) {
+        return runReadOnly(QStringLiteral("bootctl"), {QStringLiteral("kernel-identify"), path});
+    });
     if (!state.uefi) state.messages.append(QObject::tr("This system was not booted in UEFI mode."));
     if (mounts.isEmpty()) state.messages.append(QObject::tr("No mounted EFI system partition was detected."));
     return state;

@@ -15,6 +15,8 @@ add_library(catos-boot-core STATIC
     src/model/BootPlan.cpp
     src/services/BootProbe.h
     src/services/BootProbe.cpp
+    src/services/BootDiscovery.h
+    src/services/BootDiscovery.cpp
     src/services/BootScan.h
     src/services/BootScan.cpp
     src/services/BootSettings.h
@@ -79,6 +81,9 @@ if(BUILD_TESTING)
     qt_add_executable(boot-scan-test tests/BootScanTest.cpp)
     target_link_libraries(boot-scan-test PRIVATE catos-boot-core Qt6::Test)
     add_test(NAME boot-scan COMMAND boot-scan-test)
+    qt_add_executable(boot-discovery-test tests/BootDiscoveryTest.cpp)
+    target_link_libraries(boot-discovery-test PRIVATE catos-boot-core Qt6::Test)
+    add_test(NAME boot-discovery COMMAND boot-discovery-test)
     qt_add_executable(boot-loader-selector-test tests/LoaderSelectorTest.cpp src/widgets/LoaderSelector.cpp)
     target_link_libraries(boot-loader-selector-test PRIVATE catos-boot-core Qt6::Widgets Qt6::Test)
     add_test(NAME boot-loader-selector COMMAND boot-loader-selector-test)

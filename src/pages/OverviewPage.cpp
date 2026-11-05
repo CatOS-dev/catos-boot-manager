@@ -31,15 +31,33 @@ void OverviewPage::updateSnapshot(const BootSnapshot &snapshot)
                      tr("Current: %1 · Next: %2").arg(snapshot.bootCurrent.isEmpty() ? tr("unknown") : snapshot.bootCurrent,
                          snapshot.bootNext.isEmpty() ? tr("not set") : snapshot.bootNext),
                      QStringLiteral("drive-harddisk"));
+        QString defaultEntry = tr("not set");
+        for (const auto &number : snapshot.bootOrder) {
+            const auto *entry = snapshot.entry(number);
+            if (entry && entry->enabled) {
+                defaultEntry = QStringLiteral("Boot") + number + QStringLiteral(" · ") + entry->label;
+                break;
+            }
+        }
+        BootUi::line(layout_, content, tr("First enabled entry in BootOrder"), defaultEntry,
+                     QStringLiteral("emblem-default"));
     }
     BootUi::section(layout_, content, tr("Detected installations"));
     for (const auto &loader : snapshot.installations) {
         QStringList details;
         if (!loader.esp.isEmpty()) details << tr("ESP: %1").arg(loader.esp);
+        if (!loader.espPartuuid.isEmpty()) details << tr("Partition UUID: %1").arg(loader.espPartuuid);
+        if (!loader.binary.isEmpty()) details << tr("Program: %1").arg(loader.binary);
+        if (!loader.config.isEmpty()) details << tr("Configuration: %1").arg(loader.config);
         if (loader.binaryPresent) details << tr("EFI binary found");
+        if (!loader.binary.isEmpty() && !loader.binaryPresent) details << tr("EFI program is missing");
         if (loader.configPresent) details << tr("Configuration found");
         if (loader.firmwareRegistered) details << tr("Firmware entry present");
         if (loader.current) details << tr("Selected for this boot");
+        if (loader.defaultEntry) details << tr("First enabled entry in BootOrder");
+        if (loader.nextEntry) details << tr("Selected for next boot only");
+        if (!loader.firmwareEntries.isEmpty()) details << tr("Firmware entries: %1").arg(loader.firmwareEntries.join(QStringLiteral(", ")));
+        if (!loader.evidence.isEmpty()) details << loader.evidence;
         BootUi::line(layout_, content, loaderName(loader.kind), details.join(QStringLiteral(" · ")),
                      QStringLiteral("drive-harddisk"));
     }

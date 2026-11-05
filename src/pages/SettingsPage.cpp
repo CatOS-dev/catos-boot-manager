@@ -67,10 +67,13 @@ void SettingsPage::showSettings()
     const auto &loader = manageable_.at(index);
     const QString config = BootSettings::configPath(loader.kind, loader.esp);
     const bool supported = !BootSettings::settings(loader.kind).isEmpty();
-    const bool canEdit = supported && (loader.kind != LoaderKind::Limine ||
+    const bool bound = !config.isEmpty() && loader.config == config
+        && (loader.kind == LoaderKind::SystemdBoot || loader.esp.isEmpty());
+    const bool canEdit = supported && bound && (loader.kind != LoaderKind::Limine ||
         QJsonDocument::fromJson(BootProbe::runReadOnly(QStringLiteral("limine-entry-tool"),
             {QStringLiteral("--config-json")}).toUtf8()).isObject());
     location_->setText(!supported ? tr("Configuration editing is not available for this method.")
+        : !bound ? tr("This EFI program is not associated with the current system's generator configuration.")
         : canEdit ? tr("Configuration: %1").arg(config)
         : tr("Read-only: installed limine-tool lacks the structured settings API. Update limine-tool to edit settings."));
     queue_->setEnabled(canEdit);

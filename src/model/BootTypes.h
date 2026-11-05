@@ -53,6 +53,10 @@ struct BootInstallation {
     bool binaryPresent = false;
     bool firmwareRegistered = false;
     bool current = false;
+    QStringList firmwareEntries;
+    bool defaultEntry = false;
+    bool nextEntry = false;
+    QString evidence;
 };
 
 struct BootSnapshot {
@@ -68,17 +72,7 @@ struct BootSnapshot {
 
     QList<BootInstallation> manageableInstallations() const
     {
-        QList<BootInstallation> result;
-        QSet<QString> globalKinds;
-        for (const auto &loader : installations) {
-            const QString kind = loaderName(loader.kind);
-            if (loader.kind != LoaderKind::SystemdBoot) {
-                if (globalKinds.contains(kind)) continue;
-                globalKinds.insert(kind);
-            }
-            result.append(loader);
-        }
-        return result;
+        return installations;
     }
 
     const FirmwareEntry *entry(const QString &number) const

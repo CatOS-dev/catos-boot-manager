@@ -641,6 +641,12 @@
         <message><source>Detecting boot state…</source><translation>正在检测引导状态…</translation></message>
 
         <message><source>Menu management is not available for this method.</source><translation>此方式尚不支持菜单管理。</translation></message>
+
+        <message><source>This EFI installation is separate from the current system's generated menu.
+%1
+%2</source><translation>此 EFI 安装实例与当前系统生成的菜单分开管理。
+%1
+%2</translation></message>
     </context>
     <context>
         <name>OverviewPage</name>
@@ -729,6 +735,14 @@
             <source>Detection notes</source>
             <translation>检测说明</translation>
         </message>
+
+        <message><source>First enabled entry in BootOrder</source><translation>BootOrder 中首个已启用启动项</translation></message>
+        <message><source>Partition UUID: %1</source><translation>分区 UUID：%1</translation></message>
+        <message><source>Program: %1</source><translation>程序：%1</translation></message>
+        <message><source>Configuration: %1</source><translation>配置：%1</translation></message>
+        <message><source>EFI program is missing</source><translation>EFI 程序缺失</translation></message>
+        <message><source>Selected for next boot only</source><translation>仅选为下次启动项</translation></message>
+        <message><source>Firmware entries: %1</source><translation>固件启动项：%1</translation></message>
     </context>
     <context>
         <name>QObject</name>
@@ -1006,6 +1020,13 @@
         <message><source>Boot%1 is selected for the next boot and queued to be disabled.</source><translation>Boot%1 已被选为下次启动项，同时又被暂存禁用。</translation></message>
         <message><source>Boot%1 cannot be edited and removed in the same plan.</source><translation>同一计划不能同时编辑和删除 Boot%1。</translation></message>
         <message><source>The pending boot order must contain each remaining BootOrder entry exactly once.</source><translation>待应用启动顺序必须完整包含所有保留的 BootOrder 启动项，且不得重复。</translation></message>
+
+        <message><source>Named EFI program; bootability has not been verified</source><translation>按程序名称发现 EFI 文件；尚未验证可启动性</translation></message>
+        <message><source>UKI identified by bootctl; firmware registration is separate</source><translation>bootctl 已识别 UKI；固件注册状态单独显示</translation></message>
+        <message><source>CatOS EFI Stub deployment layout with PE image and initramfs; bootability is unverified</source><translation>发现包含 PE 映像和 initramfs 的 CatOS EFI Stub 布局；尚未验证可启动性</translation></message>
+        <message><source>Firmware entry points to this EFI program</source><translation>固件启动项指向此 EFI 程序</translation></message>
+        <message><source>System generator configuration; EFI deployment is listed separately</source><translation>系统生成器配置；EFI 部署实例单独列出</translation></message>
+        <message><source>Configuration found without a matching EFI program</source><translation>发现配置文件，但未找到匹配的 EFI 程序</translation></message>
     </context>
     <context>
         <name>RepairPage</name>
@@ -1319,6 +1340,8 @@ You can review the exact command sequence before applying.</source>
         </message>
 
         <message><source>Configuration editing is not available for this method.</source><translation>此方式尚不支持配置编辑。</translation></message>
+
+        <message><source>This EFI program is not associated with the current system's generator configuration.</source><translation>此 EFI 程序未关联当前系统的生成器配置。</translation></message>
     </context>
     <context>
         <name>PendingPage</name>

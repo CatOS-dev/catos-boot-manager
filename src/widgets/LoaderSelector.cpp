@@ -1,6 +1,7 @@
 #include "LoaderSelector.h"
 
 #include <QComboBox>
+#include <QDir>
 #include <QTabBar>
 #include <QVBoxLayout>
 
@@ -70,7 +71,8 @@ void LoaderSelector::rebuild()
         if (loader.kind != method()) continue;
         filtered_.append(loader);
         const QString location = loader.esp.isEmpty() ? tr("Current system") : loader.esp;
-        instances_->addItem(location + QStringLiteral(" · ") + loader.config, loader.id);
+        instances_->addItem(location + QStringLiteral(" · ")
+            + (loader.binary.isEmpty() ? loader.config : QDir(loader.esp).relativeFilePath(loader.binary)), loader.id);
     }
     int index = instances_->findData(previous);
     if (index < 0 && !filtered_.isEmpty()) index = 0;

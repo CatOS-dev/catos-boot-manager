@@ -12,6 +12,7 @@ class SettingsDraftTest : public QObject {
     Q_OBJECT
 private slots:
     void preserveDraftAndOriginalValue();
+    void rejectUnboundGeneratorConfiguration();
 };
 
 void SettingsDraftTest::preserveDraftAndOriginalValue()
@@ -32,8 +33,8 @@ void SettingsDraftTest::preserveDraftAndOriginalValue()
     second.close();
     BootSnapshot snapshot;
     snapshot.installations = {
-        {LoaderKind::SystemdBoot, "first", firstEsp},
-        {LoaderKind::SystemdBoot, "second", secondEsp}
+        {LoaderKind::SystemdBoot, "first", firstEsp, {}, {}, first.fileName(), true},
+        {LoaderKind::SystemdBoot, "second", secondEsp, {}, {}, second.fileName(), true}
     };
     SettingsPage page;
     page.updateSnapshot(snapshot);
@@ -94,6 +95,27 @@ void SettingsDraftTest::preserveDraftAndOriginalValue()
     timeout = currentTimeout();
     QVERIFY(timeout);
     QCOMPARE(timeout->text(), QString("4"));
+}
+
+void SettingsDraftTest::rejectUnboundGeneratorConfiguration()
+{
+    BootSnapshot snapshot;
+    snapshot.installations = {
+        {LoaderKind::Grub, "other-grub", "/other-esp", "uuid", "/other-esp/EFI/grub/grubx64.efi", "/etc/default/grub", true},
+        {LoaderKind::Limine, "other-limine", "/other-esp", "uuid", "/other-esp/EFI/limine/limine.efi", "/etc/default/limine", true}
+    };
+    SettingsPage page;
+    page.updateSnapshot(snapshot);
+    QSignalSpy operations(&page, &SettingsPage::operationRequested);
+    auto *queue = page.findChild<QPushButton *>("queueSettings");
+    QVERIFY(queue);
+    QVERIFY(!queue->isEnabled());
+    queue->click();
+    QCOMPARE(operations.count(), 0);
+    page.selectMethod(LoaderKind::Limine);
+    QVERIFY(!queue->isEnabled());
+    queue->click();
+    QCOMPARE(operations.count(), 0);
 }
 
 QTEST_MAIN(SettingsDraftTest)

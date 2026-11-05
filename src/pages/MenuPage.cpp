@@ -149,6 +149,15 @@ void MenuPage::loadMenu()
     for (auto *action : {add_, kernel_, uki_, remove_, default_, timeout_})
         action->setEnabled(false);
     QString output;
+    if ((loader.kind == LoaderKind::Grub || loader.kind == LoaderKind::Limine)
+        && !loader.esp.isEmpty()) {
+        QFile file(loader.config);
+        const QString contents = !loader.config.isEmpty() && file.open(QIODevice::ReadOnly | QIODevice::Text)
+            ? QString::fromUtf8(file.readAll()) : QString();
+        details_->setPlainText(tr("This EFI installation is separate from the current system's generated menu.\n%1\n%2")
+            .arg(loader.config, contents));
+        return;
+    }
     switch (loader.kind) {
     case LoaderKind::Refind:
     case LoaderKind::Uki:

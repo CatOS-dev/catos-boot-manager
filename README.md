@@ -31,6 +31,13 @@ entry. All commands are invoked through an argument vector, not shell strings.
 
 - Detect the boot firmware mode, current UEFI selection and installed boot
   loader files on each mounted ESP. Show their configuration locations.
+- Discover GRUB, Limine, rEFInd and systemd-boot program paths separately on
+  each ESP. Identify UKI assets with `bootctl kernel-identify`, and recognize
+  the CatOS EFI Stub deployment layout. Discovery evidence is shown explicitly;
+  discovering a file does not verify that it can boot.
+- Associate firmware entries by partition UUID and EFI path. Show current,
+  first enabled BootOrder and one-time BootNext selections separately. An
+  unregistered UKI remains an image asset, not a registered direct boot entry.
 - Edit common GRUB, Limine and systemd-boot settings; use native generators.
 - View each loader's menu. With the accompanying new `limine-tool`, navigate a
   structured Limine menu; add kernel/initramfs, UKI and EFI entries, remove a
@@ -50,6 +57,9 @@ entry. All commands are invoked through an argument vector, not shell strings.
 For multi-ESP systems the application retains the ESP-specific target. Boot
 loader *installation* is always a separate explicit action; modifying menu
 timeout never performs `grub-install` or changes UEFI registration implicitly.
+Current-system GRUB/Limine generator settings are listed separately from EFI
+program instances. Selecting another ESP does not authorize editing the running
+system's generator configuration.
 
 The new Limine menu and effective-settings APIs are provided by the adjacent
 `limine-tool` source tree (`--tree-json`, `--config-json`, `--set-global`). When
@@ -76,3 +86,8 @@ installed in `/usr/lib/catos/` and is invoked through `pkexec` only on apply.
 Dependencies: Qt 6 Widgets, Qt LinguistTools, CMake and a C++17 compiler.
 Runtime tools vary by installed loader: `efibootmgr`, `grub-mkconfig`,
 `limine-tool` and `bootctl`.
+
+Run regression checks with `ctest --test-dir build --output-on-failure`.
+Tests use Qt Test; the UKI discovery contract test also requires `bootctl`,
+`objcopy`, and the systemd x64 EFI stub. Its synthetic UKI verifies image
+identification only and is not a bootable test operating system.
