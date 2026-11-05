@@ -1,11 +1,9 @@
 #include "SettingsPage.h"
-#include "services/BootProbe.h"
 #include "services/BootSettings.h"
 #include "widgets/BootUi.h"
 #include "widgets/LoaderSelector.h"
 
 #include <QFormLayout>
-#include <QJsonDocument>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
@@ -65,27 +63,14 @@ void SettingsPage::showSettings()
         return;
     }
     const auto &loader = manageable_.at(index);
-    const QString location = loader.kind == LoaderKind::Refind ? loader.config : loader.esp;
-    const QString config = BootSettings::configPath(loader.kind, location);
-    const bool supported = !BootSettings::settings(loader.kind).isEmpty();
-    const bool bound = !config.isEmpty() && loader.config == config
-        && (loader.kind == LoaderKind::SystemdBoot || loader.kind == LoaderKind::Refind || loader.esp.isEmpty());
-    QString refindError;
-    const bool refindReady = loader.kind != LoaderKind::Refind || BootSettings::refindEditable(config, &refindError);
-    const bool canEdit = supported && bound && refindReady && (loader.kind != LoaderKind::Limine ||
-        QJsonDocument::fromJson(BootProbe::runReadOnly(QStringLiteral("limine-entry-tool"),
-            {QStringLiteral("--config-json")}).toUtf8()).isObject());
-    location_->setText(!supported ? tr("Configuration editing is not available for this method.")
-        : !bound ? tr("This EFI program is not associated with the current system's generator configuration.")
-        : !refindReady ? refindError
-        : canEdit ? tr("Configuration: %1").arg(config)
-        : tr("Read-only: installed limine-tool lacks the structured settings API. Update limine-tool to edit settings."));
+    const bool canEdit = loader.settingsEditable;
+    location_->setText(canEdit ? tr("Configuration: %1").arg(loader.config) : loader.settingsMessage);
     queue_->setEnabled(canEdit);
     const auto specs = BootSettings::settings(loader.kind);
     if (canEdit && !drafts_.contains(loader.id)) {
         Draft draft;
         for (const auto &setting : specs)
-            draft.baseline.append(BootSettings::read(loader.kind, location, setting.key));
+            draft.baseline.append(loader.settingValues.value(setting.key));
         draft.values = draft.baseline;
         drafts_.insert(loader.id, draft);
     }

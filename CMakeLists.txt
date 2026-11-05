@@ -23,6 +23,8 @@ add_library(catos-boot-core STATIC
     src/services/BootSecurity.cpp
     src/services/BootBackup.h
     src/services/BootBackup.cpp
+    src/services/BootContent.h
+    src/services/BootContent.cpp
     src/services/BootScan.h
     src/services/BootScan.cpp
     src/services/BootSettings.h
@@ -103,6 +105,9 @@ if(BUILD_TESTING)
     qt_add_executable(boot-backup-test tests/BootBackupTest.cpp)
     target_link_libraries(boot-backup-test PRIVATE catos-boot-core Qt6::Test)
     add_test(NAME boot-backup COMMAND boot-backup-test)
+    qt_add_executable(boot-content-test tests/BootContentTest.cpp)
+    target_link_libraries(boot-content-test PRIVATE catos-boot-core Qt6::Test)
+    add_test(NAME boot-content COMMAND boot-content-test)
     qt_add_executable(boot-loader-selector-test tests/LoaderSelectorTest.cpp src/widgets/LoaderSelector.cpp)
     target_link_libraries(boot-loader-selector-test PRIVATE catos-boot-core Qt6::Widgets Qt6::Test)
     add_test(NAME boot-loader-selector COMMAND boot-loader-selector-test)

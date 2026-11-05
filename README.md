@@ -73,10 +73,11 @@ program instances. Selecting another ESP does not authorize editing the running
 system's generator configuration.
 
 The new Limine menu and effective-settings APIs are provided by the adjacent
-`limine-tool` source tree (`--tree-json`, `--config-json`, `--set-global`). When
-an older binary is installed, its menu is shown read-only; edits requiring the
-new APIs are disabled. Reading must never trigger the old wrapper's sudo/FIDO
-prompt: the read-only probe uses the underlying binary for legacy wrappers.
+`limine-tool` source tree (`--tree-json`, `--config-json`, `--set-global`). Menu
+and configuration reads are collected in the background scan. Switching tabs
+uses that snapshot and preserves drafts without invoking external tools.
+Structured API failures are shown explicitly and disable editing; the GUI does
+not switch to a second text-menu implementation.
 
 This is a development build. Compiling and opening the GUI do not prove a real
 machine will boot after an installation or repair. Verify the chosen disk,

@@ -148,14 +148,9 @@ void MenuPage::loadMenu()
     const bool limine = loader.kind == LoaderKind::Limine;
     for (auto *action : {add_, kernel_, uki_, remove_, default_, timeout_})
         action->setEnabled(false);
-    QString output;
-    if ((loader.kind == LoaderKind::Grub || loader.kind == LoaderKind::Limine)
-        && !loader.esp.isEmpty()) {
-        QFile file(loader.config);
-        const QString contents = !loader.config.isEmpty() && file.open(QIODevice::ReadOnly | QIODevice::Text)
-            ? QString::fromUtf8(file.readAll()) : QString();
-        details_->setPlainText(tr("This EFI installation is separate from the current system's generated menu.\n%1\n%2")
-            .arg(loader.config, contents));
+    QString output = loader.menuContent;
+    if (!loader.menuMessage.isEmpty()) {
+        details_->setPlainText(loader.menuMessage + QLatin1Char('\n') + loader.config + QLatin1Char('\n') + output);
         return;
     }
     switch (loader.kind) {
@@ -165,8 +160,6 @@ void MenuPage::loadMenu()
         details_->setPlainText(tr("Menu management is not available for this method."));
         break;
     case LoaderKind::Limine: {
-        output = BootProbe::runReadOnly(QStringLiteral("limine-entry-tool"),
-                                        {QStringLiteral("--tree-json")});
         const QJsonDocument json = QJsonDocument::fromJson(output.toUtf8());
         if (json.isObject()) {
             const QJsonObject root = json.object();
@@ -182,20 +175,11 @@ void MenuPage::loadMenu()
             for (auto *action : {add_, kernel_, uki_, remove_, default_, timeout_})
                 action->setEnabled(true);
         } else {
-            const QString textTree = BootProbe::runReadOnly(QStringLiteral("limine-list"));
-            if (!textTree.trimmed().isEmpty()) {
-                auto *item = new QTreeWidgetItem(menu_);
-                item->setText(0, tr("Limine menu (read-only)"));
-                item->setText(1, tr("Older limine-tool"));
-                item->setData(0, Qt::UserRole + 3, textTree);
-            }
-            details_->setPlainText(tr("This version of limine-tool does not provide a structured boot menu. Update limine-tool to manage entries."));
+            details_->setPlainText(tr("The structured menu snapshot is invalid. Refresh detection."));
         }
         break;
     }
     case LoaderKind::SystemdBoot:
-        output = BootProbe::runReadOnly(QStringLiteral("bootctl"),
-            {QStringLiteral("--esp-path=") + loader.esp, QStringLiteral("--no-pager"), QStringLiteral("list")});
         if (!output.trimmed().isEmpty()) {
             auto *item = new QTreeWidgetItem(menu_);
             item->setText(0, tr("systemd-boot entries"));
@@ -204,18 +188,14 @@ void MenuPage::loadMenu()
         }
         break;
     case LoaderKind::Grub: {
-        QFile file(QStringLiteral("/boot/grub/grub.cfg"));
-        if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            const QRegularExpression entry(QStringLiteral("^\\s*(menuentry|submenu)\\s+(['\"])(.*?)\\2"));
-            while (!file.atEnd()) {
-                const auto match = entry.match(QString::fromUtf8(file.readLine()));
-                if (match.hasMatch()) {
-                    auto *item = new QTreeWidgetItem(menu_);
-                    item->setText(0, match.captured(3));
-                    item->setText(1, match.captured(1));
-                    item->setData(0, Qt::UserRole + 3, tr("Generated GRUB menu item. Edit its default selection on the Settings page."));
-                    output += match.captured(3) + QLatin1Char('\n');
-                }
+        const QRegularExpression entry(QStringLiteral("^\\s*(menuentry|submenu)\\s+(['\"])(.*?)\\2"));
+        for (const auto &line : output.split(QLatin1Char('\n'))) {
+            const auto match = entry.match(line);
+            if (match.hasMatch()) {
+                auto *item = new QTreeWidgetItem(menu_);
+                item->setText(0, match.captured(3));
+                item->setText(1, match.captured(1));
+                item->setData(0, Qt::UserRole + 3, tr("Generated GRUB menu item. Edit its default selection on the Settings page."));
             }
         }
         break;

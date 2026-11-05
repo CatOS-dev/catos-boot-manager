@@ -1,5 +1,6 @@
 #include "pages/SettingsPage.h"
 #include "services/BootSettings.h"
+#include "services/BootContent.h"
 
 #include <QComboBox>
 #include <QDir>
@@ -40,6 +41,7 @@ void SettingsDraftTest::preserveDraftAndOriginalValue()
         {LoaderKind::SystemdBoot, "second", secondEsp, {}, {}, second.fileName(), true}
     };
     SettingsPage page;
+    BootContent::populate(snapshot);
     page.updateSnapshot(snapshot);
     auto *selector = page.findChild<QComboBox *>("loaderInstallation");
     auto *queue = page.findChild<QPushButton *>("queueSettings");
@@ -90,6 +92,7 @@ void SettingsDraftTest::preserveDraftAndOriginalValue()
     timeout = currentTimeout();
     QVERIFY(timeout);
     QCOMPARE(timeout->text(), QString("9"));
+    BootContent::populate(snapshot);
     page.updateSnapshot(snapshot);
     timeout = currentTimeout();
     QVERIFY(timeout);
@@ -108,6 +111,7 @@ void SettingsDraftTest::rejectUnboundGeneratorConfiguration()
         {LoaderKind::Limine, "other-limine", "/other-esp", "uuid", "/other-esp/EFI/limine/limine.efi", "/etc/default/limine", true}
     };
     SettingsPage page;
+    BootContent::populate(snapshot);
     page.updateSnapshot(snapshot);
     QSignalSpy operations(&page, &SettingsPage::operationRequested);
     auto *queue = page.findChild<QPushButton *>("queueSettings");
@@ -141,6 +145,7 @@ void SettingsDraftTest::editOnlySelectedRefindConfiguration()
         {LoaderKind::Refind, "second", second, "second-uuid", second + "/refind_x64.efi", second + "/refind.conf", true}
     };
     SettingsPage page;
+    BootContent::populate(snapshot);
     page.updateSnapshot(snapshot);
     auto *timeout = page.findChild<QLineEdit *>("timeout");
     auto *selection = page.findChild<QLineEdit *>("default_selection");

@@ -2,6 +2,7 @@
 #include "BootDiscovery.h"
 #include "BootPackages.h"
 #include "BootSecurity.h"
+#include "BootContent.h"
 
 #include <QDir>
 #include <QDirIterator>
@@ -185,6 +186,7 @@ BootSnapshot BootProbe::inspect()
         return runReadOnly(QStringLiteral("bootctl"), {QStringLiteral("kernel-identify"), path});
     });
     BootSecurity::inspect(state);
+    BootContent::populate(state);
     if (!state.uefi) state.messages.append(QObject::tr("This system was not booted in UEFI mode."));
     if (mounts.isEmpty()) state.messages.append(QObject::tr("No mounted EFI system partition was detected."));
     return state;

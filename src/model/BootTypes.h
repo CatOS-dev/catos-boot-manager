@@ -4,6 +4,7 @@
 #include <QSet>
 #include <QString>
 #include <QStringList>
+#include <QMap>
 #include <array>
 
 enum class LoaderKind { Grub, Limine, Refind, SystemdBoot, Uki, EfiStub };
@@ -62,6 +63,11 @@ struct BootInstallation {
     QString imageType;
     SignatureState signature = SignatureState::Unknown;
     QString signatureDetails;
+    QMap<QString, QString> settingValues;
+    bool settingsEditable = false;
+    QString settingsMessage;
+    QString menuContent;
+    QString menuMessage;
 };
 
 struct BootSnapshot {

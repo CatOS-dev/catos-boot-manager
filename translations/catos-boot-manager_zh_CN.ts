@@ -651,6 +651,8 @@
         <message><source>Boot methods</source><translation>引导方式</translation></message>
 
         <message><source>Secure Boot</source><translation>安全启动</translation></message>
+
+        <message><source>The structured menu snapshot is invalid. Refresh detection.</source><translation>结构化菜单快照无效，请重新检测。</translation></message>
     </context>
     <context>
         <name>OverviewPage</name>
@@ -1053,6 +1055,15 @@
         <message><source>Not available in BIOS mode</source><translation>BIOS 模式下不可用</translation></message>
 
         <message><source>Before applying, configuration files edited by this GUI and the observed firmware state are saved privately. Generator outputs, kernels and EFI programs are outside this backup; it is not a complete rollback.</source><translation>应用前将私密保存本界面修改的配置文件及读取到的固件状态。生成器输出、内核和 EFI 程序不在备份范围内；此备份不代表完整回滚能力。</translation></message>
+
+        <message><source>Configuration editing is not available for this method.</source><translation>此方式尚不支持配置编辑。</translation></message>
+        <message><source>This EFI program is not associated with the current system's generator configuration.</source><translation>此 EFI 程序未关联当前系统的生成器配置。</translation></message>
+        <message><source>The structured Limine settings query failed. Check limine-tool and refresh detection.</source><translation>Limine 结构化配置查询失败，请检查 limine-tool 后重新检测。</translation></message>
+        <message><source>This EFI installation is separate from the current system's generated menu.</source><translation>此 EFI 安装实例与当前系统生成的菜单分开管理。</translation></message>
+        <message><source>The structured Limine menu query failed. Check limine-tool and refresh detection.</source><translation>Limine 结构化菜单查询失败，请检查 limine-tool 后重新检测。</translation></message>
+        <message><source>rEFInd configuration source; automatic entries are discovered by rEFInd at boot.</source><translation>rEFInd 配置来源；自动条目由 rEFInd 在启动时发现。</translation></message>
+        <message><source>This direct boot method uses firmware entries rather than an internal boot menu.</source><translation>此直接启动方式通过固件启动项选择，没有内部引导菜单。</translation></message>
+        <message><source>No menu content could be read. Check the target and refresh detection.</source><translation>未能读取菜单内容，请检查目标后重新检测。</translation></message>
     </context>
     <context>
         <name>RepairPage</name>
