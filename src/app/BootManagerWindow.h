@@ -15,6 +15,7 @@ class MenuPage;
 class SettingsPage;
 class FirmwarePage;
 class RepairPage;
+class PendingPage;
 
 class BootManagerWindow : public QMainWindow {
     Q_OBJECT
@@ -36,6 +37,7 @@ private:
     SettingsPage *settings_ = nullptr;
     FirmwarePage *firmware_ = nullptr;
     RepairPage *repair_ = nullptr;
+    PendingPage *pendingPage_ = nullptr;
     QFrame *footer_ = nullptr;
     QLabel *pending_ = nullptr;
     QPushButton *apply_ = nullptr;

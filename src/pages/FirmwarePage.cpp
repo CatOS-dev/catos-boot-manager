@@ -39,6 +39,9 @@ FirmwarePage::FirmwarePage(QWidget *parent) : QWidget(parent)
     auto *up = new QPushButton(tr("Move up"), content);
     auto *down = new QPushButton(tr("Move down"), content);
     auto *saveOrder = new QPushButton(tr("Queue boot order"), content);
+    up->setObjectName(QStringLiteral("moveBootEntryUp"));
+    down->setObjectName(QStringLiteral("moveBootEntryDown"));
+    saveOrder->setObjectName(QStringLiteral("queueBootOrder"));
     for (auto *button : {up, down, saveOrder}) { orderButtons->addWidget(button); actions_.append(button); }
     orderButtons->addStretch();
     layout->addLayout(orderButtons);
@@ -46,6 +49,7 @@ FirmwarePage::FirmwarePage(QWidget *parent) : QWidget(parent)
     auto *buttons = new QHBoxLayout;
     auto *next = new QPushButton(tr("Boot once"), content);
     clearNext_ = new QPushButton(tr("Clear next boot"), content);
+    clearNext_->setObjectName(QStringLiteral("clearNextBoot"));
     auto *toggle = new QPushButton(tr("Enable / Disable"), content);
     auto *rename = new QPushButton(tr("Rename"), content);
     auto *remove = new QPushButton(tr("Remove entry"), content);
@@ -71,6 +75,7 @@ FirmwarePage::FirmwarePage(QWidget *parent) : QWidget(parent)
 void FirmwarePage::updateSnapshot(const BootSnapshot &snapshot)
 {
     snapshot_ = snapshot;
+    pendingNext_ = snapshot.bootNext;
     displayOrder_ = snapshot.bootOrder;
     for (const auto &entry : snapshot.firmware)
         if (!displayOrder_.contains(entry.number)) displayOrder_.append(entry.number);
@@ -86,6 +91,25 @@ void FirmwarePage::updateSnapshot(const BootSnapshot &snapshot)
                  snapshot.bootNext.isEmpty() ? tr("not set") : snapshot.bootNext,
                  snapshot.bootOrder.join(QStringLiteral(", "))));
     }
+    redraw();
+}
+
+void FirmwarePage::updateTransaction(const BootTransaction &transaction)
+{
+    pendingNext_ = snapshot_.bootNext;
+    displayOrder_ = snapshot_.bootOrder;
+    for (const auto &op : transaction.operations()) {
+        if (op.kind == QLatin1String("firmware-next")) pendingNext_ = op.value;
+        if (op.kind == QLatin1String("firmware-order"))
+            displayOrder_ = op.value.split(QLatin1Char(','), Qt::SkipEmptyParts);
+    }
+    for (const auto &entry : snapshot_.firmware)
+        if (!displayOrder_.contains(entry.number)) displayOrder_.append(entry.number);
+    clearNext_->setEnabled(snapshot_.uefi && !pendingNext_.isEmpty());
+    detail_->setText(tr("Current: %1 · Next (including pending): %2 · BootOrder (including pending): %3")
+        .arg(snapshot_.bootCurrent.isEmpty() ? tr("unknown") : snapshot_.bootCurrent,
+             pendingNext_.isEmpty() ? tr("not set") : pendingNext_,
+             displayOrder_.join(QStringLiteral(", "))));
     redraw();
 }
 
@@ -135,7 +159,6 @@ void FirmwarePage::moveSelected(int delta)
 void FirmwarePage::queueOrder()
 {
     const QStringList ordered = displayOrder_.mid(0, snapshot_.bootOrder.size());
-    if (ordered == snapshot_.bootOrder) return;
     emit operationRequested({QStringLiteral("firmware-order"), QStringLiteral("BootOrder"),
         ordered.join(QLatin1Char(',')), snapshot_.bootOrder.join(QLatin1Char(',')),
         tr("Set UEFI boot order: %1").arg(ordered.join(QStringLiteral(", ")))});
@@ -151,7 +174,7 @@ void FirmwarePage::queueNext()
 
 void FirmwarePage::clearNext()
 {
-    if (snapshot_.bootNext.isEmpty()) return;
+    if (pendingNext_.isEmpty()) return;
     emit operationRequested({QStringLiteral("firmware-next"), QStringLiteral("BootNext"), {},
                              snapshot_.bootNext, tr("Clear one-time UEFI boot selection")});
 }

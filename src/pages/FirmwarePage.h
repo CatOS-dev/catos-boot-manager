@@ -14,6 +14,7 @@ class FirmwarePage : public QWidget {
 public:
     explicit FirmwarePage(QWidget *parent = nullptr);
     void updateSnapshot(const BootSnapshot &snapshot);
+    void updateTransaction(const BootTransaction &transaction);
 
 signals:
     void operationRequested(const BootOperation &operation);
@@ -31,6 +32,7 @@ private:
     QString selectedId() const;
 
     BootSnapshot snapshot_;
+    QString pendingNext_;
     QStringList displayOrder_;
     QTableWidget *table_ = nullptr;
     QLabel *detail_ = nullptr;

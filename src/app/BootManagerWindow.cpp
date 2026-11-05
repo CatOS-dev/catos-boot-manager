@@ -3,6 +3,7 @@
 #include "pages/FirmwarePage.h"
 #include "pages/MenuPage.h"
 #include "pages/OverviewPage.h"
+#include "pages/PendingPage.h"
 #include "pages/RepairPage.h"
 #include "pages/SettingsPage.h"
 #include "services/BootProbe.h"
@@ -53,7 +54,7 @@ BootManagerWindow::BootManagerWindow(QWidget *parent) : QMainWindow(parent)
     navigation_ = new QListWidget(sidebar);
     navigation_->setObjectName(QStringLiteral("navigation"));
     navigation_->addItems({tr("Overview"), tr("Boot menu"), tr("Loader settings"),
-                           tr("UEFI entries"), tr("Rebuild & update")});
+                           tr("UEFI entries"), tr("Rebuild & update"), tr("Pending changes")});
     navigation_->setFrameShape(QFrame::NoFrame);
     navigation_->setSpacing(7);
     navigation_->setStyleSheet(QStringLiteral(
@@ -76,9 +77,10 @@ BootManagerWindow::BootManagerWindow(QWidget *parent) : QMainWindow(parent)
     settings_ = new SettingsPage(pages_);
     firmware_ = new FirmwarePage(pages_);
     repair_ = new RepairPage(pages_);
+    pendingPage_ = new PendingPage(pages_);
     for (QWidget *page : {static_cast<QWidget *>(overview_), static_cast<QWidget *>(menu_),
                           static_cast<QWidget *>(settings_), static_cast<QWidget *>(firmware_),
-                          static_cast<QWidget *>(repair_)})
+                          static_cast<QWidget *>(repair_), static_cast<QWidget *>(pendingPage_)})
         pages_->addWidget(page);
     rightLayout->addWidget(pages_, 1);
     footer_ = new QFrame(right);
@@ -103,6 +105,10 @@ BootManagerWindow::BootManagerWindow(QWidget *parent) : QMainWindow(parent)
     connect(settings_, &SettingsPage::operationRequested, this, &BootManagerWindow::queue);
     connect(firmware_, &FirmwarePage::operationRequested, this, &BootManagerWindow::queue);
     connect(repair_, &RepairPage::operationRequested, this, &BootManagerWindow::queue);
+    connect(pendingPage_, &PendingPage::removalRequested, this, [this](const QString &key) {
+        transaction_.remove(key);
+        updateFooter();
+    });
     new QShortcut(QKeySequence::Refresh, this, SLOT(refresh()));
     navigation_->setCurrentRow(0);
     updateFooter();
@@ -132,6 +138,8 @@ void BootManagerWindow::queue(const BootOperation &operation)
 void BootManagerWindow::updateFooter()
 {
     const int count = transaction_.count();
+    pendingPage_->updateTransaction(transaction_);
+    firmware_->updateTransaction(transaction_);
     pending_->setText(count ? tr("%1 pending change(s)").arg(count) : tr("No pending changes"));
     apply_->setEnabled(count > 0);
     discard_->setEnabled(count > 0);

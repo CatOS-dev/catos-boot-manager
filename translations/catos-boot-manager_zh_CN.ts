@@ -75,7 +75,9 @@
             <source>The operation did not finish. System state has been reloaded; review the log before making another change.</source>
             <translation>操作未完成。已重新读取系统状态，请检查记录后再进行修改。</translation>
         </message>
-    </context>
+
+        <message><source>Pending changes</source><translation>待应用更改</translation></message>
+</context>
     <context>
         <name>FirmwarePage</name>
         <message>
@@ -318,7 +320,9 @@
             <source>Create firmware entry %1 → %2</source>
             <translation>创建固件启动项 %1 → %2</translation>
         </message>
-    </context>
+
+        <message><source>Current: %1 · Next (including pending): %2 · BootOrder (including pending): %3</source><translation>本次：%1 · 下次（含待应用）：%2 · 启动顺序（含待应用）：%3</translation></message>
+</context>
     <context>
         <name>MenuPage</name>
         <message>
@@ -1305,5 +1309,18 @@ You can review the exact command sequence before applying.</source>
             <source>Nothing changed on this page.</source>
             <translation type="vanished">本页面没有需要暂存的修改。</translation>
         </message>
+    </context>
+    <context>
+        <name>PendingPage</name>
+        <message><source>Pending changes</source><translation>待应用更改</translation></message>
+        <message><source>Review queued operations or cancel an individual change before applying.</source><translation>审阅待应用操作，或在应用前单独取消某项更改。</translation></message>
+        <message><source>Cancel selected change</source><translation>取消选中更改</translation></message>
+        <message><source>Target: %1</source><translation>目标：%1</translation></message>
+        <message><source>
+Original value: %1
+Pending value: %2</source><translation>
+原值：%1
+待应用值：%2</translation></message>
+        <message><source>No pending changes</source><translation>没有待应用的修改</translation></message>
     </context>
 </TS>

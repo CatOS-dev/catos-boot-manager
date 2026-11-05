@@ -37,6 +37,8 @@ qt_add_executable(catos-boot-manager
     src/pages/MenuPage.cpp
     src/pages/FirmwarePage.h
     src/pages/FirmwarePage.cpp
+    src/pages/PendingPage.h
+    src/pages/PendingPage.cpp
     src/pages/RepairPage.h
     src/pages/RepairPage.cpp
     src/dialogs/ApplyDialog.h
@@ -46,6 +48,20 @@ target_link_libraries(catos-boot-manager PRIVATE catos-boot-core Qt6::Widgets)
 
 qt_add_executable(catos-boot-apply src/privileged/BootApplyExecutor.cpp)
 target_link_libraries(catos-boot-apply PRIVATE catos-boot-core)
+
+include(CTest)
+if(BUILD_TESTING)
+    find_package(Qt6 REQUIRED COMPONENTS Test)
+    qt_add_executable(boot-transaction-test
+        tests/BootTransactionTest.cpp
+        src/pages/FirmwarePage.cpp
+        src/pages/PendingPage.cpp
+        src/widgets/BootUi.cpp
+    )
+    target_link_libraries(boot-transaction-test PRIVATE catos-boot-core Qt6::Widgets Qt6::Test)
+    add_test(NAME boot-transaction COMMAND boot-transaction-test)
+    set_tests_properties(boot-transaction PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+endif()
 
 qt_add_lrelease(catos-boot-manager
     TS_FILES translations/catos-boot-manager_zh_CN.ts

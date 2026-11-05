@@ -23,7 +23,9 @@ void BootTransaction::stage(const BootOperation &operation)
 {
     for (int i = 0; i < operations_.size(); ++i) {
         if (operations_[i].key() != operation.key()) continue;
-        if (operation.kind.endsWith(QLatin1String("-setting"))
+        if ((operation.kind.endsWith(QLatin1String("-setting"))
+             || operation.kind == QLatin1String("firmware-next")
+             || operation.kind == QLatin1String("firmware-order"))
             && operation.value == operations_[i].expected) {
             operations_.removeAt(i);
         } else {
@@ -33,9 +35,21 @@ void BootTransaction::stage(const BootOperation &operation)
         }
         return;
     }
-    if (operation.kind.endsWith(QLatin1String("-setting"))
+    if ((operation.kind.endsWith(QLatin1String("-setting"))
+         || operation.kind == QLatin1String("firmware-next")
+         || operation.kind == QLatin1String("firmware-order"))
         && operation.value == operation.expected) return;
     operations_.append(operation);
+}
+
+void BootTransaction::remove(const QString &key)
+{
+    for (int i = 0; i < operations_.size(); ++i) {
+        if (operations_[i].key() == key) {
+            operations_.removeAt(i);
+            return;
+        }
+    }
 }
 
 QByteArray BootTransaction::encoded() const
