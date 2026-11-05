@@ -12,6 +12,7 @@ class BootInstallTest : public QObject {
 private slots:
     void runSelectedPackageInstallation();
     void stopAfterPackageInstallationFails();
+    void reportPartialFirmwareExecution();
     void applyMenuAndGlobalSettingsToSameFile();
     void createBlsAndSelectItInOneTransaction();
     void validateProjectedImageSettingsBeforeWriting();
@@ -44,7 +45,8 @@ void BootInstallTest::runSelectedPackageInstallation()
     QVERIFY2(preflight({installation}, snapshot, &error), qPrintable(error));
     BootBackup backup;
     QVERIFY2(backup.prepare({installation}, snapshot, directory.path() + "/backup", &error), qPrintable(error));
-    QVERIFY(apply({installation}, backup, snapshot));
+    QJsonObject outcomes;
+    QVERIFY(apply({installation}, backup, snapshot, &outcomes));
     QFile arguments(directory.path() + "/arguments");
     QVERIFY(arguments.open(QIODevice::ReadOnly));
     QCOMPARE(arguments.readAll(), QByteArray("-S\n--needed\n--noconfirm\n--\nlimine\nlimine-tool\nefibootmgr\n"));
@@ -77,8 +79,35 @@ void BootInstallTest::stopAfterPackageInstallationFails()
     QString error;
     BootBackup backup;
     QVERIFY2(backup.prepare(operations, snapshot, directory.path() + "/backup", &error), qPrintable(error));
-    QVERIFY(!apply(operations, backup, snapshot));
+    QJsonObject outcomes;
+    QVERIFY(!apply(operations, backup, snapshot, &outcomes));
+    QCOMPARE(outcomes.value(operations[0].key()).toString(), QString("failed"));
+    QCOMPARE(outcomes.value(operations[1].key()).toString(), QString("not-executed"));
     QVERIFY(!QFileInfo::exists(directory.path() + "/sentinel"));
+}
+
+void BootInstallTest::reportPartialFirmwareExecution()
+{
+    QTemporaryDir directory; QVERIFY(directory.isValid());
+    QFile executable(directory.filePath("efibootmgr")); QVERIFY(executable.open(QIODevice::WriteOnly));
+    const QByteArray script = "#!/bin/sh\ncase \"$*\" in *0002*) exit 1;; *) exit 0;; esac\n";
+    QCOMPARE(executable.write(script), qint64(script.size())); executable.close();
+    QVERIFY(executable.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner));
+    const auto oldPath = qgetenv("PATH");
+    const auto restore = qScopeGuard([&] { qputenv("PATH", oldPath); });
+    qputenv("PATH", directory.path().toUtf8());
+    const QList<BootOperation> operations{{"firmware-toggle", "0001", "0", "1", "Disable first"},
+        {"firmware-toggle", "0002", "0", "1", "Disable second"},
+        {"firmware-toggle", "0003", "0", "1", "Disable third"}};
+    BootSnapshot snapshot;
+    BootBackup backup;
+    QString error;
+    QVERIFY2(backup.prepare(operations, snapshot, directory.path() + "/backup", &error), qPrintable(error));
+    QJsonObject outcomes;
+    QVERIFY(!apply(operations, backup, snapshot, &outcomes));
+    QCOMPARE(outcomes.value(operations[0].key()).toString(), QString("succeeded"));
+    QCOMPARE(outcomes.value(operations[1].key()).toString(), QString("failed"));
+    QCOMPARE(outcomes.value(operations[2].key()).toString(), QString("not-executed"));
 }
 
 namespace {
@@ -109,7 +138,10 @@ void BootInstallTest::applyMenuAndGlobalSettingsToSameFile()
     QVERIFY2(preflight(operations, snapshot, &error), qPrintable(error));
     BootBackup backup;
     QVERIFY2(backup.prepare(operations, snapshot, directory.path() + "/backup", &error), qPrintable(error));
-    QVERIFY(apply(operations, backup, snapshot));
+    QJsonObject outcomes;
+    QVERIFY(apply(operations, backup, snapshot, &outcomes));
+    QCOMPARE(outcomes.value(operations[0].key()).toString(), QString("succeeded"));
+    QCOMPARE(outcomes.value(operations[1].key()).toString(), QString("succeeded"));
     const auto changed = BootMenus::readText(path, &error); QVERIFY(error.isEmpty());
     QVERIFY(changed.contains("/New Linux")); QVERIFY(changed.contains("timeout: 8")); QVERIFY(changed.contains("unknown: keep"));
     QFile report(backup.directory() + "/manifest.json"); QVERIFY(report.open(QIODevice::ReadOnly));
@@ -136,7 +168,8 @@ void BootInstallTest::createBlsAndSelectItInOneTransaction()
     QVERIFY2(preflight({selected, create}, snapshot, &error), qPrintable(error));
     BootBackup backup;
     QVERIFY2(backup.prepare({selected, create}, snapshot, directory.path() + "/backup", &error), qPrintable(error));
-    QVERIFY(apply({selected, create}, backup, snapshot));
+    QJsonObject outcomes;
+    QVERIFY(apply({selected, create}, backup, snapshot, &outcomes));
     QVERIFY(QFileInfo::exists(path));
     QCOMPARE(BootSettings::read(LoaderKind::SystemdBoot, esp, "default", &error), QString("new.conf")); QVERIFY(error.isEmpty());
     snapshot.installations[0].settingValues["default"] = "new.conf";

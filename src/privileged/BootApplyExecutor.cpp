@@ -236,12 +236,18 @@ bool preflight(const QList<BootOperation> &operations, const BootSnapshot &snaps
     return true;
 }
 
-bool apply(const QList<BootOperation> &operations, BootBackup &backup, const BootSnapshot &snapshot)
+bool apply(const QList<BootOperation> &operations, BootBackup &backup, const BootSnapshot &snapshot, QJsonObject *outcomes)
 {
+    for (const auto &op : operations) outcomes->insert(op.key(), "not-executed");
     QString packageError;
     const auto packages = BootPackages::installArguments(operations, snapshot, &packageError);
     if (!packageError.isEmpty()) return false;
-    if (!packages.isEmpty() && !run(backup, QStringLiteral("pacman"), packages)) return false;
+    if (!packages.isEmpty()) {
+        const bool success = run(backup, QStringLiteral("pacman"), packages);
+        for (const auto &op : operations)
+            if (op.kind == "install-packages") outcomes->insert(op.key(), success ? "succeeded" : "failed");
+        if (!success) return false;
+    }
     bool grubEdited = false;
     QMap<QString, QSet<LoaderKind>> images;
     bool rebuildGrub = false;
@@ -250,6 +256,7 @@ bool apply(const QList<BootOperation> &operations, BootBackup &backup, const Boo
         if (op.kind != QLatin1String("menu-write")) continue;
         QString error;
         const bool written = BootMenus::execute(op, &error);
+        outcomes->insert(op.key(), written ? "succeeded" : "failed");
         if (!recordResult(backup, op.kind + ':' + op.target, written)) { QTextStream(stderr) << error << Qt::endl; return false; }
     }
     for (const auto &op : operations) {
@@ -262,6 +269,7 @@ bool apply(const QList<BootOperation> &operations, BootBackup &backup, const Boo
         const auto location = bound->kind == LoaderKind::SystemdBoot ? bound->esp : op.target.left(op.target.lastIndexOf('|'));
         QString error;
         const bool written = BootSettings::write(bound->kind, location, key, op.value, &error);
+        outcomes->insert(op.key(), written ? "succeeded" : "failed");
         if (!recordResult(backup, op.kind + ':' + op.target, written)) { QTextStream(stderr) << error << Qt::endl; return false; }
         grubEdited |= bound->kind == LoaderKind::Grub;
         if (BootDeploy::directImage(bound->kind)) images[bound->config].insert(bound->kind);
@@ -271,46 +279,61 @@ bool apply(const QList<BootOperation> &operations, BootBackup &backup, const Boo
         rebuildGrub |= op.kind == QLatin1String("rebuild-grub");
         rebuildLimine |= op.kind == QLatin1String("rebuild-limine");
     }
-    if ((grubEdited || rebuildGrub)
-        && !run(backup, QStringLiteral("grub-mkconfig"), {QStringLiteral("-o"), QStringLiteral("/boot/grub/grub.cfg")})) return false;
-    if (rebuildLimine && !run(backup, QStringLiteral("limine-mkinitcpio"), {})) return false;
+    if (grubEdited || rebuildGrub) {
+        const bool success = run(backup, QStringLiteral("grub-mkconfig"), {QStringLiteral("-o"), QStringLiteral("/boot/grub/grub.cfg")});
+        outcomes->insert("generate:grub", success ? "succeeded" : "failed");
+        for (const auto &op : operations) if (op.kind == "rebuild-grub") outcomes->insert(op.key(), success ? "succeeded" : "failed");
+        if (!success) return false;
+    }
+    if (rebuildLimine) {
+        const bool success = run(backup, QStringLiteral("limine-mkinitcpio"), {});
+        outcomes->insert("generate:limine", success ? "succeeded" : "failed");
+        for (const auto &op : operations) if (op.kind == "rebuild-limine") outcomes->insert(op.key(), success ? "succeeded" : "failed");
+        if (!success) return false;
+    }
     for (auto it = images.begin(); it != images.end(); ++it) {
         for (const auto kind : it.value()) {
             QString error;
             const bool success = BootDeploy::rebuild(kind, it.key(), &error);
+            outcomes->insert("generate:" + it.key(), success ? "succeeded" : "failed");
+            for (const auto &op : operations)
+                if (op.kind == "rebuild-image" && op.target == it.key()) outcomes->insert(op.key(), success ? "succeeded" : "failed");
             if (!recordResult(backup, "rebuild-image:" + it.key(), success)) { QTextStream(stderr) << error << Qt::endl; return false; }
         }
     }
     // Firmware operations are deliberately last; they can be partially applied
     // by UEFI firmware even when another later operation fails.
     for (const auto &op : operations) {
+        bool success = false;
         if (op.kind == QLatin1String("firmware-order")) {
-            if (!run(backup, QStringLiteral("efibootmgr"), {QStringLiteral("-o"), op.value})) return false;
+            success = run(backup, QStringLiteral("efibootmgr"), {QStringLiteral("-o"), op.value});
         } else if (op.kind == QLatin1String("firmware-next")) {
-            if (!run(backup, QStringLiteral("efibootmgr"), op.value.isEmpty()
+            success = run(backup, QStringLiteral("efibootmgr"), op.value.isEmpty()
                 ? QStringList{QStringLiteral("-N")}
-                : QStringList{QStringLiteral("-n"), op.value})) return false;
+                : QStringList{QStringLiteral("-n"), op.value});
         } else if (op.kind == QLatin1String("firmware-toggle")) {
-            if (!run(backup, QStringLiteral("efibootmgr"), {QStringLiteral("-b"), op.target,
-                op.value == QLatin1String("1") ? QStringLiteral("-a") : QStringLiteral("-A")})) return false;
+            success = run(backup, QStringLiteral("efibootmgr"), {QStringLiteral("-b"), op.target,
+                op.value == QLatin1String("1") ? QStringLiteral("-a") : QStringLiteral("-A")});
         } else if (op.kind == QLatin1String("firmware-rename")) {
-            if (!run(backup, QStringLiteral("efibootmgr"), {QStringLiteral("-b"), op.target,
-                QStringLiteral("-L"), op.value})) return false;
+            success = run(backup, QStringLiteral("efibootmgr"), {QStringLiteral("-b"), op.target,
+                QStringLiteral("-L"), op.value});
         } else if (op.kind == QLatin1String("firmware-remove")) {
-            if (!run(backup, QStringLiteral("efibootmgr"), {QStringLiteral("-b"), op.target,
-                QStringLiteral("-B")})) return false;
+            success = run(backup, QStringLiteral("efibootmgr"), {QStringLiteral("-b"), op.target,
+                QStringLiteral("-B")});
         } else if (op.kind == QLatin1String("firmware-add")) {
             QStringList arguments;
             QString error;
-            if (!firmwareAddArguments(op.target, op.value, &arguments, &error)
-                || !run(backup, QStringLiteral("efibootmgr"), arguments)) return false;
+            success = firmwareAddArguments(op.target, op.value, &arguments, &error)
+                && run(backup, QStringLiteral("efibootmgr"), arguments);
         } else if (BootRepair::supports(op.kind)) {
             QString error;
-            if (!BootRepair::execute(op, &error)) {
+            success = BootRepair::execute(op, &error);
+            if (!success) {
                 QTextStream(stderr) << "Boot repair failed: " << error << Qt::endl;
-                return false;
             }
-        }
+        } else continue;
+        outcomes->insert(op.key(), success ? "succeeded" : "failed");
+        if (!success) return false;
     }
     return true;
 }
@@ -322,7 +345,7 @@ void endSession(int)
     kill(0, SIGTERM);
 }
 
-int executeTransaction(const QByteArray &payload)
+int executeTransaction(const QByteArray &payload, QJsonObject *outcomes, QString *reportDirectory)
 {
     QTextStream errors(stderr);
     QString error;
@@ -332,6 +355,7 @@ int executeTransaction(const QByteArray &payload)
     }
     const auto operations = BootTransaction::decode(payload, &error);
     if (!error.isEmpty()) { errors << error << Qt::endl; return 2; }
+    for (const auto &op : operations) outcomes->insert(op.key(), "not-executed");
     const auto snapshot = BootProbe::inspect();
     if (!preflight(operations, snapshot, &error)) {
         errors << "Transaction rejected: " << error << Qt::endl;
@@ -343,7 +367,8 @@ int executeTransaction(const QByteArray &payload)
         return 3;
     }
     QTextStream(stdout) << "Configuration backup and execution report: " << backup.directory() << Qt::endl;
-    const bool applied = apply(operations, backup, snapshot);
+    *reportDirectory = backup.directory();
+    const bool applied = apply(operations, backup, snapshot, outcomes);
     if (!backup.finish(applied, &error)) {
         errors << "Execution report could not be finalized: " << error << Qt::endl;
         return 4;
@@ -420,9 +445,12 @@ int main(int argc, char **argv)
             if (!respond(responses, {{QStringLiteral("type"), QStringLiteral("snapshot")},
                 {QStringLiteral("data"), QString::fromLatin1(BootSnapshotCodec::encode(snapshot))}})) return 2;
         } else if (action == QLatin1String("apply")) {
-            const int code = executeTransaction(request.value(QStringLiteral("transaction")).toString().toLatin1());
+            QJsonObject outcomes;
+            QString reportDirectory;
+            const int code = executeTransaction(request.value(QStringLiteral("transaction")).toString().toLatin1(), &outcomes, &reportDirectory);
             if (!respond(responses, {{QStringLiteral("type"), QStringLiteral("result")},
-                                    {QStringLiteral("success"), code == 0}, {QStringLiteral("code"), code}})) return 2;
+                                    {QStringLiteral("success"), code == 0}, {QStringLiteral("code"), code},
+                                    {QStringLiteral("outcomes"), outcomes}, {QStringLiteral("reportDirectory"), reportDirectory}})) return 2;
         } else return 2;
     }
 }

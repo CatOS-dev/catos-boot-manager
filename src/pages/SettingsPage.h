@@ -20,6 +20,7 @@ public:
     void updateSnapshot(const BootSnapshot &snapshot, bool preserveDrafts = false);
     void acknowledgeApplied(const BootTransaction &transaction);
     bool hasDraftChanges() const;
+    bool hasInvalidDrafts() const;
     void reflectOperation(const BootOperation &operation);
     void discardOperation(const BootOperation &operation);
     void selectMethod(LoaderKind kind);
@@ -27,20 +28,19 @@ public:
 
 signals:
     void operationRequested(const BootOperation &operation);
+    void draftStateChanged();
     void methodChanged(LoaderKind kind);
 
 private:
     void showSettings();
-    void stageChanges();
+    void stageValue(const BootInstallation &loader, int index, const QString &value);
 
     BootSnapshot snapshot_;
     QList<BootInstallation> manageable_;
     LoaderSelector *selector_ = nullptr;
     QLabel *location_ = nullptr;
-    QPushButton *queue_ = nullptr;
     QFormLayout *fields_ = nullptr;
     QList<QWidget *> edits_;
-    QStringList baseline_;
     struct Draft {
         QStringList baseline;
         QStringList values;

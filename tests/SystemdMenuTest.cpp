@@ -119,16 +119,12 @@ void SystemdMenuTest::displayRealBootctlEntriesAndQueueExactDefault()
     QVERIFY(!BootBls::defaultTargetMatches(snapshot, esp, "missing.conf", operation.expectedMenu));
     QVERIFY(page.findChildren<QTabWidget *>().isEmpty());
     auto *timeout = page.settings()->findChild<QLineEdit *>("timeout");
-    auto *queue = page.settings()->findChild<QPushButton *>("queueSettings");
     QVERIFY(timeout);
-    QVERIFY(queue);
     timeout->setText("5");
-    queue->click();
     QCOMPARE(transaction.count(), 2);
     QCOMPARE(transaction.operations().first().value, QString("catos-two.conf"));
     QCOMPARE(transaction.operations().first().expectedMenu, operation.expectedMenu);
     timeout->setText("3");
-    queue->click();
     QCOMPARE(transaction.count(), 1);
     page.resize(1040, 700);
     page.show();
@@ -275,6 +271,7 @@ void SystemdMenuTest::editLimineNestedDefaultAndPreserveDrafts()
     QCOMPARE(transaction.operations()[1].value, QString("2"));
     page.selectMethod(LoaderKind::Grub); page.selectMethod(LoaderKind::Limine);
     QCOMPARE(tree->topLevelItem(0)->child(0)->text(0), QString("Updated Linux"));
+    page.findChild<QPushButton *>("showConfiguration")->click();
     page.resize(1050, 850); page.show(); QVERIFY(QTest::qWaitForWindowActive(&page));
     QVERIFY(page.grab().save("/tmp/catos-menu-limine-complete.png"));
     transaction.clear(); page.updateTransaction(transaction);

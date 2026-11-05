@@ -68,7 +68,7 @@ int fixtureSession()
             const auto operations = BootTransaction::decode(request.value("transaction").toString().toLatin1(), &error);
             if (!error.isEmpty() || operations.size() != 1) return 2;
             QTextStream(stderr) << "operation log" << Qt::endl;
-            if (!writeResponse(output, {{"type", "result"}, {"success", operations[0].value != "fail"}, {"code", operations[0].value == "fail" ? 4 : 0}})) return 2;
+            if (!writeResponse(output, {{"type", "result"}, {"success", operations[0].value != "fail"}, {"code", operations[0].value == "fail" ? 4 : 0}, {"outcomes", QJsonObject{{operations[0].key(), operations[0].value == "fail" ? "failed" : "succeeded"}}}, {"reportDirectory", ""}})) return 2;
         } else return 2;
     }
 }
@@ -297,6 +297,7 @@ void BootSessionTest::rootExecutorSession()
     QTRY_COMPARE_WITH_TIMEOUT(results.count(), 1, 60000);
     QCOMPARE(results.first().first().toBool(), false);
     QCOMPARE(session.lastApplyCode(), 3);
+    QCOMPARE(session.lastOutcomes().value(invalid.operations().first().key()).toString(), QString("not-executed"));
     BootTransaction large;
     large.stage({"menu-write", "/nonexistent/limine.conf", QString(1200 * 1024, QLatin1Char('x')), "hash"});
     QVERIFY(large.encoded().size() > 1024 * 1024);

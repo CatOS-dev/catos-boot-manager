@@ -38,11 +38,9 @@ FirmwarePage::FirmwarePage(QWidget *parent) : QWidget(parent)
     auto *orderButtons = new QHBoxLayout;
     auto *up = new QPushButton(tr("Move up"), content);
     auto *down = new QPushButton(tr("Move down"), content);
-    auto *saveOrder = new QPushButton(tr("Queue boot order"), content);
     up->setObjectName(QStringLiteral("moveBootEntryUp"));
     down->setObjectName(QStringLiteral("moveBootEntryDown"));
-    saveOrder->setObjectName(QStringLiteral("queueBootOrder"));
-    for (auto *button : {up, down, saveOrder}) { orderButtons->addWidget(button); actions_.append(button); }
+    for (auto *button : {up, down}) { orderButtons->addWidget(button); actions_.append(button); }
     orderButtons->addStretch();
     layout->addLayout(orderButtons);
     BootUi::section(layout, content, tr("Entry operations"));
@@ -50,21 +48,39 @@ FirmwarePage::FirmwarePage(QWidget *parent) : QWidget(parent)
     auto *next = new QPushButton(tr("Boot once"), content);
     clearNext_ = new QPushButton(tr("Clear next boot"), content);
     clearNext_->setObjectName(QStringLiteral("clearNextBoot"));
-    auto *toggle = new QPushButton(tr("Enable / Disable"), content);
+    auto *toggle = new QPushButton(tr("Enable"), content);
+    toggle_ = toggle;
     toggle->setObjectName("toggleBootEntry");
     next->setObjectName("bootEntryOnce");
     auto *rename = new QPushButton(tr("Rename"), content);
     auto *remove = new QPushButton(tr("Remove entry"), content);
+    remove_ = remove;
     auto *add = new QPushButton(tr("Add EFI entry"), content);
     for (auto *button : {next, clearNext_, toggle, rename, remove, add}) {
         buttons->addWidget(button);
         actions_.append(button);
     }
+    buttons->addStretch();
     layout->addLayout(buttons);
+    auto *danger = new QHBoxLayout;
+    danger->addStretch();
+    buttons->removeWidget(remove);
+    danger->addWidget(remove);
+    layout->addLayout(danger);
+    connect(table_, &QTableWidget::itemSelectionChanged, this, [this, up, down, next, rename] {
+        const auto *entry = snapshot_.entry(selectedId());
+        const int position = displayOrder_.indexOf(selectedId());
+        up->setEnabled(position > 0 && position < snapshot_.bootOrder.size());
+        down->setEnabled(position >= 0 && position + 1 < snapshot_.bootOrder.size());
+        next->setEnabled(entry && pendingEnabled_.value(entry->number, entry->enabled) && !pendingRemovals_.contains(entry->number));
+        rename->setEnabled(entry && !pendingRemovals_.contains(entry->number));
+        toggle_->setEnabled(entry && !pendingRemovals_.contains(entry->number));
+        toggle_->setText(entry && pendingEnabled_.value(entry->number, entry->enabled) ? tr("Disable") : tr("Enable"));
+        remove_->setEnabled(entry && !entry->current && !pendingRemovals_.contains(entry->number));
+    });
     layout->addStretch();
     connect(up, &QPushButton::clicked, this, [this] { moveSelected(-1); });
     connect(down, &QPushButton::clicked, this, [this] { moveSelected(1); });
-    connect(saveOrder, &QPushButton::clicked, this, &FirmwarePage::queueOrder);
     connect(next, &QPushButton::clicked, this, &FirmwarePage::queueNext);
     connect(clearNext_, &QPushButton::clicked, this, &FirmwarePage::clearNext);
     connect(toggle, &QPushButton::clicked, this, &FirmwarePage::queueToggle);
@@ -73,13 +89,14 @@ FirmwarePage::FirmwarePage(QWidget *parent) : QWidget(parent)
     connect(add, &QPushButton::clicked, this, &FirmwarePage::queueCreation);
 }
 
-void FirmwarePage::updateSnapshot(const BootSnapshot &snapshot, bool preserveDrafts)
+void FirmwarePage::updateSnapshot(const BootSnapshot &snapshot)
 {
     snapshot_ = snapshot;
-    if (!preserveDrafts) orderDirty_ = false;
     pendingEnabled_.clear();
+    pendingNames_.clear();
+    pendingRemovals_.clear();
     pendingNext_ = snapshot.bootNext;
-    if (!orderDirty_) displayOrder_ = snapshot.bootOrder;
+    displayOrder_ = snapshot.bootOrder;
     for (const auto &entry : snapshot.firmware)
         if (!displayOrder_.contains(entry.number)) displayOrder_.append(entry.number);
     const bool available = snapshot.uefi && !snapshot.firmware.isEmpty();
@@ -95,6 +112,7 @@ void FirmwarePage::updateSnapshot(const BootSnapshot &snapshot, bool preserveDra
                  snapshot.bootOrder.join(QStringLiteral(", "))));
     }
     redraw();
+    emit table_->itemSelectionChanged();
 }
 
 void FirmwarePage::updateTransaction(const BootTransaction &transaction)
@@ -102,13 +120,17 @@ void FirmwarePage::updateTransaction(const BootTransaction &transaction)
     pendingNext_ = snapshot_.bootNext;
     QStringList order = snapshot_.bootOrder;
     pendingEnabled_.clear();
+    pendingNames_.clear();
+    pendingRemovals_.clear();
     for (const auto &op : transaction.operations()) {
+        if (op.kind == QLatin1String("firmware-rename")) pendingNames_.insert(op.target, op.value);
+        if (op.kind == QLatin1String("firmware-remove")) pendingRemovals_.insert(op.target);
         if (op.kind == QLatin1String("firmware-toggle")) pendingEnabled_.insert(op.target, op.value == QLatin1String("1"));
         if (op.kind == QLatin1String("firmware-next")) pendingNext_ = op.value;
         if (op.kind == QLatin1String("firmware-order"))
             order = op.value.split(QLatin1Char(','), Qt::SkipEmptyParts);
     }
-    if (!orderDirty_) displayOrder_ = order;
+    displayOrder_ = order;
     for (const auto &entry : snapshot_.firmware)
         if (!displayOrder_.contains(entry.number)) displayOrder_.append(entry.number);
     clearNext_->setEnabled(snapshot_.uefi && !pendingNext_.isEmpty());
@@ -117,6 +139,7 @@ void FirmwarePage::updateTransaction(const BootTransaction &transaction)
              pendingNext_.isEmpty() ? tr("not set") : pendingNext_,
              displayOrder_.join(QStringLiteral(", "))));
     redraw();
+    emit table_->itemSelectionChanged();
 }
 
 void FirmwarePage::redraw()
@@ -128,9 +151,12 @@ void FirmwarePage::redraw()
         if (!entry) continue;
         const int row = table_->rowCount();
         table_->insertRow(row);
-        const QString status = (pendingEnabled_.value(id, entry->enabled) ? tr("Enabled") : tr("Disabled"))
+        QString status = (pendingEnabled_.value(id, entry->enabled) ? tr("Enabled") : tr("Disabled"))
             + (entry->current ? QStringLiteral(" · ") + tr("Current") : QString());
-        const QStringList fields{QStringLiteral("Boot") + id, entry->label, entry->path, status};
+        if (pendingEnabled_.contains(id)) status += " · " + tr("Pending change");
+        if (pendingNames_.contains(id)) status += " · " + tr("Pending rename");
+        if (pendingRemovals_.contains(id)) status += " · " + tr("Pending removal");
+        const QStringList fields{QStringLiteral("Boot") + id, pendingNames_.value(id, entry->label), entry->path, status};
         for (int column = 0; column < fields.size(); ++column) {
             auto *item = new QTableWidgetItem(fields.at(column));
             if (column == 0) item->setData(Qt::UserRole, id);
@@ -158,14 +184,13 @@ void FirmwarePage::moveSelected(int delta)
     if (position < 0 || position >= snapshot_.bootOrder.size()
         || destination < 0 || destination >= snapshot_.bootOrder.size()) return;
     displayOrder_.move(position, destination);
-    orderDirty_ = true;
     redraw();
     table_->selectRow(destination);
+    queueOrder();
 }
 
 void FirmwarePage::queueOrder()
 {
-    orderDirty_ = false;
     const QStringList ordered = displayOrder_.mid(0, snapshot_.bootOrder.size());
     emit operationRequested({QStringLiteral("firmware-order"), QStringLiteral("BootOrder"),
         ordered.join(QLatin1Char(',')), snapshot_.bootOrder.join(QLatin1Char(',')),
@@ -193,8 +218,8 @@ void FirmwarePage::queueRename()
     if (!entry) return;
     bool ok = false;
     const QString label = QInputDialog::getText(this, tr("Rename UEFI boot entry"),
-        tr("New firmware entry label:"), QLineEdit::Normal, entry->label, &ok).trimmed();
-    if (!ok || label.isEmpty() || label == entry->label) return;
+        tr("New firmware entry label:"), QLineEdit::Normal, pendingNames_.value(entry->number, entry->label), &ok).trimmed();
+    if (!ok || label.isEmpty() || label == pendingNames_.value(entry->number, entry->label)) return;
     if (label.size() > 80 || label.contains(QLatin1Char('\n'))
         || label.contains(QLatin1Char('\r'))) {
         QMessageBox::warning(this, tr("Invalid EFI label"), tr("Enter a short single-line label."));

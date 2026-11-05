@@ -7,20 +7,15 @@
 #include <QFormLayout>
 #include <QLabel>
 #include <QLineEdit>
-#include <QMessageBox>
+#include <QSignalBlocker>
 #include <QPushButton>
 #include <QVBoxLayout>
 
 namespace {
-QString editorValue(QWidget *widget)
-{
-    if (auto *combo = qobject_cast<QComboBox *>(widget)) return combo->currentData().toString();
-    return qobject_cast<QLineEdit *>(widget)->text();
-}
-
 void setEditorValue(QWidget *widget, const QString &value)
 {
     if (!widget) return;
+    const QSignalBlocker blocker(widget);
     if (auto *combo = qobject_cast<QComboBox *>(widget)) {
         int index = combo->findData(value);
         if (index < 0) { combo->addItem(value, value); index = combo->count() - 1; }
@@ -47,17 +42,12 @@ SettingsPage::SettingsPage(QWidget *parent, bool embedded) : QWidget(parent)
     fields_ = new QFormLayout;
     fields_->setSpacing(11);
     layout_->addLayout(fields_);
-    queue_ = new QPushButton(tr("Queue setting changes"), content);
-    queue_->setObjectName(QStringLiteral("queueSettings"));
-    queue_->setMinimumHeight(36);
-    layout_->addWidget(queue_, 0, Qt::AlignRight);
     layout_->addStretch();
     connect(selector_, &LoaderSelector::selectionChanged, this, [this] {
         manageable_ = selector_->installations();
         showSettings();
     });
     connect(selector_, &LoaderSelector::methodChanged, this, &SettingsPage::methodChanged);
-    connect(queue_, &QPushButton::clicked, this, &SettingsPage::stageChanges);
 }
 
 void SettingsPage::updateSnapshot(const BootSnapshot &snapshot, bool preserveDrafts)
@@ -77,9 +67,6 @@ void SettingsPage::showSettings()
         delete item;
     }
     edits_.clear();
-    baseline_.clear();
-    queue_->setEnabled(false);
-    queue_->hide();
     const int index = selector_->currentIndex();
     if (index < 0 || index >= manageable_.size()) {
         location_->setText(tr("No boot loader configuration is available."));
@@ -87,9 +74,7 @@ void SettingsPage::showSettings()
     }
     const auto &loader = manageable_.at(index);
     const bool canEdit = loader.settingsEditable;
-    location_->setText(canEdit ? tr("Boot configuration") : loader.settingsMessage);
-    queue_->setEnabled(canEdit);
-    queue_->setVisible(canEdit);
+    location_->setText(canEdit ? tr("Edits are added to pending changes automatically. Review and apply to save them.") : loader.settingsMessage);
     if (!canEdit) return;
     const auto specs = BootSettings::settings(loader.kind);
     if (canEdit && !drafts_.contains(loader.id)) {
@@ -102,7 +87,6 @@ void SettingsPage::showSettings()
     const Draft draft = drafts_.value(loader.id);
     for (int i = 0; i < specs.size(); ++i) {
         const auto &setting = specs[i];
-        baseline_.append(draft.baseline.value(i));
         if (QStringList{"GRUB_DEFAULT", "default_entry", "default_selection", "default"}.contains(setting.key)) {
             edits_.append(nullptr);
             continue;
@@ -115,9 +99,15 @@ void SettingsPage::showSettings()
                 && QStringList{"editor", "auto-entries", "auto-firmware", "beep"}.contains(setting.key));
         const bool wallpaperStyle = loader.kind == LoaderKind::Limine && setting.key == QLatin1String("wallpaper_style");
         QWidget *edit;
-        const auto changed = [this, id = loader.id, i](const QString &value) {
-            auto found = drafts_.find(id);
-            if (found != drafts_.end()) found->values[i] = value;
+        const bool valid = draft.values.value(i) == draft.baseline.value(i)
+            || BootSettings::allowed(loader.kind, setting.key, draft.values.value(i));
+        auto *help = BootUi::muted(valid ? setting.description : tr("Invalid value. %1").arg(setting.description), fields_->parentWidget());
+        help->setObjectName(setting.key + "Help");
+        const auto changed = [this, loader, i, help, setting](const QString &value) {
+            const bool valid = value == drafts_.value(loader.id).baseline.value(i)
+                || BootSettings::allowed(loader.kind, setting.key, value);
+            help->setText(valid ? setting.description : tr("Invalid value. %1").arg(setting.description));
+            stageValue(loader, i, value);
         };
         if (setting.key == QLatin1String("default_kernel")) {
             auto *combo = new QComboBox(fields_->parentWidget());
@@ -162,8 +152,14 @@ void SettingsPage::showSettings()
             connect(text, &QLineEdit::textChanged, this, changed);
         }
         edit->setObjectName(setting.key);
-        fields_->addRow(setting.title, edit);
-        auto *label = qobject_cast<QLabel *>(fields_->labelForField(edit));
+        auto *field = new QWidget(fields_->parentWidget());
+        auto *fieldLayout = new QVBoxLayout(field);
+        fieldLayout->setContentsMargins(0, 0, 0, 0);
+        fieldLayout->setSpacing(3);
+        fieldLayout->addWidget(edit);
+        fieldLayout->addWidget(help);
+        fields_->addRow(setting.title, field);
+        auto *label = qobject_cast<QLabel *>(fields_->labelForField(field));
         label->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
         edits_.append(edit);
     }
@@ -185,8 +181,14 @@ void SettingsPage::reflectOperation(const BootOperation &operation)
                 draft.values = draft.baseline;
                 drafts_.insert(loader.id, draft);
             }
+            const auto current = drafts_.value(loader.id);
+            if (current.values.value(i) != current.baseline.value(i)
+                && !BootSettings::allowed(loader.kind, specs[i].key, current.values.value(i))) continue;
             drafts_[loader.id].values[i] = operation.value;
-            if (selector_->currentId() == loader.id) setEditorValue(edits_[i], operation.value);
+            if (selector_->currentId() == loader.id) {
+                setEditorValue(edits_[i], operation.value);
+                if (auto *help = findChild<QLabel *>(specs[i].key + "Help")) help->setText(specs[i].description);
+            }
         }
     }
 }
@@ -203,38 +205,39 @@ void SettingsPage::discardOperation(const BootOperation &operation)
             auto found = drafts_.find(loader.id);
             if (found == drafts_.end()) continue;
             found->values[i] = found->baseline[i];
-            if (selector_->currentId() == loader.id) setEditorValue(edits_[i], found->values[i]);
+            if (selector_->currentId() == loader.id) {
+                setEditorValue(edits_[i], found->values[i]);
+                if (auto *help = findChild<QLabel *>(specs[i].key + "Help")) help->setText(specs[i].description);
+            }
         }
     }
 }
 
-void SettingsPage::stageChanges()
+void SettingsPage::stageValue(const BootInstallation &loader, int index, const QString &value)
 {
-    if (!queue_->isEnabled()) return;
-    const int index = selector_->currentIndex();
-    if (index < 0 || index >= manageable_.size()) return;
-    const auto &loader = manageable_.at(index);
-    const auto specs = BootSettings::settings(loader.kind);
-    QList<BootOperation> pending;
-    for (int i = 0; i < edits_.size() && i < specs.size(); ++i) {
-        if (!edits_[i]) continue;
-        const auto &spec = specs[i];
-        const QString before = baseline_.at(i);
-        const QString after = editorValue(edits_[i]);
-        // Also stage unchanged values: the transaction removes a previously
-        // queued setting when the user returns it to its original value.
-        if (before != after && !BootSettings::allowed(loader.kind, spec.key, after)) {
-            QMessageBox::warning(this, tr("Invalid setting"),
-                tr("Invalid value for %1. Check the field description.").arg(spec.title));
-            return;
-        }
-        const QString kind = BootSettings::operationKind(loader.kind);
-        const QString target = BootSettings::operationTarget(loader, spec.key);
-        pending.append({kind, target, after, before,
-                        loaderName(loader.kind) + QStringLiteral(" · ") + spec.title
-                        + QStringLiteral(": ") + before + QStringLiteral(" → ") + after});
+    auto draft = drafts_.find(loader.id);
+    if (draft == drafts_.end()) return;
+    draft->values[index] = value;
+    const auto spec = BootSettings::settings(loader.kind).at(index);
+    const QString before = draft->baseline.at(index);
+    if (value == before || BootSettings::allowed(loader.kind, spec.key, value))
+        emit operationRequested({BootSettings::operationKind(loader.kind),
+            BootSettings::operationTarget(loader, spec.key), value, before,
+            loaderName(loader.kind) + " · " + spec.title + ": " + before + " → " + value});
+    emit draftStateChanged();
+}
+
+bool SettingsPage::hasInvalidDrafts() const
+{
+    for (const auto &loader : snapshot_.installations) {
+        const auto draft = drafts_.constFind(loader.id);
+        if (draft == drafts_.cend()) continue;
+        const auto specs = BootSettings::settings(loader.kind);
+        for (int i = 0; i < specs.size(); ++i)
+            if (draft->values.value(i) != draft->baseline.value(i)
+                && !BootSettings::allowed(loader.kind, specs[i].key, draft->values.value(i))) return true;
     }
-    for (const auto &item : pending) emit operationRequested(item);
+    return false;
 }
 
 bool SettingsPage::hasDraftChanges() const

@@ -12,7 +12,8 @@
 class BootTransactionTest : public QObject {
     Q_OBJECT
 private slots:
-    void toggleAndPreserveOrderDraft();
+    void toggleAndAutomaticallyQueueOrder();
+    void previewRenameAndRemoval();
     void restoreFirmwareValues();
     void distinctMenuConfigurations();
     void cancelIndividualOperation();
@@ -24,7 +25,7 @@ private slots:
     void validateRemainingOrder();
 };
 
-void BootTransactionTest::toggleAndPreserveOrderDraft()
+void BootTransactionTest::toggleAndAutomaticallyQueueOrder()
 {
     BootSnapshot snapshot;
     snapshot.uefi = true;
@@ -43,20 +44,48 @@ void BootTransactionTest::toggleAndPreserveOrderDraft()
     QVERIFY(table); QVERIFY(toggle);
     table->selectRow(1);
     page.findChild<QPushButton *>("moveBootEntryUp")->click();
-    QVERIFY(page.hasDraftChanges());
+    QCOMPARE(transaction.operations().first().value, QString("0002,0001"));
+    toggle->click();
+    QCOMPARE(transaction.count(), 2);
+    QCOMPARE(transaction.operations().last().value, QString("0"));
+    QCOMPARE(table->item(0, 3)->text(), QString("Disabled · Pending change"));
+    QCOMPARE(toggle->text(), QString("Enable"));
     toggle->click();
     QCOMPARE(transaction.count(), 1);
-    QCOMPARE(transaction.operations().first().value, QString("0"));
-    QCOMPARE(table->item(0, 3)->text(), QString("Disabled"));
-    toggle->click();
-    QCOMPARE(transaction.count(), 0);
     QCOMPARE(table->item(0, 3)->text(), QString("Enabled"));
+    QCOMPARE(toggle->text(), QString("Disable"));
     page.findChild<QPushButton *>("bootEntryOnce")->click();
     QCOMPARE(table->item(0, 0)->data(Qt::UserRole).toString(), QString("0002"));
-    QVERIFY(page.hasDraftChanges());
-    page.findChild<QPushButton *>("queueBootOrder")->click();
-    QVERIFY(!page.hasDraftChanges());
-    QCOMPARE(transaction.operations().last().value, QString("0002,0001"));
+    QCOMPARE(transaction.operations().first().value, QString("0002,0001"));
+    QCOMPARE(transaction.operations().last().kind, QString("firmware-next"));
+}
+
+void BootTransactionTest::previewRenameAndRemoval()
+{
+    BootSnapshot snapshot;
+    snapshot.uefi = true;
+    snapshot.bootOrder = {"0001", "0002"};
+    snapshot.firmware = {{"0001", "First", "", "", true, true}, {"0002", "Second", "", "", true, false}};
+    FirmwarePage page;
+    page.updateSnapshot(snapshot);
+    BootTransaction transaction;
+    transaction.stage({"firmware-rename", "0002", "New name", "identity", "Rename"});
+    page.updateTransaction(transaction);
+    auto *table = page.findChild<QTableWidget *>(); QVERIFY(table);
+    QCOMPARE(table->item(1, 1)->text(), QString("New name"));
+    QVERIFY(table->item(1, 3)->text().contains("Pending rename"));
+    transaction.clear();
+    transaction.stage({"firmware-remove", "0002", "", "identity", "Remove"});
+    page.updateTransaction(transaction);
+    QVERIFY(table->item(1, 3)->text().contains("Pending removal"));
+    table->selectRow(1);
+    QVERIFY(!page.findChild<QPushButton *>("toggleBootEntry")->isEnabled());
+    page.resize(900, 650); page.show();
+    QVERIFY(QTest::qWaitForWindowActive(&page));
+    QVERIFY(page.grab().save("/tmp/catos-ux-firmware.png"));
+    transaction.clear(); page.updateTransaction(transaction);
+    QCOMPARE(table->item(1, 1)->text(), QString("Second"));
+    QCOMPARE(table->item(1, 3)->text(), QString("Enabled"));
 }
 
 void BootTransactionTest::restoreFirmwareValues()
@@ -152,19 +181,15 @@ void BootTransactionTest::restoreOrderThroughPage()
     auto *table = page.findChild<QTableWidget *>();
     auto *up = page.findChild<QPushButton *>("moveBootEntryUp");
     auto *down = page.findChild<QPushButton *>("moveBootEntryDown");
-    auto *queue = page.findChild<QPushButton *>("queueBootOrder");
     QVERIFY(table);
     QVERIFY(up);
     QVERIFY(down);
-    QVERIFY(queue);
     table->selectRow(1);
     up->click();
-    queue->click();
     QCOMPARE(transaction.count(), 1);
     QCOMPARE(transaction.operations().first().value, QString("0002,0001"));
     table->selectRow(0);
     down->click();
-    queue->click();
     QCOMPARE(transaction.count(), 0);
     QCOMPARE(table->item(0, 0)->data(Qt::UserRole).toString(), QString("0001"));
 }

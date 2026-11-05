@@ -36,7 +36,6 @@ private:
     void changeGroup(bool indent);
     void setDefault();
     void updateDefaultChoices();
-    void setTimeout();
     void showSelected(QTreeWidgetItem *item);
     void stageMenu(const QString &source, const QJsonObject &data, const QString &fingerprint);
     const BootInstallation *installation() const;
@@ -56,7 +55,6 @@ private:
     QPushButton *down_ = nullptr;
     QPushButton *indent_ = nullptr;
     QPushButton *outdent_ = nullptr;
-    QPushButton *timeout_ = nullptr;
     QComboBox *defaultChoice_ = nullptr;
     QWidget *defaultField_ = nullptr;
     QMap<QString, QString> pendingDefaults_;

@@ -2,6 +2,9 @@
 #include "pages/MenuPage.h"
 #include "pages/SettingsPage.h"
 #include "pages/PendingPage.h"
+#include "dialogs/ApplyDialog.h"
+#include <QLabel>
+#include <QTableWidget>
 #include "services/BootSession.h"
 #include "model/BootSnapshotCodec.h"
 #include <QApplication>
@@ -22,6 +25,8 @@ class BootManagerWindowTest : public QObject {
     Q_OBJECT
 private slots:
     void protectDraftsOnRefreshAndClose();
+    void invalidEditsBlockApplyAndConfirmDiscard();
+    void confirmImmediateExecutionBeforeStarting();
     void retainFailedTransaction_data();
     void retainFailedTransaction();
 };
@@ -68,6 +73,66 @@ void BootManagerWindowTest::protectDraftsOnRefreshAndClose()
     QCloseEvent discarded;
     QApplication::sendEvent(&window, &discarded);
     QVERIFY(discarded.isAccepted());
+}
+
+void BootManagerWindowTest::invalidEditsBlockApplyAndConfirmDiscard()
+{
+    BootSession session;
+    BootManagerWindow window(&session);
+    QCoreApplication::processEvents();
+    emit session.snapshotReady(settingsSnapshot());
+    auto *settings = window.findChild<SettingsPage *>(); QVERIFY(settings);
+    auto *timeout = settings->findChild<QLineEdit *>("GRUB_TIMEOUT"); QVERIFY(timeout);
+    auto *apply = window.findChild<QPushButton *>("applyTransaction"); QVERIFY(apply);
+    auto *discard = window.findChild<QPushButton *>("discardAllChanges"); QVERIFY(discard);
+    auto *pending = window.findChild<QListWidget *>("pendingOperations"); QVERIFY(pending);
+    timeout->setText("5");
+    QCOMPARE(pending->count(), 1);
+    QVERIFY(apply->isEnabled());
+    timeout->setText("bad");
+    QVERIFY(settings->hasInvalidDrafts());
+    QVERIFY(!apply->isEnabled());
+    QVERIFY(discard->isEnabled());
+    QVERIFY(settings->findChild<QLabel *>("GRUB_TIMEOUTHelp")->text().startsWith("Invalid value."));
+    QTimer::singleShot(0, &window, [] {
+        auto *box = qobject_cast<QMessageBox *>(QApplication::activeModalWidget()); QVERIFY(box);
+        box->button(QMessageBox::Cancel)->click();
+    });
+    discard->click();
+    QCOMPARE(timeout->text(), QString("bad"));
+    QCOMPARE(pending->count(), 1);
+    QTimer::singleShot(0, &window, [] {
+        auto *box = qobject_cast<QMessageBox *>(QApplication::activeModalWidget()); QVERIFY(box);
+        box->button(QMessageBox::Discard)->click();
+    });
+    discard->click();
+    QCOMPARE(pending->count(), 0);
+    QVERIFY(!settings->hasDraftChanges());
+    QVERIFY(!settings->hasInvalidDrafts());
+    QVERIFY(!discard->isEnabled());
+}
+
+void BootManagerWindowTest::confirmImmediateExecutionBeforeStarting()
+{
+    BootSession session;
+    BootTransaction transaction;
+    transaction.stage({"repair-install", "grub:uefi:/", R"({"action":"repair","root":"/target","esp":"/target/efi","register":true,"fallback":false})", "", "Repair GRUB on /target"});
+    QTimer::singleShot(0, [] {
+        auto *dialog = qobject_cast<QDialog *>(QApplication::activeModalWidget()); QVERIFY(dialog);
+        QCOMPARE(dialog->windowTitle(), QString("Confirm immediate execution"));
+        auto *confirm = dialog->findChild<QPushButton *>("confirmExecution"); QVERIFY(confirm);
+        QCOMPARE(confirm->text(), QString("Repair now"));
+        QVERIFY(!confirm->isDefault());
+        QString text;
+        for (auto *label : dialog->findChildren<QLabel *>()) text += label->text();
+        QVERIFY(text.contains("/target/efi"));
+        QVERIFY(text.contains("Register UEFI entry: Yes"));
+        QVERIFY(text.contains("Replace removable EFI loader: No"));
+        dialog->reject();
+    });
+    QCOMPARE(ApplyDialog::execute(nullptr, session, transaction, true), ApplyResult::Cancelled);
+    QVERIFY(!session.isBusy());
+    QVERIFY(!session.isAuthorized());
 }
 
 void BootManagerWindowTest::retainFailedTransaction_data()
@@ -117,6 +182,12 @@ void BootManagerWindowTest::retainFailedTransaction()
         }
         for (auto *button : dialog->findChildren<QPushButton *>())
             if ((button->text() == "Apply" || button->text() == "Close") && button->isEnabled()) {
+                if (button->text() == "Close") {
+                    auto *results = dialog->findChild<QTableWidget *>("executionResults"); QVERIFY(results);
+                    QCOMPARE(results->rowCount(), 1);
+                    QCOMPARE(results->item(0, 0)->text(), QString("Change timeout"));
+                    QCOMPARE(results->item(0, 1)->text(), code == 3 ? QString("Not executed") : QString("Failed; changes may be partial"));
+                }
                 button->click(); return;
             }
     });
@@ -147,7 +218,8 @@ int main(int argc, char **argv)
             }
             if (request.value("action").toString() == "apply") {
                 const QJsonObject response{{"type", "result"}, {"success", false},
-                    {"code", qEnvironmentVariableIntValue("CATOS_WINDOW_TEST_CODE")}};
+                    {"code", qEnvironmentVariableIntValue("CATOS_WINDOW_TEST_CODE")},
+                    {"outcomes", QJsonObject{{"grub-setting:GRUB_TIMEOUT", qEnvironmentVariableIntValue("CATOS_WINDOW_TEST_CODE") == 3 ? "not-executed" : "failed"}}}, {"reportDirectory", ""}};
                 output.write(QJsonDocument(response).toJson(QJsonDocument::Compact) + '\n'); output.flush();
             }
         }

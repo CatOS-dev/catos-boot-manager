@@ -4,6 +4,7 @@
 #include "model/BootTypes.h"
 
 #include <QWidget>
+#include <QSet>
 
 class QTableWidget;
 class QPushButton;
@@ -13,8 +14,7 @@ class FirmwarePage : public QWidget {
     Q_OBJECT
 public:
     explicit FirmwarePage(QWidget *parent = nullptr);
-    void updateSnapshot(const BootSnapshot &snapshot, bool preserveDrafts = false);
-    bool hasDraftChanges() const { return orderDirty_; }
+    void updateSnapshot(const BootSnapshot &snapshot);
     void updateTransaction(const BootTransaction &transaction);
 
 signals:
@@ -35,7 +35,10 @@ private:
     BootSnapshot snapshot_;
     QString pendingNext_;
     QHash<QString, bool> pendingEnabled_;
-    bool orderDirty_ = false;
+    QHash<QString, QString> pendingNames_;
+    QSet<QString> pendingRemovals_;
+    QPushButton *toggle_ = nullptr;
+    QPushButton *remove_ = nullptr;
     QStringList displayOrder_;
     QTableWidget *table_ = nullptr;
     QLabel *detail_ = nullptr;

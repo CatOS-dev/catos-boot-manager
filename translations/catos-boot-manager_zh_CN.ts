@@ -105,6 +105,30 @@
         <source>Discard pending changes and drafts and close?</source>
         <translation>是否丢弃待办更改和草稿并关闭？</translation>
     </message>
+    <message>
+        <source>Discard all changes</source>
+        <translation>放弃全部更改</translation>
+    </message>
+    <message>
+        <source>Discard all %1 pending change(s) and any invalid edits?</source>
+        <translation>是否放弃全部 %1 项待办更改及尚未通过校验的编辑？</translation>
+    </message>
+    <message>
+        <source>Correct invalid settings before applying.</source>
+        <translation>请先修正无效的配置值，再应用更改。</translation>
+    </message>
+    <message>
+        <source>Detect current state</source>
+        <translation>检测当前状态</translation>
+    </message>
+    <message>
+        <source>Boot detection or execution is still running. Please wait before closing.</source>
+        <translation>正在检测或执行启动操作，请完成后再关闭。</translation>
+    </message>
+    <message>
+        <source>There are %1 pending change(s). Apply them before closing, or discard all changes and invalid edits.</source>
+        <translation>有 %1 项待办更改。可审核并应用后关闭，或放弃全部更改及无效编辑。</translation>
+    </message>
 </context>
 <context>
     <name>BootSession</name>
@@ -366,6 +390,18 @@
         <location filename="../src/pages/FirmwarePage.cpp" line="108"/>
         <source>Current: %1 · Next (including pending): %2 · BootOrder (including pending): %3</source>
         <translation>本次：%1 · 下次（含待应用）：%2 · 启动顺序（含待应用）：%3</translation>
+    </message>
+    <message>
+        <source>Pending change</source>
+        <translation>待应用</translation>
+    </message>
+    <message>
+        <source>Pending rename</source>
+        <translation>待重命名</translation>
+    </message>
+    <message>
+        <source>Pending removal</source>
+        <translation>待删除</translation>
     </message>
 </context>
 <context>
@@ -701,6 +737,14 @@
     <message>
         <source>Choose another default boot entry before removing this entry.</source>
         <translation>请先选择另一个默认启动项，再删除此项。</translation>
+    </message>
+    <message>
+        <source>Show configuration</source>
+        <translation>展开配置</translation>
+    </message>
+    <message>
+        <source>Hide configuration</source>
+        <translation>收起配置</translation>
     </message>
 </context>
 <context>
@@ -1947,6 +1991,108 @@ Pending value: %2</source>
         <source>Apply menu changes before rebuilding.</source>
         <translation>请先应用菜单修改，再进行重建。</translation>
     </message>
+    <message>
+        <source>Confirm immediate execution</source>
+        <translation>确认立即执行</translation>
+    </message>
+    <message>
+        <source>This action runs immediately after confirmation. Existing pending changes will not be applied.</source>
+        <translation>确认后将立即执行此操作，已有待办更改不会一起应用。</translation>
+    </message>
+    <message>
+        <source>Target system: %1
+Destination: %2
+Register UEFI entry: %3
+Replace removable EFI loader: %4</source>
+        <translation>目标系统：%1
+目标位置：%2
+注册 UEFI 启动项：%3
+替换可移动设备 EFI 引导器：%4</translation>
+    </message>
+    <message>
+        <source>Boot loader files at this destination may be replaced.</source>
+        <translation>此目标位置的引导器文件可能被替换。</translation>
+    </message>
+    <message>
+        <source>Install packages now</source>
+        <translation>立即安装软件包</translation>
+    </message>
+    <message>
+        <source>Add entry now</source>
+        <translation>立即添加启动项</translation>
+    </message>
+    <message>
+        <source>Repair now</source>
+        <translation>立即修复</translation>
+    </message>
+    <message>
+        <source>Update now</source>
+        <translation>立即更新</translation>
+    </message>
+    <message>
+        <source>Deploy now</source>
+        <translation>立即部署</translation>
+    </message>
+    <message>
+        <source>Copy log</source>
+        <translation>复制日志</translation>
+    </message>
+    <message>
+        <source>Save execution log</source>
+        <translation>保存执行日志</translation>
+    </message>
+    <message>
+        <source>Unable to save the execution log.</source>
+        <translation>无法保存执行日志。</translation>
+    </message>
+    <message>
+        <source>Completed. Changes have been applied.</source>
+        <translation>执行完成，更改已应用。</translation>
+    </message>
+    <message>
+        <source>Rejected before execution. No changes were applied.</source>
+        <translation>执行前已拒绝，未执行任何更改。</translation>
+    </message>
+    <message>
+        <source>Execution incomplete. Some changes may have been applied. Save the log before retrying.</source>
+        <translation>执行未完成，部分更改可能已经执行，请先保存日志再重试。</translation>
+    </message>
+    <message>
+        <source>Operation / step</source>
+        <translation>操作／步骤</translation>
+    </message>
+    <message>
+        <source>Result</source>
+        <translation>结果</translation>
+    </message>
+    <message>
+        <source>Succeeded</source>
+        <translation>成功</translation>
+    </message>
+    <message>
+        <source>Failed; changes may be partial</source>
+        <translation>失败，可能已执行部分更改</translation>
+    </message>
+    <message>
+        <source>Not executed</source>
+        <translation>未执行</translation>
+    </message>
+    <message>
+        <source>Execution report: %1</source>
+        <translation>执行报告：%1</translation>
+    </message>
+    <message>
+        <source>Configured EFI system partition</source>
+        <translation>已配置的 EFI 系统分区</translation>
+    </message>
+    <message>
+        <source>Yes</source>
+        <translation>是</translation>
+    </message>
+    <message>
+        <source>No</source>
+        <translation>否</translation>
+    </message>
 </context>
 <context>
     <name>RepairPage</name>
@@ -2289,6 +2435,14 @@ State: %2
         <location filename="../src/pages/SettingsPage.cpp" line="228"/>
         <source>Invalid value for %1. Check the field description.</source>
         <translation>%1 的值不合法，请查看输入框说明。</translation>
+    </message>
+    <message>
+        <source>Edits are added to pending changes automatically. Review and apply to save them.</source>
+        <translation>编辑会自动加入待办更改，审核并应用后才会保存。</translation>
+    </message>
+    <message>
+        <source>Invalid value. %1</source>
+        <translation>值无效。%1</translation>
     </message>
 </context>
 </TS>

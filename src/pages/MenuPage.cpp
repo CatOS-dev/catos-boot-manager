@@ -199,7 +199,7 @@ MenuPage::MenuPage(QWidget *parent) : QWidget(parent)
     entries->addWidget(menu_);
     details_ = new QPlainTextEdit(entries_);
     details_->setReadOnly(true);
-    details_->setMaximumHeight(100);
+    details_->setMaximumHeight(72);
     details_->setPlaceholderText(tr("Select a boot entry to view its settings."));
     entries->addWidget(details_);
     auto *row = new QHBoxLayout;
@@ -218,13 +218,18 @@ MenuPage::MenuPage(QWidget *parent) : QWidget(parent)
     for (auto *button : {up_, down_, indent_, outdent_}) { button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed); row->addWidget(button); }
     up_->setObjectName("moveMenuEntryUp"); down_->setObjectName("moveMenuEntryDown");
     row->addStretch(); entries->addLayout(row);
-    row = new QHBoxLayout;
-    timeout_ = new QPushButton(tr("Menu timeout"), entries_);
-    timeout_->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed); row->addWidget(timeout_);
-    row->addStretch(); entries->addLayout(row);
     layout->addWidget(entries_);
+    auto *settingsToggle = new QPushButton(tr("Show configuration"), content);
+    settingsToggle->setCheckable(true);
+    settingsToggle->setObjectName("showConfiguration");
+    layout->addWidget(settingsToggle, 0, Qt::AlignLeft);
     settings_ = new SettingsPage(content, true);
     layout->addWidget(settings_);
+    settings_->hide();
+    connect(settingsToggle, &QPushButton::toggled, this, [this, settingsToggle](bool checked) {
+        settings_->setVisible(checked);
+        settingsToggle->setText(checked ? tr("Hide configuration") : tr("Show configuration"));
+    });
     connect(settings_, &SettingsPage::operationRequested, this, &MenuPage::operationRequested);
     connect(selector_, &LoaderSelector::installationChanged, settings_->selector(), &LoaderSelector::selectInstallation);
     connect(this, &MenuPage::operationRequested, settings_, &SettingsPage::reflectOperation);
@@ -257,7 +262,6 @@ MenuPage::MenuPage(QWidget *parent) : QWidget(parent)
             updateDefaultChoices();
         }
     });
-    connect(timeout_, &QPushButton::clicked, this, &MenuPage::setTimeout);
     connect(menu_, &QTreeWidget::currentItemChanged, this, [this](QTreeWidgetItem *item) { showSelected(item); });
     connect(menu_, &QTreeWidget::itemDoubleClicked, this, [this] { editEntry(false); });
     connect(rebuild_, &QPushButton::clicked, this, [this] {
@@ -329,7 +333,7 @@ void MenuPage::loadMenu()
     const bool image = BootDeploy::directImage(kind);
     const auto *loader = installation();
     menu_->setVisible(!image);
-    for (auto *button : {add_, edit_, remove_, timeout_}) button->setVisible(limine || refind || systemd);
+    for (auto *button : {add_, edit_, remove_}) button->setVisible(limine || refind || systemd);
     group_->setVisible(limine);
     for (auto *button : {up_, down_}) button->setVisible(limine || refind);
     indent_->setVisible(limine); outdent_->setVisible(limine);
@@ -340,11 +344,10 @@ void MenuPage::loadMenu()
         rebuild_->setEnabled(loader && loader->settingsEditable && !drafts_.contains(loader->config));
         rebuild_->setToolTip(loader && drafts_.contains(loader->config) ? tr("Apply menu changes before rebuilding.") : QString());
     }
-    for (auto *button : {add_, edit_, group_, remove_, up_, down_, indent_, outdent_, timeout_}) button->setEnabled(false);
+    for (auto *button : {add_, edit_, group_, remove_, up_, down_, indent_, outdent_}) button->setEnabled(false);
     if (!loader) { details_->setPlainText(tr("No installed boot entry was detected.")); return; }
     add_->setEnabled(loader->settingsEditable && !image);
     group_->setEnabled(limine && loader->settingsEditable);
-    timeout_->setEnabled(loader->settingsEditable);
     if (!loader->menuMessage.isEmpty()) { details_->setPlainText(loader->menuMessage); return; }
     if (limine || refind) {
         auto document = QJsonDocument::fromJson(loader->menuContent.toUtf8()).object();
@@ -749,19 +752,4 @@ void MenuPage::updateDefaultChoices()
     }
     if (selected < 0) { defaultChoice_->addItem(tr("Current default"), current); selected = defaultChoice_->count() - 1; }
     defaultChoice_->setCurrentIndex(selected);
-}
-
-void MenuPage::setTimeout()
-{
-    const auto *loader = installation();
-    if (!loader) return;
-    bool ok = false;
-    const QString value = QInputDialog::getText(this, tr("Menu timeout"), tr("Waiting time:"), QLineEdit::Normal,
-        loader->settingValues.value("timeout"), &ok).trimmed();
-    if (!ok) return;
-    if (!BootSettings::allowed(loader->kind, "timeout", value)) {
-        QMessageBox::warning(this, tr("Invalid timeout"), tr("Enter a valid waiting time.")); return;
-    }
-    emit operationRequested({BootSettings::operationKind(loader->kind), BootSettings::operationTarget(*loader, "timeout"), value,
-        loader->settingValues.value("timeout"), tr("Change menu timeout: %1").arg(value)});
 }

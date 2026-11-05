@@ -46,7 +46,6 @@ void SettingsDraftTest::chooseInstalledKernelWithoutImagePaths()
     BootTransaction transaction;
     connect(&page, &SettingsPage::operationRequested, &page, [&](const BootOperation &op) { transaction.stage(op); });
     choice->setCurrentIndex(2);
-    page.findChild<QPushButton *>("queueSettings")->click();
     QCOMPARE(transaction.count(), 1);
     QCOMPARE(transaction.operations()[0].target, loader.config + "|default_kernel");
     QCOMPARE(transaction.operations()[0].value, QString("linux-6.2"));
@@ -100,18 +99,17 @@ void SettingsDraftTest::booleanChoices()
     auto *choice = page.findChild<QComboBox *>(key); QVERIFY(choice);
     QVERIFY(!choice->isEditable()); QCOMPARE(choice->count(), 3);
     QCOMPARE(choice->currentData().toString(), QString());
-    auto *queue = page.findChild<QPushButton *>("queueSettings"); QVERIFY(queue);
     BootTransaction transaction;
     connect(&page, &SettingsPage::operationRequested, &page, [&](const BootOperation &op) { transaction.stage(op); });
-    choice->setCurrentIndex(1); queue->click();
+    choice->setCurrentIndex(1);
     QCOMPARE(transaction.count(), 1);
     const QString enabled = loader.kind == LoaderKind::Grub ? "true" : "yes";
     const QString disabled = loader.kind == LoaderKind::Grub ? "false" : "no";
     QCOMPARE(transaction.operations()[0].value, enabled);
-    choice->setCurrentIndex(2); queue->click();
+    choice->setCurrentIndex(2);
     QCOMPARE(transaction.operations()[0].value, disabled);
     QVERIFY(BootSettings::allowed(loader.kind, key, QString()));
-    choice->setCurrentIndex(0); queue->click();
+    choice->setCurrentIndex(0);
     QCOMPARE(transaction.count(), 0);
 }
 
@@ -126,6 +124,9 @@ void SettingsDraftTest::chooseSwitchesAndPreserveDrafts()
     snapshot.installations = {{LoaderKind::Limine, "limine", dir.path(), {}, {}, config, true}};
     BootContent::populate(snapshot);
     SettingsPage page; page.updateSnapshot(snapshot);
+    BootTransaction transaction;
+    connect(&page, &SettingsPage::operationRequested, &page, [&](const BootOperation &op) { transaction.stage(op); });
+
     const auto field = [&](const QString &key) {
         QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
         return page.findChild<QComboBox *>(key);
@@ -143,13 +144,13 @@ void SettingsDraftTest::chooseSwitchesAndPreserveDrafts()
     QCOMPARE(quiet->currentData().toString(), QString("yes"));
     style = field("wallpaper_style"); QVERIFY(style);
     QCOMPARE(style->currentData().toString(), QString("centered"));
-    BootTransaction transaction;
-    connect(&page, &SettingsPage::operationRequested, &page, [&](const BootOperation &op) { transaction.stage(op); });
-    auto *queue = page.findChild<QPushButton *>("queueSettings"); QVERIFY(queue); queue->click();
+
     QCOMPARE(transaction.count(), 2);
     QCOMPARE(transaction.operations()[0].target, config + "|quiet");
     QCOMPARE(transaction.operations()[0].value, QString("yes"));
-    page.discardOperation(transaction.operations()[0]);
+    const auto quietOperation = transaction.operations()[0];
+    transaction.remove(quietOperation.key());
+    page.discardOperation(quietOperation);
     QCOMPARE(quiet->currentData().toString(), QString("no"));
     page.reflectOperation({"limine-setting", config + "|remember_last_entry", "yes"});
     remember = field("remember_last_entry"); QVERIFY(remember);
@@ -157,8 +158,7 @@ void SettingsDraftTest::chooseSwitchesAndPreserveDrafts()
     page.discardOperation({"limine-setting", config + "|remember_last_entry", "yes"});
     QCOMPARE(remember->currentData().toString(), QString());
     quiet->setCurrentIndex(quiet->findData(QString()));
-    queue->click();
-    QCOMPARE(transaction.operations()[0].value, QString());
+    QCOMPARE(transaction.operations().last().value, QString());
 }
 
 void SettingsDraftTest::preserveDraftAndOriginalValue()
@@ -185,10 +185,13 @@ void SettingsDraftTest::preserveDraftAndOriginalValue()
     SettingsPage page;
     BootContent::populate(snapshot);
     page.updateSnapshot(snapshot);
+    BootTransaction transaction;
+    connect(&page, &SettingsPage::operationRequested, &page, [&](const BootOperation &op) {
+        transaction.stage(op);
+    });
+
     auto *selector = page.findChild<QComboBox *>("loaderInstallation");
-    auto *queue = page.findChild<QPushButton *>("queueSettings");
     QVERIFY(selector);
-    QVERIFY(queue);
     auto currentTimeout = [&]() -> QLineEdit * {
         // Old form fields are removed with deleteLater when changing instances.
         QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
@@ -199,7 +202,6 @@ void SettingsDraftTest::preserveDraftAndOriginalValue()
     QCOMPARE(timeout->text(), QString("3"));
     timeout->setText("5");
     page.selectMethod(LoaderKind::Uki);
-    QVERIFY(!queue->isEnabled());
     page.selectMethod(LoaderKind::SystemdBoot);
     timeout = currentTimeout();
     QVERIFY(timeout);
@@ -216,20 +218,16 @@ void SettingsDraftTest::preserveDraftAndOriginalValue()
     timeout = currentTimeout();
     QVERIFY(timeout);
     QCOMPARE(timeout->text(), QString("5"));
-    BootTransaction transaction;
-    connect(&page, &SettingsPage::operationRequested, &page, [&](const BootOperation &op) {
-        transaction.stage(op);
-    });
-    queue->click();
-    QCOMPARE(transaction.count(), 1);
+
+    QCOMPARE(transaction.count(), 2);
     const auto operation = transaction.operations().first();
     QCOMPARE(operation.expected, QString("3"));
     QCOMPARE(operation.value, QString("5"));
     QCOMPARE(operation.target, firstEsp + "|timeout");
+    transaction.remove(operation.key());
     page.discardOperation(operation);
     QCOMPARE(timeout->text(), QString("3"));
-    queue->click();
-    QCOMPARE(transaction.count(), 0);
+    QCOMPARE(transaction.count(), 1);
     selector->setCurrentIndex(1);
     timeout = currentTimeout();
     QVERIFY(timeout);
@@ -260,14 +258,9 @@ void SettingsDraftTest::rejectUnboundGeneratorConfiguration()
     BootContent::populate(snapshot);
     page.updateSnapshot(snapshot);
     QSignalSpy operations(&page, &SettingsPage::operationRequested);
-    auto *queue = page.findChild<QPushButton *>("queueSettings");
-    QVERIFY(queue);
-    QVERIFY(!queue->isEnabled());
-    queue->click();
+    QVERIFY(!page.findChild<QLineEdit *>("GRUB_TIMEOUT"));
     QCOMPARE(operations.count(), 0);
     page.selectMethod(LoaderKind::Limine);
-    QVERIFY(!queue->isEnabled());
-    queue->click();
     QCOMPARE(operations.count(), 0);
 }
 
@@ -293,17 +286,15 @@ void SettingsDraftTest::editOnlySelectedRefindConfiguration()
     SettingsPage page;
     BootContent::populate(snapshot);
     page.updateSnapshot(snapshot);
-    auto *timeout = page.findChild<QLineEdit *>("timeout");
-    auto *queue = page.findChild<QPushButton *>("queueSettings");
-    QVERIFY(timeout);
-    QVERIFY(!page.findChild<QLineEdit *>("default_selection"));
-    QVERIFY(queue);
-    QVERIFY(queue->isEnabled());
-    QCOMPARE(timeout->text(), QString("5"));
-    timeout->setText("8");
     BootTransaction transaction;
     connect(&page, &SettingsPage::operationRequested, &page, [&](const BootOperation &op) { transaction.stage(op); });
-    queue->click();
+
+    auto *timeout = page.findChild<QLineEdit *>("timeout");
+    QVERIFY(timeout);
+    QVERIFY(!page.findChild<QLineEdit *>("default_selection"));
+    QCOMPARE(timeout->text(), QString("5"));
+    timeout->setText("8");
+
     QCOMPARE(transaction.count(), 1);
     QCOMPARE(transaction.operations()[0].kind, QString("refind-setting"));
     QCOMPARE(transaction.operations()[0].target, config.fileName() + "|timeout");

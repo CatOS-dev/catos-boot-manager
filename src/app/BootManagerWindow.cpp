@@ -24,6 +24,7 @@
 #include "widgets/LoaderSelector.h"
 #include <QStackedWidget>
 #include <QTimer>
+#include <QStatusBar>
 #include <QVBoxLayout>
 
 BootManagerWindow::BootManagerWindow(BootSession *session, QWidget *parent) : QMainWindow(parent), session_(session)
@@ -96,8 +97,9 @@ BootManagerWindow::BootManagerWindow(BootSession *session, QWidget *parent) : QM
     pending_ = new QLabel(footer_);
     pending_->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
     footerLayout->addWidget(pending_, 1);
-    discard_ = new QPushButton(tr("Discard"), footer_);
+    discard_ = new QPushButton(tr("Discard all changes"), footer_);
     apply_ = new QPushButton(tr("Review and apply"), footer_);
+    discard_->setObjectName("discardAllChanges");
     footerLayout->addWidget(discard_);
     apply_->setObjectName("applyTransaction");
     footerLayout->addWidget(apply_);
@@ -108,12 +110,16 @@ BootManagerWindow::BootManagerWindow(BootSession *session, QWidget *parent) : QM
     connect(navigation_, &QListWidget::currentRowChanged, pages_, &QStackedWidget::setCurrentIndex);
     connect(refreshButton_, &QPushButton::clicked, this, &BootManagerWindow::refresh);
     connect(discard_, &QPushButton::clicked, this, [this] {
+        if (QMessageBox::warning(this, tr("Discard all changes"),
+            tr("Discard all %1 pending change(s) and any invalid edits?").arg(transaction_.count()),
+            QMessageBox::Discard | QMessageBox::Cancel, QMessageBox::Cancel) != QMessageBox::Discard) return;
         transaction_.clear();
         menu_->updateSnapshot(snapshot_);
         firmware_->updateSnapshot(snapshot_);
         settings_->selector()->selectInstallation(menu_->selector()->method(), menu_->selector()->currentId());
         updateFooter();
     });
+    connect(settings_, &SettingsPage::draftStateChanged, this, &BootManagerWindow::updateFooter);
     connect(apply_, &QPushButton::clicked, this, &BootManagerWindow::applyTransaction);
     connect(menu_, &MenuPage::operationRequested, this, &BootManagerWindow::queue);
     const QList<LoaderSelector *> selectors{methods_->selector(), menu_->selector(), security_->selector()};
@@ -128,7 +134,7 @@ BootManagerWindow::BootManagerWindow(BootSession *session, QWidget *parent) : QM
         if (session_->isBusy()) return;
         BootTransaction installation;
         installation.stage(operation);
-        const auto result = ApplyDialog::execute(this, *session_, installation, false);
+        const auto result = ApplyDialog::execute(this, *session_, installation, true);
         if (result != ApplyResult::Cancelled && session_->isAuthorized()) rescan(true);
     });
     connect(firmware_, &FirmwarePage::operationRequested, this, &BootManagerWindow::queue);
@@ -152,7 +158,7 @@ BootManagerWindow::BootManagerWindow(BootSession *session, QWidget *parent) : QM
         settings_->selector()->selectInstallation(menu_->selector()->method(), menu_->selector()->currentId());
         for (const auto &operation : transaction_.operations()) settings_->reflectOperation(operation);
         updatingSnapshot_ = false;
-        firmware_->updateSnapshot(snapshot_, preserveDrafts_);
+        firmware_->updateSnapshot(snapshot_);
         pages_->setEnabled(true);
         refreshButton_->setEnabled(true);
         updateFooter();
@@ -194,22 +200,27 @@ void BootManagerWindow::updateFooter()
     firmware_->updateTransaction(transaction_);
     methods_->updateTransaction(transaction_);
     menu_->updateTransaction(transaction_);
-    pending_->setText(session_->isBusy() ? tr("Detecting boot state…")
+    pending_->setText(settings_->hasInvalidDrafts() ? tr("Correct invalid settings before applying.") : session_->isBusy() ? tr("Detecting boot state…")
         : count ? tr("%1 pending change(s)").arg(count) : tr("No pending changes"));
-    apply_->setEnabled(!session_->isBusy() && count > 0 && conflict.isEmpty());
+    apply_->setEnabled(!session_->isBusy() && count > 0 && conflict.isEmpty() && !settings_->hasInvalidDrafts());
     apply_->setToolTip(conflict);
-    discard_->setEnabled(!session_->isBusy() && count > 0);
+    discard_->setEnabled(!session_->isBusy() && hasChanges());
 }
 
 void BootManagerWindow::applyTransaction()
 {
-    if (session_->isBusy() || !BootPlan::firmwareConflict(transaction_.operations(), snapshot_).isEmpty()) return;
+    if (session_->isBusy() || settings_->hasInvalidDrafts() || !BootPlan::firmwareConflict(transaction_.operations(), snapshot_).isEmpty()) return;
     const auto result = ApplyDialog::execute(this, *session_, transaction_);
     if (result == ApplyResult::Cancelled) return;
     if (result == ApplyResult::Failed) {
-        QMessageBox::warning(this, tr("Boot changes incomplete"), session_->lastApplyCode() == 2 || session_->lastApplyCode() == 3
+        QMessageBox failure(QMessageBox::Warning, tr("Boot changes incomplete"), session_->lastApplyCode() == 2 || session_->lastApplyCode() == 3
             ? tr("No changes were applied. Pending changes and drafts have been retained.")
-            : tr("Some changes may have been applied. Pending changes and drafts have been retained. Check the execution report before retrying."));
+            : tr("Some changes may have been applied. Pending changes and drafts have been retained. Check the execution report before retrying."),
+            QMessageBox::Close, this);
+        auto *detect = failure.addButton(tr("Detect current state"), QMessageBox::ActionRole);
+        detect->setEnabled(session_->isAuthorized());
+        failure.exec();
+        if (failure.clickedButton() == detect) rescan(true);
         return;
     }
     settings_->acknowledgeApplied(transaction_);
@@ -219,17 +230,28 @@ void BootManagerWindow::applyTransaction()
 
 bool BootManagerWindow::hasChanges() const
 {
-    return transaction_.count() || settings_->hasDraftChanges() || firmware_->hasDraftChanges();
+    return transaction_.count() || settings_->hasDraftChanges();
 }
 
 void BootManagerWindow::closeEvent(QCloseEvent *event)
 {
-    if (session_->isBusy()) { event->ignore(); return; }
-    if (hasChanges() && QMessageBox::warning(this, tr("Unsaved changes"),
-        tr("Discard pending changes and drafts and close?"),
-        QMessageBox::Discard | QMessageBox::Cancel, QMessageBox::Cancel) != QMessageBox::Discard) {
+    if (session_->isBusy()) {
+        statusBar()->showMessage(tr("Boot detection or execution is still running. Please wait before closing."), 8000);
         event->ignore();
         return;
     }
-    event->accept();
+    if (!hasChanges()) { event->accept(); return; }
+    QMessageBox confirm(QMessageBox::Warning, tr("Unsaved changes"),
+        tr("There are %1 pending change(s). Apply them before closing, or discard all changes and invalid edits.").arg(transaction_.count()),
+        QMessageBox::Discard | QMessageBox::Cancel, this);
+    QPushButton *review = nullptr;
+    if (apply_->isEnabled()) review = confirm.addButton(tr("Review and apply"), QMessageBox::ActionRole);
+    confirm.setDefaultButton(QMessageBox::Cancel);
+    confirm.exec();
+    if (confirm.standardButton(confirm.clickedButton()) == QMessageBox::Discard) { event->accept(); return; }
+    if (review && confirm.clickedButton() == review) {
+        applyTransaction();
+        if (!hasChanges()) { event->accept(); return; }
+    }
+    event->ignore();
 }

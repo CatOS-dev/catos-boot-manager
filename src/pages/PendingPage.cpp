@@ -59,7 +59,9 @@ void PendingPage::updateTransaction(const BootTransaction &transaction, const Bo
         QString details = tr("Target: %1").arg(op.target);
         if (op.kind.endsWith(QLatin1String("-setting"))
             || op.kind == QLatin1String("firmware-next")
-            || op.kind == QLatin1String("firmware-order"))
+            || op.kind == QLatin1String("firmware-order")
+            || op.kind == QLatin1String("firmware-toggle")
+            || op.kind == QLatin1String("firmware-rename"))
             details += tr("\nOriginal value: %1\nPending value: %2").arg(op.expected, op.value);
         item->setData(Qt::UserRole + 1, details);
         if (op.key() == selected) items_->setCurrentItem(item);
