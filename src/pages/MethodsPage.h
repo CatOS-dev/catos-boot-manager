@@ -8,6 +8,7 @@ class LoaderSelector;
 class QComboBox;
 class QLabel;
 class QPushButton;
+class QCheckBox;
 
 class MethodsPage : public QWidget {
     Q_OBJECT
@@ -25,6 +26,7 @@ private:
     void showInstance();
     void updateActions();
     void queueSelection(bool once);
+    void updatePackages();
     const FirmwareEntry *selectedEntry() const;
 
     BootSnapshot snapshot_;
@@ -35,4 +37,7 @@ private:
     QLabel *status_ = nullptr;
     QPushButton *default_ = nullptr;
     QPushButton *once_ = nullptr;
+    QCheckBox *snapshots_ = nullptr;
+    QCheckBox *secureBoot_ = nullptr;
+    QLabel *packages_ = nullptr;
 };

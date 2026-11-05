@@ -1,9 +1,11 @@
 #include "MethodsPage.h"
 #include "model/BootPlan.h"
+#include "services/BootPackages.h"
 #include "widgets/BootUi.h"
 #include "widgets/LoaderSelector.h"
 
 #include <QComboBox>
+#include <QCheckBox>
 #include <QFileInfo>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -18,6 +20,20 @@ MethodsPage::MethodsPage(QWidget *parent) : QWidget(parent)
         tr("Select a deployed instance and review its firmware entry before changing the boot selection."));
     selector_ = new LoaderSelector(content);
     layout->addWidget(selector_);
+    BootUi::section(layout, content, tr("Package requirements"));
+    snapshots_ = new QCheckBox(tr("Include snapshot boot integration"), content);
+    snapshots_->setObjectName(QStringLiteral("methodSnapshotPackages"));
+    secureBoot_ = new QCheckBox(tr("Include CatOS Secure Boot integration"), content);
+    secureBoot_->setObjectName(QStringLiteral("methodSecureBootPackages"));
+    layout->addWidget(snapshots_);
+    layout->addWidget(secureBoot_);
+    packages_ = new QLabel(content);
+    packages_->setObjectName(QStringLiteral("methodPackagePlan"));
+    packages_->setTextFormat(Qt::PlainText);
+    packages_->setWordWrap(true);
+    packages_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    layout->addWidget(packages_);
+    layout->addWidget(BootUi::muted(tr("Package inspection covers the running system. Installing packages and resolving their dependency transaction are not yet available."), content));
     details_ = new QLabel(content);
     details_->setTextFormat(Qt::PlainText);
     details_->setWordWrap(true);
@@ -43,11 +59,27 @@ MethodsPage::MethodsPage(QWidget *parent) : QWidget(parent)
     layout->addWidget(BootUi::muted(tr("Selecting an instance changes firmware selection only. Other installations and files are retained."), content));
     layout->addStretch();
     connect(selector_, &LoaderSelector::selectionChanged, this, &MethodsPage::showInstance);
+    connect(selector_, &LoaderSelector::selectionChanged, this, &MethodsPage::updatePackages);
+    connect(snapshots_, &QCheckBox::toggled, this, &MethodsPage::updatePackages);
+    connect(secureBoot_, &QCheckBox::toggled, this, &MethodsPage::updatePackages);
     connect(selector_, &LoaderSelector::methodChanged, this, &MethodsPage::methodChanged);
     connect(entries_, &QComboBox::currentIndexChanged, this, &MethodsPage::updateActions);
     connect(default_, &QPushButton::clicked, this, [this] { queueSelection(false); });
     connect(once_, &QPushButton::clicked, this, [this] { queueSelection(true); });
     showInstance();
+    updatePackages();
+}
+
+void MethodsPage::updatePackages()
+{
+    const auto plan = BootPackages::plan(selector_->method(), snapshots_->isChecked(), secureBoot_->isChecked(), snapshot_);
+    const QString none = tr("none");
+    QString text = tr("Required feature packages: %1").arg(plan.required.join(QStringLiteral(", ")));
+    if (!plan.error.isEmpty()) text += QLatin1Char('\n') + plan.error;
+    else text += tr("\nAlready installed: %1\nMissing: %2")
+        .arg(plan.installed.isEmpty() ? none : plan.installed.join(QStringLiteral(", ")),
+             plan.missing.isEmpty() ? none : plan.missing.join(QStringLiteral(", ")));
+    packages_->setText(text);
 }
 
 void MethodsPage::updateSnapshot(const BootSnapshot &snapshot)

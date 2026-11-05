@@ -1,5 +1,6 @@
 #include "BootProbe.h"
 #include "BootDiscovery.h"
+#include "BootPackages.h"
 
 #include <QDir>
 #include <QDirIterator>
@@ -118,6 +119,7 @@ bool BootProbe::isOnEsp(const QString &path, const QStringList &mounts)
 BootSnapshot BootProbe::inspect()
 {
     BootSnapshot state;
+    BootPackages::inspect(state);
     state.uefi = QDir(QStringLiteral("/sys/firmware/efi")).exists();
     state.secureBoot = state.uefi ? SecureBootState::Unknown : SecureBootState::Unsupported;
     if (state.uefi) {

@@ -1041,6 +1041,11 @@
         <message><source>For example: 1920 1080; empty uses the loader default</source><translation>例如：1920 1080；留空使用引导器默认值</translation></message>
         <message><source>The selected rEFInd configuration cannot be read safely.</source><translation>无法安全读取所选 rEFInd 配置。</translation></message>
         <message><source>This rEFInd configuration contains includes or manual entry blocks. Basic editing is unavailable because effective values require source-aware editing.</source><translation>此 rEFInd 配置含有 include 或手工条目块。有效值需要结合来源编辑，暂不支持基础编辑。</translation></message>
+
+        <message><source>This boot method requires UEFI.</source><translation>此引导方式需要 UEFI。</translation></message>
+        <message><source>CatOS snapshot boot integration is not available for this method.</source><translation>此方式尚无 CatOS 快照引导集成。</translation></message>
+        <message><source>CatOS automatic Secure Boot integration is not available for this method.</source><translation>此方式尚无 CatOS 自动安全启动集成。</translation></message>
+        <message><source>The target package database could not be read. Missing packages are unknown.</source><translation>无法读取目标软件包数据库，缺失软件包状态未知。</translation></message>
     </context>
     <context>
         <name>RepairPage</name>
@@ -1406,5 +1411,17 @@ The program and partition were identified; a successful boot has not been demons
 已识别程序与分区；尚未验证实际成功启动。</translation></message>
         <message><source>Boot instance %1 (%2) once</source><translation>下次启动实例 %1（%2）一次</translation></message>
         <message><source>Set instance %1 (%2) as default</source><translation>将实例 %1（%2）设为默认</translation></message>
+
+        <message><source>Package requirements</source><translation>软件包需求</translation></message>
+        <message><source>Include snapshot boot integration</source><translation>加入快照引导集成</translation></message>
+        <message><source>Include CatOS Secure Boot integration</source><translation>加入 CatOS 安全启动集成</translation></message>
+        <message><source>Package inspection covers the running system. Installing packages and resolving their dependency transaction are not yet available.</source><translation>软件包检查针对当前运行系统。软件包安装及完整依赖事务解析尚未实现。</translation></message>
+        <message><source>none</source><translation>无</translation></message>
+        <message><source>Required feature packages: %1</source><translation>所需功能包：%1</translation></message>
+        <message><source>
+Already installed: %1
+Missing: %2</source><translation>
+已安装：%1
+缺失：%2</translation></message>
     </context>
 </TS>

@@ -72,6 +72,8 @@ struct BootSnapshot {
     QString currentEvidence;
     QStringList messages;
     SecureBootState secureBoot = SecureBootState::Unknown;
+    QSet<QString> installedPackages;
+    bool packageStateAvailable = false;
 
     QList<BootInstallation> manageableInstallations() const
     {
