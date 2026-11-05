@@ -1,23 +1,6 @@
 #pragma once
 
-#include <QList>
-#include <QString>
-
-struct BootDevice {
-    QString path;
-    QString type;
-    QString filesystem;
-    QString size;
-    QString partuuid;
-    QString description;
-
-    QString label() const
-    {
-        return path + QStringLiteral(" · ") + size
-            + (filesystem.isEmpty() ? QString() : QStringLiteral(" · ") + filesystem)
-            + (description.isEmpty() ? QString() : QStringLiteral(" · ") + description);
-    }
-};
+#include "model/BootTypes.h"
 
 namespace BootDevices {
 QList<BootDevice> discover();

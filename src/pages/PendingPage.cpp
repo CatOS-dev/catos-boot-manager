@@ -14,18 +14,21 @@ PendingPage::PendingPage(QWidget *parent) : QWidget(parent)
     BootUi::title(layout, content, tr("Pending changes"),
         tr("Review queued operations or cancel an individual change before applying."));
     conflict_ = new QLabel(content);
+    conflict_->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
     conflict_->setObjectName(QStringLiteral("pendingConflict"));
     conflict_->setTextFormat(Qt::PlainText);
     conflict_->setWordWrap(true);
     layout->addWidget(conflict_);
     items_ = new QListWidget(content);
+    BootUi::enableCopy(items_);
     items_->setObjectName(QStringLiteral("pendingOperations"));
     items_->setMinimumHeight(240);
     layout->addWidget(items_);
     details_ = new QLabel(content);
+    details_->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
     details_->setTextFormat(Qt::PlainText);
     details_->setWordWrap(true);
-    details_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    details_->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
     layout->addWidget(details_);
     remove_ = new QPushButton(tr("Cancel selected change"), content);
     remove_->setObjectName(QStringLiteral("cancelPendingOperation"));
@@ -54,7 +57,6 @@ void PendingPage::updateTransaction(const BootTransaction &transaction, const Bo
         auto *item = new QListWidgetItem(op.description, items_);
         item->setData(Qt::UserRole, op.key());
         QString details = tr("Target: %1").arg(op.target);
-        if (!op.expectedEntry.isEmpty()) details += tr("\nSelected firmware identity: %1").arg(op.expectedEntry);
         if (op.kind.endsWith(QLatin1String("-setting"))
             || op.kind == QLatin1String("firmware-next")
             || op.kind == QLatin1String("firmware-order"))

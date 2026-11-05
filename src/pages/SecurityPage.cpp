@@ -26,6 +26,7 @@ SecurityPage::SecurityPage(QWidget *parent) : QWidget(parent)
     BootUi::title(layout, content, tr("Secure Boot"),
         tr("Firmware state, public MOK certificates and signature information for deployed EFI programs."));
     state_ = new QLabel(content);
+    state_->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
     state_->setTextFormat(Qt::PlainText);
     state_->setWordWrap(true);
     layout->addWidget(state_);
@@ -43,7 +44,6 @@ SecurityPage::SecurityPage(QWidget *parent) : QWidget(parent)
     signature_->setReadOnly(true);
     signature_->setMinimumHeight(150);
     layout->addWidget(signature_);
-    layout->addWidget(BootUi::muted(tr("A signature table does not prove firmware trust or a verified boot chain. Key creation, enrollment and signing are not yet available here."), content));
     layout->addStretch();
     connect(selector_, &LoaderSelector::selectionChanged, this, &SecurityPage::showInstance);
     connect(selector_, &LoaderSelector::methodChanged, this, &SecurityPage::methodChanged);
@@ -69,7 +69,7 @@ void SecurityPage::showInstance()
         return;
     }
     const auto &installation = installations[index];
-    const QString state = installation.signature == SignatureState::Present ? tr("Signature table present; trust unverified")
+    const QString state = installation.signature == SignatureState::Present ? tr("Signed")
         : installation.signature == SignatureState::Absent ? tr("No signature table present") : tr("Signature state unknown");
     signature_->setPlainText(tr("Program: %1\nState: %2\n%3")
         .arg(installation.binary, state, installation.signatureDetails));

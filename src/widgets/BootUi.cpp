@@ -1,6 +1,13 @@
 #include "BootUi.h"
 
 #include <QFrame>
+#include <QAbstractItemView>
+#include <QAction>
+#include <QApplication>
+#include <QClipboard>
+#include <QComboBox>
+#include <QKeySequence>
+#include <algorithm>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QLabel>
@@ -19,6 +26,7 @@ QWidget *rowWidget(QWidget *parent, const QString &name, const QString &descript
     line->setContentsMargins(10, 8, 10, 8);
     line->setSpacing(14);
     auto *icon = new QLabel(container);
+    icon->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
     icon->setFixedSize(30, 30);
     icon->setAlignment(Qt::AlignCenter);
     const QIcon themed = QIcon::fromTheme(iconName);
@@ -28,12 +36,14 @@ QWidget *rowWidget(QWidget *parent, const QString &name, const QString &descript
     labels->setContentsMargins(0, 0, 0, 0);
     labels->setSpacing(3);
     auto *header = new QLabel(name, container);
+    header->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
     auto font = header->font();
     font.setBold(true);
     header->setFont(font);
     labels->addWidget(header);
     if (!description.isEmpty()) {
         auto *details = new QLabel(description, container);
+        details->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
         details->setWordWrap(true);
         details->setForegroundRole(QPalette::PlaceholderText);
         labels->addWidget(details);
@@ -41,6 +51,43 @@ QWidget *rowWidget(QWidget *parent, const QString &name, const QString &descript
     line->addLayout(labels, 1);
     return container;
 }
+}
+
+void BootUi::enableCopy(QAbstractItemView *view)
+{
+    auto *copy = new QAction(QObject::tr("Copy"), view);
+    copy->setShortcut(QKeySequence::Copy);
+    copy->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    view->addAction(copy);
+    view->setContextMenuPolicy(Qt::ActionsContextMenu);
+    QObject::connect(copy, &QAction::triggered, view, [view] {
+        auto indexes = view->selectionModel()->selectedIndexes();
+        if (indexes.isEmpty()) return;
+        std::sort(indexes.begin(), indexes.end(), [](const QModelIndex &a, const QModelIndex &b) {
+            return a.row() == b.row() ? a.column() < b.column() : a.row() < b.row();
+        });
+        QString text;
+        QModelIndex previous;
+        for (const auto &index : indexes) {
+            if (previous.isValid()) text += index.row() == previous.row() && index.parent() == previous.parent()
+                ? QLatin1Char('\t') : QLatin1Char('\n');
+            text += index.data().toString();
+            previous = index;
+        }
+        QApplication::clipboard()->setText(text);
+    });
+}
+
+void BootUi::enableCopy(QComboBox *combo)
+{
+    auto *copy = new QAction(QObject::tr("Copy"), combo);
+    copy->setShortcut(QKeySequence::Copy);
+    copy->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    combo->addAction(copy);
+    combo->setContextMenuPolicy(Qt::ActionsContextMenu);
+    QObject::connect(copy, &QAction::triggered, combo, [combo] {
+        QApplication::clipboard()->setText(combo->currentText());
+    });
 }
 
 QVBoxLayout *BootUi::page(QWidget *parent)
@@ -63,6 +110,7 @@ void BootUi::title(QVBoxLayout *layout, QWidget *parent, const QString &name,
                    const QString &description)
 {
     auto *heading = new QLabel(name, parent);
+    heading->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
     auto font = heading->font();
     font.setPointSize(font.pointSize() + 9);
     font.setBold(true);
@@ -75,6 +123,7 @@ void BootUi::section(QVBoxLayout *layout, QWidget *parent, const QString &name)
 {
     layout->addSpacing(19);
     auto *heading = new QLabel(name, parent);
+    heading->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
     auto font = heading->font();
     font.setBold(true);
     font.setPointSize(font.pointSize() + 2);
@@ -95,6 +144,7 @@ void BootUi::line(QVBoxLayout *layout, QWidget *parent, const QString &name,
 QLabel *BootUi::muted(const QString &message, QWidget *parent)
 {
     auto *label = new QLabel(message, parent);
+    label->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
     label->setWordWrap(true);
     label->setForegroundRole(QPalette::PlaceholderText);
     return label;

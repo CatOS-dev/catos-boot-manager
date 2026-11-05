@@ -24,6 +24,7 @@ BootOperation BootOperation::fromJson(const QJsonObject &object)
 
 void BootTransaction::stage(const BootOperation &operation)
 {
+    if (operation.kind == QLatin1String("menu-write") && operation.value.isEmpty()) { remove(operation.key()); return; }
     for (int i = 0; i < operations_.size(); ++i) {
         if (operations_[i].key() != operation.key()) continue;
         if ((operation.kind.endsWith(QLatin1String("-setting"))
@@ -66,6 +67,7 @@ QByteArray BootTransaction::encoded() const
 
 QList<BootOperation> BootTransaction::decode(const QByteArray &data, QString *error)
 {
+    if (data.size() > 16 * 1024 * 1024) { if (error) *error = QStringLiteral("Transaction too large"); return {}; }
     const auto document = QJsonDocument::fromJson(QByteArray::fromBase64(data));
     const auto root = document.object();
     const auto array = root.value(QStringLiteral("operations")).toArray();
@@ -79,7 +81,7 @@ QList<BootOperation> BootTransaction::decode(const QByteArray &data, QString *er
         if (!value.isObject()) { if (error) *error = QStringLiteral("Invalid operation"); return {}; }
         const auto operation = BootOperation::fromJson(value.toObject());
         if (operation.kind.isEmpty() || operation.kind.size() > 64
-            || operation.target.size() > 1024 || operation.value.size() > 4096
+            || operation.target.size() > 1024 || operation.value.size() > (operation.kind == QLatin1String("menu-write") ? 2 * 1024 * 1024 : 4096)
             || operation.expected.size() > 4096 || operation.description.size() > 512
             || !value.toObject().value(QStringLiteral("expectedEntry")).isString()
             || operation.expectedEntry.size() > 4096

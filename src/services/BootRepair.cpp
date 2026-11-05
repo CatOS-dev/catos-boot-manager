@@ -1,6 +1,7 @@
 #include "BootRepair.h"
 
 #include "BootDevices.h"
+#include "BootDeploy.h"
 #include "BootProbe.h"
 
 #include <QDir>
@@ -75,7 +76,7 @@ QList<Command> commands(const QJsonObject &data)
     } else if (loader == QLatin1String("systemd-boot")) {
         QStringList arguments{QStringLiteral("--esp-path=") + esp};
         if (!registerEfi) arguments.append(QStringLiteral("--no-variables"));
-        arguments.append(QStringLiteral("install"));
+        arguments.append(data.value("action").toString() == QLatin1String("update") ? QStringLiteral("update") : QStringLiteral("install"));
         result.append({QStringLiteral("bootctl"), arguments});
     } else if (loader == QLatin1String("limine")) {
         QStringList arguments;
@@ -224,7 +225,7 @@ bool validateAuto(const BootOperation &operation, const QJsonObject &data, QStri
         return false;
     }
     if (!QStringList{QStringLiteral("grub"), QStringLiteral("limine"),
-                     QStringLiteral("systemd-boot")}.contains(loader)
+                     QStringLiteral("systemd-boot"), QStringLiteral("refind"), QStringLiteral("uki"), QStringLiteral("efistub")}.contains(loader)
         || !QStringList{QStringLiteral("uefi"), QStringLiteral("bios")}.contains(mode)) {
         *error = QStringLiteral("Unsupported loader or firmware mode");
         return false;
@@ -312,7 +313,7 @@ bool BootRepair::validate(const BootOperation &operation, QString *error)
     const bool registerEfi = data.value(QStringLiteral("register")).toBool();
     const bool fallback = data.value(QStringLiteral("fallback")).toBool();
     if (autoRoot(root)) return validateAuto(operation, data, error);
-    if (!QStringList{QStringLiteral("grub"), QStringLiteral("systemd-boot"), QStringLiteral("limine")}.contains(loader)
+    if (!QStringList{QStringLiteral("grub"), QStringLiteral("systemd-boot"), QStringLiteral("limine"), QStringLiteral("refind"), QStringLiteral("uki"), QStringLiteral("efistub")}.contains(loader)
         || !QStringList{QStringLiteral("bios"), QStringLiteral("uefi")}.contains(mode)) {
         *error = QStringLiteral("Unsupported boot loader or firmware mode"); return false;
     }
@@ -359,6 +360,14 @@ bool BootRepair::validate(const BootOperation &operation, QString *error)
     if (operation.expected != fingerprint) {
         *error = QStringLiteral("Disk or partition inventory changed after the repair was queued");
         return false;
+    }
+    if (QStringList{"refind", "uki", "efistub"}.contains(loader)) {
+        if (!BootDeploy::validateInputs(data, root, error)) return false;
+        if (loader == QLatin1String("uki")) {
+            const QString executable = root == QLatin1String("/") ? QStandardPaths::findExecutable("ukify") : root + "/usr/bin/ukify";
+            if (executable.isEmpty() || !QFileInfo::exists(executable)) { *error = QStringLiteral("Install ukify in the target system"); return false; }
+        }
+        if (registerEfi && QStandardPaths::findExecutable("efibootmgr").isEmpty()) { *error = QStringLiteral("Install efibootmgr"); return false; }
     }
     for (const Command &command : commands(data)) {
         const QString executable = root == QLatin1String("/")
@@ -431,6 +440,8 @@ bool BootRepair::execute(const BootOperation &operation, QString *error)
             data.insert(QStringLiteral("esp"), root + data.value(QStringLiteral("espRelative")).toString());
     }
     bool success = true;
+    if (QStringList{"refind", "uki", "efistub"}.contains(data.value("loader").toString()))
+        success = BootDeploy::deploy(data, root, error);
     for (const Command &command : commands(data)) {
         const QString executablePath = root == QLatin1String("/")
             ? QStandardPaths::findExecutable(command.executable)

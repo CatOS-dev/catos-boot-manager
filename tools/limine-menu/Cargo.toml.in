@@ -1,0 +1,12 @@
+[package]
+name = "catos-limine-menu"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+limine-tool = { path = "@LIMINE_TOOL_SOURCE@" }
+serde_json = "=1.0.150"
+
+[[bin]]
+name = "catos-limine-menu"
+path = "@CMAKE_CURRENT_SOURCE_DIR@/tools/limine-menu/src/main.rs"

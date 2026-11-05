@@ -1,5 +1,4 @@
 #include "FirmwarePage.h"
-#include "services/BootProbe.h"
 #include "widgets/BootUi.h"
 
 #include <QFileDialog>
@@ -19,11 +18,12 @@ FirmwarePage::FirmwarePage(QWidget *parent) : QWidget(parent)
     auto *layout = BootUi::page(this);
     auto *content = layout->parentWidget();
     BootUi::title(layout, content, tr("UEFI boot entries"),
-                  tr("Manage firmware BootOrder and BootNext. The boot loader's own menu is separate."));
+                  tr("Manage the default and one-time boot entries."));
     BootUi::section(layout, content, tr("Firmware entries"));
     detail_ = BootUi::muted({}, content);
     layout->addWidget(detail_);
     table_ = new QTableWidget(content);
+    BootUi::enableCopy(table_);
     table_->setColumnCount(4);
     table_->setHorizontalHeaderLabels({tr("Boot ID"), tr("Name"), tr("EFI loader"), tr("State")});
     table_->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -59,7 +59,6 @@ FirmwarePage::FirmwarePage(QWidget *parent) : QWidget(parent)
         actions_.append(button);
     }
     layout->addLayout(buttons);
-    layout->addWidget(BootUi::muted(tr("Removing a firmware entry does not delete EFI files from disk."), content));
     layout->addStretch();
     connect(up, &QPushButton::clicked, this, [this] { moveSelected(-1); });
     connect(down, &QPushButton::clicked, this, [this] { moveSelected(1); });
@@ -81,10 +80,10 @@ void FirmwarePage::updateSnapshot(const BootSnapshot &snapshot)
         if (!displayOrder_.contains(entry.number)) displayOrder_.append(entry.number);
     const bool available = snapshot.uefi && !snapshot.firmware.isEmpty();
     for (auto *button : actions_) button->setEnabled(available);
-    if (!actions_.isEmpty()) actions_.last()->setEnabled(snapshot.uefi && !BootProbe::espMounts().isEmpty());
+    if (!actions_.isEmpty()) actions_.last()->setEnabled(snapshot.uefi && !snapshot.espMounts.isEmpty());
     clearNext_->setEnabled(snapshot.uefi && !snapshot.bootNext.isEmpty());
     if (snapshot.uefi && snapshot.firmware.isEmpty()) {
-        detail_->setText(tr("No UEFI entries could be read. EFI variables may be unavailable."));
+        detail_->setText(tr("Unable to read boot entries. Refresh and try again."));
     } else {
         detail_->setText(tr("Current: %1 · Next: %2 · BootOrder: %3")
             .arg(snapshot.bootCurrent.isEmpty() ? tr("unknown") : snapshot.bootCurrent,
@@ -217,7 +216,7 @@ void FirmwarePage::queueRemoval()
         return;
     }
     if (QMessageBox::question(this, tr("Queue removal"),
-          tr("Queue removal of Boot%1 (%2)? EFI files remain on disk.").arg(entry->number, entry->label))
+          tr("Remove Boot%1 (%2)?").arg(entry->number, entry->label))
         != QMessageBox::Yes) return;
     emit operationRequested({QStringLiteral("firmware-remove"), entry->number, {}, entry->identity(),
                              tr("Remove firmware entry Boot%1 (%2)").arg(entry->number, entry->label)});
@@ -232,11 +231,6 @@ void FirmwarePage::queueCreation()
     const QString label = QInputDialog::getText(this, tr("New UEFI entry"),
         tr("Display name:"), QLineEdit::Normal, QFileInfo(file).completeBaseName(), &ok);
     if (!ok || label.trimmed().isEmpty()) return;
-    if (!BootProbe::isOnEsp(file, BootProbe::espMounts())) {
-        QMessageBox::warning(this, tr("Invalid EFI file"),
-            tr("Select an EFI binary from a mounted EFI system partition."));
-        return;
-    }
     emit operationRequested({QStringLiteral("firmware-add"), file, label.trimmed(), {},
                              tr("Create firmware entry %1 → %2").arg(label.trimmed(), file)});
 }

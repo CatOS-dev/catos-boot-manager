@@ -14,7 +14,7 @@ QString BootPlan::firmwareConflict(const QList<BootOperation> &operations, const
     for (const auto &op : operations) {
         if (op.kind == QLatin1String("systemd-setting") && op.target.endsWith(QLatin1String("|default"))
             && !snapshot.systemdDefaultOverride.isEmpty())
-            return QObject::tr("systemd-boot has a firmware default override. Changing loader.conf would not reliably change the effective default.");
+            return QObject::tr("Change the default boot entry in firmware settings.");
         if (!op.expectedEntry.isEmpty()) {
             const QString number = op.expectedEntry.left(4);
             if ((op.kind != QLatin1String("firmware-order") && op.kind != QLatin1String("firmware-next"))
@@ -33,9 +33,9 @@ QString BootPlan::firmwareConflict(const QList<BootOperation> &operations, const
                     && (installation.imageType == QLatin1String("pe") || installation.imageType == QLatin1String("uki"))
                     && QFileInfo(installation.binary).size() > 0) ++matches;
             if (matches != 1)
-                return QObject::tr("The selected EFI program is missing, has an unknown or incompatible architecture, or is ambiguous. Refresh detection.");
+                return QObject::tr("Unable to select this boot entry. Refresh and try again.");
             if (snapshot.secureBoot != SecureBootState::Disabled)
-                return QObject::tr("Changing this instance requires a verified Secure Boot policy. Secure Boot is enabled or its state is unknown.");
+                return QObject::tr("Unable to select this boot entry with the current Secure Boot settings.");
         }
         if (op.kind == QLatin1String("firmware-remove")) removed.insert(op.target);
         if (op.kind == QLatin1String("firmware-toggle") && op.value == QLatin1String("0"))

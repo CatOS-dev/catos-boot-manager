@@ -16,10 +16,12 @@ class QVBoxLayout;
 class SettingsPage : public QWidget {
     Q_OBJECT
 public:
-    explicit SettingsPage(QWidget *parent = nullptr);
-    void updateSnapshot(const BootSnapshot &snapshot);
+    explicit SettingsPage(QWidget *parent = nullptr, bool embedded = false);
+    void updateSnapshot(const BootSnapshot &snapshot, bool preserveDrafts = false);
+    void reflectOperation(const BootOperation &operation);
     void discardOperation(const BootOperation &operation);
     void selectMethod(LoaderKind kind);
+    LoaderSelector *selector() const { return selector_; }
 
 signals:
     void operationRequested(const BootOperation &operation);
@@ -35,7 +37,7 @@ private:
     QLabel *location_ = nullptr;
     QPushButton *queue_ = nullptr;
     QFormLayout *fields_ = nullptr;
-    QList<QLineEdit *> edits_;
+    QList<QWidget *> edits_;
     QStringList baseline_;
     struct Draft {
         QStringList baseline;

@@ -11,25 +11,48 @@ class QComboBox;
 class QCheckBox;
 class QLabel;
 class QLineEdit;
+class QFormLayout;
 
 class RepairPage : public QWidget {
     Q_OBJECT
 public:
-    explicit RepairPage(QWidget *parent = nullptr);
-    void updateSnapshot(const BootSnapshot &snapshot);
+    explicit RepairPage(LoaderKind kind, QWidget *parent = nullptr);
+    QPushButton *bootEntryButton() const { return addEntry_; }
+    void setPackagesReady(bool ready);
+    void selectDestination(const QString &esp);
+    void selectInstallation(const BootInstallation *installation);
+    void addImageBootEntry();
+    void updateTargets(const BootSnapshot &snapshot);
 
 signals:
-    void operationRequested(const BootOperation &operation);
+    void installationRequested(const BootOperation &operation);
 
 private:
     void updateRepairChoices();
     void updateRepairAvailability();
-    void queueInstallation();
+    void install(const QString &action);
+    void updateKernels();
+    LoaderKind kind_;
+    QJsonArray kernels_;
+    QString kernelRoot_;
+    QString binary_;
+    QComboBox *kernelChoice_ = nullptr;
+    QLineEdit *imageId_ = nullptr;
+    QLineEdit *imageLabel_ = nullptr;
+    QLineEdit *kernel_ = nullptr;
+    QLineEdit *initramfs_ = nullptr;
+    QLineEdit *version_ = nullptr;
+    QLineEdit *cmdline_ = nullptr;
+    QLineEdit *signingKey_ = nullptr;
+    QLineEdit *certificate_ = nullptr;
+    QPushButton *update_ = nullptr;
 
-    QStringList systemdEsp_;
     QList<BootDevice> devices_;
+    QStringList espMounts_;
+    QMap<QString, QString> mountSources_;
     QComboBox *rootTarget_ = nullptr;
-    QComboBox *bootLoader_ = nullptr;
+    QString loader_;
+    QFormLayout *form_ = nullptr;
     QComboBox *firmwareMode_ = nullptr;
     QComboBox *espTarget_ = nullptr;
     QComboBox *diskTarget_ = nullptr;
@@ -37,9 +60,8 @@ private:
     QLineEdit *rootSubvolume_ = nullptr;
     QCheckBox *registerFirmware_ = nullptr;
     QCheckBox *installFallback_ = nullptr;
-    QLabel *repairInfo_ = nullptr;
-    QPushButton *queueInstall_ = nullptr;
-    QPushButton *grub_ = nullptr;
-    QPushButton *limine_ = nullptr;
-    QPushButton *systemd_ = nullptr;
+    bool packagesReady_ = false;
+    QPushButton *deploy_ = nullptr;
+    QPushButton *repair_ = nullptr;
+    QPushButton *addEntry_ = nullptr;
 };

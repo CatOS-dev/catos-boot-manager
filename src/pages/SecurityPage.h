@@ -13,6 +13,7 @@ public:
     explicit SecurityPage(QWidget *parent = nullptr);
     void updateSnapshot(const BootSnapshot &snapshot);
     void selectMethod(LoaderKind kind);
+    LoaderSelector *selector() const { return selector_; }
 
 signals:
     void methodChanged(LoaderKind kind);

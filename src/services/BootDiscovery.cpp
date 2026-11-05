@@ -1,4 +1,5 @@
 #include "BootDiscovery.h"
+#include "BootDeploy.h"
 
 #include <QDir>
 #include <QDirIterator>
@@ -55,9 +56,9 @@ void BootDiscovery::populate(BootSnapshot &snapshot, const QList<Esp> &partition
             installation.esp = esp;
             installation.espPartuuid = uuid;
             installation.binary = binary;
-            installation.config = config;
+            installation.config = BootDeploy::directImage(kind) ? BootDeploy::profilePath(binary) : config;
             installation.binaryPresent = !binary.isEmpty() && QFileInfo(binary).isFile();
-            installation.configPresent = !config.isEmpty() && QFileInfo(config).isFile();
+            installation.configPresent = !installation.config.isEmpty() && QFileInfo(installation.config).isFile();
             installation.evidence = evidence;
             installation.imageType = image.type;
             installation.architecture = image.architecture;
@@ -79,7 +80,7 @@ void BootDiscovery::populate(BootSnapshot &snapshot, const QList<Esp> &partition
             const QString parent = QFileInfo(path).absolutePath();
             const Image image = identifyKernel(path);
             if (image.type == QLatin1String("uki")) {
-                append(LoaderKind::Uki, path, {}, QObject::tr("UKI identified by bootctl; firmware registration is separate"), image);
+                append(LoaderKind::Uki, path, {}, QObject::tr("Unified kernel image"), image);
                 continue;
             }
             const auto named = namedLoader(path);
@@ -91,14 +92,14 @@ void BootDiscovery::populate(BootSnapshot &snapshot, const QList<Esp> &partition
                     const QString local = parent + QStringLiteral("/limine.conf");
                     config = QFileInfo(local).isFile() ? local : esp + QStringLiteral("/limine.conf");
                 }
-                append(*named, path, config, QObject::tr("Named EFI program; bootability has not been verified"), image);
+                append(*named, path, config, QObject::tr("EFI program"), image);
                 continue;
             }
             if (image.type == QLatin1String("pe")
                        && QFileInfo(path).fileName().compare(QLatin1String("vmlinuz.efi"), Qt::CaseInsensitive) == 0
                        && normalized(QDir(esp).relativeFilePath(path)).startsWith(QLatin1String("efi/catos/"))
                        && QFileInfo(parent + QStringLiteral("/initramfs.img")).isFile()) {
-                append(LoaderKind::EfiStub, path, {}, QObject::tr("CatOS EFI Stub deployment layout with PE image and initramfs; bootability is unverified"), image);
+                append(LoaderKind::EfiStub, path, {}, QObject::tr("EFI Stub program and initramfs"), image);
             }
         }
         for (const auto kind : {LoaderKind::SystemdBoot, LoaderKind::Limine}) {
@@ -118,9 +119,8 @@ void BootDiscovery::populate(BootSnapshot &snapshot, const QList<Esp> &partition
             if (kind) append(*kind, esp + relative, {}, QObject::tr("Firmware entry points to this EFI program"), {});
         }
     }
-    for (const auto kind : {LoaderKind::Grub, LoaderKind::Limine}) {
-        const QString relative = kind == LoaderKind::Grub
-            ? QStringLiteral("etc/default/grub") : QStringLiteral("etc/default/limine");
+    for (const auto kind : {LoaderKind::Grub}) {
+        const QString relative = QStringLiteral("etc/default/grub");
         const QString config = QDir(systemRoot).filePath(relative);
         if (!QFileInfo(config).isFile()) continue;
         BootInstallation installation;
@@ -128,7 +128,7 @@ void BootDiscovery::populate(BootSnapshot &snapshot, const QList<Esp> &partition
         installation.id = loaderName(kind) + QStringLiteral(":config:") + config;
         installation.config = config;
         installation.configPresent = true;
-        installation.evidence = QObject::tr("System generator configuration; EFI deployment is listed separately");
+        installation.evidence = QObject::tr("Boot menu configuration");
         snapshot.installations.append(installation);
     }
 }

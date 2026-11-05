@@ -1,10 +1,14 @@
 #include "model/BootTransaction.h"
 #include "model/BootPlan.h"
+#include "model/BootSnapshotCodec.h"
 #include "services/BootProbe.h"
 #include "services/BootSettings.h"
 #include "services/BootRepair.h"
 #include "services/BootBackup.h"
 #include "services/BootBls.h"
+#include "services/BootPackages.h"
+#include "services/BootMenus.h"
+#include "services/BootDeploy.h"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -12,14 +16,22 @@
 #include <QCryptographicHash>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QLocale>
 #include <QFile>
 #include <QProcess>
 #include <QRegularExpression>
 #include <QSet>
 #include <QStandardPaths>
 #include <QTextStream>
+#include <QTranslator>
 
 #include <unistd.h>
+#include <fcntl.h>
+#include <signal.h>
+#include <sys/prctl.h>
+#include <poll.h>
+#include <cerrno>
+#include <thread>
 
 namespace {
 bool recordResult(BootBackup &backup, const QString &action, bool success)
@@ -46,42 +58,6 @@ bool run(BootBackup &backup, const QString &program, const QStringList &argument
 bool available(const QString &name)
 {
     return !QStandardPaths::findExecutable(name).isEmpty();
-}
-
-bool limineMenuMatches(const BootOperation &op, const QString &menuJson, QString *error)
-{
-    const QString hash = QString::fromLatin1(QCryptographicHash::hash(menuJson.trimmed().toUtf8(),
-                                    QCryptographicHash::Sha256).toHex());
-    if (menuJson.isEmpty() || hash != op.expected) {
-        *error = QStringLiteral("Limine menu changed after being loaded");
-        return false;
-    }
-    return true;
-}
-
-bool validKernelName(const QString &name)
-{
-    static const QRegularExpression valid(QStringLiteral("^[A-Za-z0-9][A-Za-z0-9._-]{0,90}$"));
-    return valid.match(name).hasMatch();
-}
-
-bool validGlobalValue(const QString &key, const QString &value)
-{
-    if (value.isEmpty() || value.size() > 2048 || value.contains(QLatin1Char('\n'))
-        || value.contains(QLatin1Char('\r'))) return false;
-    for (QChar ch : value) if (ch.unicode() < 32) return false;
-    if (key == QLatin1String("default_entry")) return true;
-    if (key == QLatin1String("timeout")) {
-        bool ok = false;
-        const double timeout = value.toDouble(&ok);
-        return value == QLatin1String("no") || (ok && timeout >= 0 && timeout <= 9999);
-    }
-    if (key == QLatin1String("quiet") || key == QLatin1String("graphics")
-        || key == QLatin1String("remember_last_entry"))
-        return value == QLatin1String("yes") || value == QLatin1String("no");
-    return key == QLatin1String("wallpaper_style")
-        && (value == QLatin1String("stretched") || value == QLatin1String("centered")
-            || value == QLatin1String("tiled"));
 }
 
 bool firmwareAddArguments(const QString &path, const QString &label,
@@ -132,59 +108,45 @@ bool preflight(const QList<BootOperation> &operations, const BootSnapshot &snaps
     QSet<QString> used;
     bool rebuildGrub = false;
     bool rebuildLimine = false;
-    const QString menu = BootProbe::runReadOnly(QStringLiteral("limine-entry-tool"),
-                                                {QStringLiteral("--tree-json")});
-    const QJsonObject menuRoot = QJsonDocument::fromJson(menu.toUtf8()).object();
+    QMap<QString, QMap<QString, QString>> imageChanges;
+    QSet<QString> imageRebuilds;
     for (const auto &op : operations) {
         if (used.contains(op.key())) { *error = QStringLiteral("Duplicate operation"); return false; }
         used.insert(op.key());
         if (!op.expectedMenu.isEmpty()) {
             const int marker = op.target.lastIndexOf(QLatin1Char('|'));
-            if (op.kind != QLatin1String("systemd-setting") || !op.target.endsWith(QLatin1String("|default"))
-                || marker <= 0 || !BootBls::defaultTargetMatches(snapshot, op.target.left(marker), op.value, op.expectedMenu)) {
-                *error = QStringLiteral("The selected systemd-boot menu changed or its target entry disappeared");
-                return false;
+            bool matches = marker > 0 && op.kind == QLatin1String("systemd-setting") && op.target.endsWith(QLatin1String("|default"))
+                && BootBls::defaultTargetMatches(snapshot, op.target.left(marker), op.value, op.expectedMenu);
+            // A new BLS entry may be selected in the same transaction that creates it.
+            for (const auto &entry : operations) {
+                if (entry.kind != QLatin1String("menu-write") || entry.target != op.target.left(marker) + "/loader/entries/" + op.value) continue;
+                const auto request = QJsonDocument::fromJson(entry.value.toUtf8()).object();
+                for (const auto &loader : snapshot.installations)
+                    if (loader.kind == LoaderKind::SystemdBoot && loader.esp == op.target.left(marker)
+                        && BootBls::fingerprint(loader.menuContent) == op.expectedMenu && request.value("format") == QLatin1String("bls"))
+                        matches = !request.value("remove").toBool();
             }
+            if (!matches) { *error = QStringLiteral("The selected systemd-boot menu changed or its target entry disappeared"); return false; }
         }
-        if (op.kind == QLatin1String("grub-setting")
-            || op.kind == QLatin1String("refind-setting")
-            || op.kind == QLatin1String("limine-setting")
-            || op.kind == QLatin1String("systemd-setting")) {
-            LoaderKind loader;
-            if (op.kind == QLatin1String("grub-setting")) { loader = LoaderKind::Grub; rebuildGrub = true; }
-            else if (op.kind == QLatin1String("limine-setting")) { loader = LoaderKind::Limine; rebuildLimine = true; }
-            else if (op.kind == QLatin1String("systemd-setting")) loader = LoaderKind::SystemdBoot;
-            else if (op.kind == QLatin1String("refind-setting")) loader = LoaderKind::Refind;
-            else { *error = QStringLiteral("Unknown setting type"); return false; }
-            // For systemd-boot the ESP is encoded in the operation's target as esp|key.
-            QString key = op.target;
-            QString systemdEsp;
-            if (loader == LoaderKind::Refind) {
-                const int marker = op.target.lastIndexOf(QLatin1Char('|'));
-                if (marker <= 0) { *error = QStringLiteral("Missing rEFInd configuration target"); return false; }
-                systemdEsp = op.target.left(marker);
-                key = op.target.mid(marker + 1);
-                bool bound = false;
-                for (const auto &installation : snapshot.installations)
-                    if (installation.kind == LoaderKind::Refind && installation.config == systemdEsp
-                        && installation.binaryPresent && !installation.espPartuuid.isEmpty()) bound = true;
-                if (!bound || !BootSettings::refindEditable(systemdEsp, error)) {
-                    if (error->isEmpty()) *error = QStringLiteral("rEFInd configuration is not bound to an installed instance");
-                    return false;
-                }
-            }
-            if (loader == LoaderKind::SystemdBoot) {
-                const int marker = op.target.lastIndexOf(QLatin1Char('|'));
-                if (marker <= 0) { *error = QStringLiteral("Missing systemd-boot ESP"); return false; }
-                systemdEsp = op.target.left(marker);
-                key = op.target.mid(marker + 1);
-                if (!BootProbe::espMounts().contains(systemdEsp)) {
-                    *error = QStringLiteral("ESP was unmounted or changed"); return false;
-                }
-            }
-            if (!BootSettings::allowed(loader, key, op.value)
-                || BootSettings::read(loader, systemdEsp, key) != op.expected) {
+        if (op.kind == QLatin1String("install-packages")) {
+            const auto arguments = BootPackages::installArguments({op}, snapshot, error);
+            if (!error->isEmpty() || arguments.isEmpty() || !available(QStringLiteral("pacman"))) return false;
+        } else if (op.kind == QLatin1String("menu-write")) {
+            if (!BootMenus::validate(op, snapshot, error)) return false;
+        } else if (op.kind.endsWith(QLatin1String("-setting"))) {
+            const BootInstallation *bound = nullptr;
+            const QString key = op.kind == QLatin1String("grub-setting") ? op.target : op.target.mid(op.target.lastIndexOf('|') + 1);
+            for (const auto &installation : snapshot.installations)
+                if (BootSettings::operationKind(installation.kind) == op.kind
+                    && BootSettings::operationTarget(installation, key) == op.target && installation.settingsEditable) bound = &installation;
+            if (!bound || !BootSettings::allowed(bound->kind, key, op.value)
+                || bound->settingValues.value(key) != op.expected) {
                 *error = QStringLiteral("Boot settings changed since they were loaded"); return false;
+            }
+            rebuildGrub |= bound->kind == LoaderKind::Grub;
+            if (BootDeploy::directImage(bound->kind)) {
+                imageChanges[bound->config].insert(key, op.value);
+                imageRebuilds.insert(bound->config);
             }
         } else if (op.kind == QLatin1String("firmware-order")) {
             if (!snapshot.uefi || snapshot.bootOrder.join(QLatin1Char(',')) != op.expected) {
@@ -221,56 +183,26 @@ bool preflight(const QList<BootOperation> &operations, const BootSnapshot &snaps
         } else if (op.kind == QLatin1String("firmware-add")) {
             QStringList arguments;
             if (!snapshot.uefi || !firmwareAddArguments(op.target, op.value, &arguments, error)) return false;
-        } else if (op.kind == QLatin1String("limine-add-efi")) {
-            if (!limineMenuMatches(op, menu, error)) return false;
-            if (!BootProbe::isOnEsp(op.target, BootProbe::espMounts())
-                || op.value.isEmpty() || op.value.size() > 100 || op.value.contains(QLatin1Char('\n'))) {
-                *error = QStringLiteral("Invalid Limine EFI entry"); return false;
-            }
-        } else if (op.kind == QLatin1String("limine-remove-entry")) {
-            if (!limineMenuMatches(op, menu, error)) return false;
-            bool ok = false;
-            const int position = op.value.toInt(&ok);
-            if (!ok || position <= 0 || position > 10000
-                || op.target.isEmpty() || op.target.size() > 256) {
-                *error = QStringLiteral("Invalid Limine menu path"); return false;
-            }
-        } else if (op.kind == QLatin1String("limine-add-kernel")) {
-            if (!limineMenuMatches(op, menu, error)) return false;
-            const QJsonObject data = QJsonDocument::fromJson(op.value.toUtf8()).object();
-            const QString kernel = data.value(QStringLiteral("kernel")).toString();
-            const QString initramfs = data.value(QStringLiteral("initramfs")).toString();
-            const QString suffix = data.value(QStringLiteral("suffix")).toString();
-            if (!validKernelName(op.target)
-                || (!suffix.isEmpty() && !validKernelName(QStringLiteral("a") + suffix))
-                || !QFileInfo(kernel).isFile() || !QFileInfo(initramfs).isFile()) {
-                *error = QStringLiteral("Invalid Limine kernel image or name"); return false;
-            }
-        } else if (op.kind == QLatin1String("limine-add-uki")) {
-            if (!limineMenuMatches(op, menu, error)) return false;
-            if (!validKernelName(op.target) || !QFileInfo(op.value).isFile()
-                || !op.value.endsWith(QLatin1String(".efi"), Qt::CaseInsensitive)) {
-                *error = QStringLiteral("Invalid unified kernel image"); return false;
-            }
-        } else if (op.kind == QLatin1String("limine-global-setting")) {
-            const QString current = menuRoot.value(QStringLiteral("globals"))
-                                         .toObject().value(op.target).toString();
-            if (menu.isEmpty() || !validGlobalValue(op.target, op.value)
-                || current != op.expected) {
-                *error = QStringLiteral("Limine global configuration changed"); return false;
-            }
         } else if (op.kind == QLatin1String("rebuild-grub")) rebuildGrub = true;
-        else if (op.kind == QLatin1String("rebuild-limine")) rebuildLimine = true;
-        else if (op.kind == QLatin1String("update-systemd")) {
-            if (!snapshot.uefi || !BootProbe::espMounts().contains(op.target)) {
-                *error = QStringLiteral("Selected systemd-boot ESP is unavailable"); return false;
-            }
-            bool found = false;
+        else if (op.kind == QLatin1String("rebuild-limine")) {
+            bool bound = false;
+            for (const auto &loader : snapshot.installations) if (loader.kind == LoaderKind::Limine && loader.config == op.target && loader.settingsEditable) bound = true;
+            if (!bound || BootMenus::limineGeneratorPath(error) != op.target) { if (error->isEmpty()) *error = QStringLiteral("Select the Limine installation for this system"); return false; }
+            for (const auto &pending : operations)
+                if ((pending.kind == QLatin1String("menu-write") && pending.target == op.target)
+                    || (pending.kind == QLatin1String("limine-setting") && pending.target.startsWith(op.target + '|'))) {
+                    *error = QObject::tr("Apply menu changes before rebuilding."); return false;
+                }
+            rebuildLimine = true;
+        } else if (op.kind == QLatin1String("rebuild-image")) {
+            bool bound = false;
             for (const auto &loader : snapshot.installations)
-                if (loader.kind == LoaderKind::SystemdBoot && loader.esp == op.target)
-                    found = true;
-            if (!found) { *error = QStringLiteral("systemd-boot not found on selected ESP"); return false; }
-        } else if (BootRepair::supports(op.kind)) {
+                if (BootDeploy::directImage(loader.kind) && loader.config == op.target && loader.settingsEditable
+                    && QJsonDocument::fromJson(loader.menuContent.toUtf8()).object().value("fingerprint").toString() == op.expected) bound = true;
+            if (!bound) { *error = QStringLiteral("The selected image settings changed"); return false; }
+            imageRebuilds.insert(op.target);
+        }
+        else if (BootRepair::supports(op.kind)) {
             if (!BootRepair::validate(op, error)) return false;
         } else {
             *error = QStringLiteral("Unknown operation type"); return false;
@@ -287,55 +219,65 @@ bool preflight(const QList<BootOperation> &operations, const BootSnapshot &snaps
         if (op.kind.startsWith(QLatin1String("firmware-")) && !available(QStringLiteral("efibootmgr"))) {
             *error = QStringLiteral("efibootmgr is unavailable"); return false;
         }
-        if (op.kind == QLatin1String("update-systemd") && !available(QStringLiteral("bootctl"))) {
-            *error = QStringLiteral("bootctl is unavailable"); return false;
-        }
-        if (op.kind.startsWith(QLatin1String("limine-")) && !available(QStringLiteral("limine-entry-tool"))) {
-            *error = QStringLiteral("limine-entry-tool is unavailable"); return false;
+    }
+    for (const auto &path : imageRebuilds)
+        if (!BootDeploy::validateRebuild(path, imageChanges.value(path), snapshot, error)) return false;
+    // Do not leave a configured default pointing to a removed entry.
+    for (const auto &loader : snapshot.installations) {
+        if (loader.kind != LoaderKind::SystemdBoot) continue;
+        QString selected = loader.settingValues.value("default");
+        for (const auto &op : operations) if (op.kind == QLatin1String("systemd-setting") && op.target == loader.esp + "|default") selected = op.value;
+        for (const auto &op : operations) if (op.kind == QLatin1String("menu-write") && op.target == loader.esp + "/loader/entries/" + selected
+            && QJsonDocument::fromJson(op.value.toUtf8()).object().value("remove").toBool()) {
+            *error = QStringLiteral("Choose another default before removing this boot entry"); return false;
         }
     }
     return true;
 }
 
-bool apply(const QList<BootOperation> &operations, BootBackup &backup)
+bool apply(const QList<BootOperation> &operations, BootBackup &backup, const BootSnapshot &snapshot)
 {
+    QString packageError;
+    const auto packages = BootPackages::installArguments(operations, snapshot, &packageError);
+    if (!packageError.isEmpty()) return false;
+    if (!packages.isEmpty() && !run(backup, QStringLiteral("pacman"), packages)) return false;
     bool grubEdited = false;
-    bool limineEdited = false;
+    QSet<QString> images;
     bool rebuildGrub = false;
     bool rebuildLimine = false;
-    // Apply configuration edits before invoking a generator, never per setting.
     for (const auto &op : operations) {
-        if (op.kind != QLatin1String("grub-setting")
-            && op.kind != QLatin1String("refind-setting")
-            && op.kind != QLatin1String("limine-setting")
-            && op.kind != QLatin1String("systemd-setting")) continue;
-        LoaderKind loader = LoaderKind::Grub;
-        if (op.kind == QLatin1String("limine-setting")) loader = LoaderKind::Limine;
-        else if (op.kind == QLatin1String("systemd-setting")) loader = LoaderKind::SystemdBoot;
-        else if (op.kind == QLatin1String("refind-setting")) loader = LoaderKind::Refind;
-        QString key = op.target;
-        QString esp;
-        if (loader == LoaderKind::SystemdBoot || loader == LoaderKind::Refind) {
-            const int marker = key.lastIndexOf(QLatin1Char('|'));
-            esp = key.left(marker);
-            key = key.mid(marker + 1);
-        }
+        if (op.kind != QLatin1String("menu-write")) continue;
         QString error;
-        const bool written = BootSettings::write(loader, esp, key, op.value, &error);
-        if (!recordResult(backup, op.kind + QLatin1Char(':') + op.target, written)) {
-            QTextStream(stderr) << "Configuration write failed: " << error << Qt::endl;
-            return false;
-        }
-        grubEdited |= loader == LoaderKind::Grub;
-        limineEdited |= loader == LoaderKind::Limine;
+        const bool written = BootMenus::execute(op, &error);
+        if (!recordResult(backup, op.kind + ':' + op.target, written)) { QTextStream(stderr) << error << Qt::endl; return false; }
     }
     for (const auto &op : operations) {
+        if (!op.kind.endsWith(QLatin1String("-setting"))) continue;
+        const QString key = op.kind == QLatin1String("grub-setting") ? op.target : op.target.mid(op.target.lastIndexOf('|') + 1);
+        const BootInstallation *bound = nullptr;
+        for (const auto &installation : snapshot.installations)
+            if (BootSettings::operationKind(installation.kind) == op.kind && BootSettings::operationTarget(installation, key) == op.target) bound = &installation;
+        if (!bound) return false;
+        const auto location = bound->kind == LoaderKind::SystemdBoot ? bound->esp : op.target.left(op.target.lastIndexOf('|'));
+        QString error;
+        const bool written = BootSettings::write(bound->kind, location, key, op.value, &error);
+        if (!recordResult(backup, op.kind + ':' + op.target, written)) { QTextStream(stderr) << error << Qt::endl; return false; }
+        grubEdited |= bound->kind == LoaderKind::Grub;
+        if (BootDeploy::directImage(bound->kind)) images.insert(bound->config);
+    }
+    for (const auto &op : operations) {
+        if (op.kind == QLatin1String("rebuild-image")) images.insert(op.target);
         rebuildGrub |= op.kind == QLatin1String("rebuild-grub");
         rebuildLimine |= op.kind == QLatin1String("rebuild-limine");
     }
     if ((grubEdited || rebuildGrub)
         && !run(backup, QStringLiteral("grub-mkconfig"), {QStringLiteral("-o"), QStringLiteral("/boot/grub/grub.cfg")})) return false;
-    if ((limineEdited || rebuildLimine) && !run(backup, QStringLiteral("limine-mkinitcpio"), {})) return false;
+    if (rebuildLimine && !run(backup, QStringLiteral("limine-mkinitcpio"), {})) return false;
+    for (const auto &path : images) {
+        QString error;
+        const bool success = BootDeploy::rebuild(path, &error);
+        if (!recordResult(backup, "rebuild-image:" + path, success)) { QTextStream(stderr) << error << Qt::endl; return false; }
+    }
     // Firmware operations are deliberately last; they can be partially applied
     // by UEFI firmware even when another later operation fails.
     for (const auto &op : operations) {
@@ -359,28 +301,6 @@ bool apply(const QList<BootOperation> &operations, BootBackup &backup)
             QString error;
             if (!firmwareAddArguments(op.target, op.value, &arguments, &error)
                 || !run(backup, QStringLiteral("efibootmgr"), arguments)) return false;
-        } else if (op.kind == QLatin1String("limine-add-efi")) {
-            if (!run(backup, QStringLiteral("limine-entry-tool"), {QStringLiteral("--add-efi"), op.value, op.target})) return false;
-        } else if (op.kind == QLatin1String("limine-remove-entry")) {
-            if (!run(backup, QStringLiteral("limine-entry-tool"),
-                     {QStringLiteral("--remove-entry"), op.target, op.value})) return false;
-        } else if (op.kind == QLatin1String("limine-add-kernel")) {
-            const QJsonObject data = QJsonDocument::fromJson(op.value.toUtf8()).object();
-            QStringList args{QStringLiteral("--add-kernel"), op.target,
-                             data.value(QStringLiteral("initramfs")).toString(),
-                             data.value(QStringLiteral("kernel")).toString()};
-            const QString suffix = data.value(QStringLiteral("suffix")).toString();
-            if (!suffix.isEmpty()) args.append(suffix);
-            if (!run(backup, QStringLiteral("limine-entry-tool"), args)) return false;
-        } else if (op.kind == QLatin1String("limine-add-uki")) {
-            if (!run(backup, QStringLiteral("limine-entry-tool"),
-                     {QStringLiteral("--add-uki"), op.target, op.value})) return false;
-        } else if (op.kind == QLatin1String("limine-global-setting")) {
-            if (!run(backup, QStringLiteral("limine-entry-tool"),
-                     {QStringLiteral("--set-global"), op.target, op.value})) return false;
-        } else if (op.kind == QLatin1String("update-systemd")) {
-            if (!run(backup, QStringLiteral("bootctl"),
-                     {QStringLiteral("--esp-path=") + op.target, QStringLiteral("update")})) return false;
         } else if (BootRepair::supports(op.kind)) {
             QString error;
             if (!BootRepair::execute(op, &error)) {
@@ -393,23 +313,17 @@ bool apply(const QList<BootOperation> &operations, BootBackup &backup)
 }
 }
 
-int main(int argc, char **argv)
+namespace {
+void endSession(int)
 {
-    QCoreApplication app(argc, argv);
-    const QStringList args = app.arguments();
+    kill(0, SIGTERM);
+}
+
+int executeTransaction(const QByteArray &payload)
+{
     QTextStream errors(stderr);
-    if (geteuid() != 0 || args.size() != 2 || args[1] != QLatin1String("--apply-stdin")) {
-        errors << "Administrator authorization required" << Qt::endl;
-        return 2;
-    }
-    QFile stream;
-    if (!stream.open(stdin, QIODevice::ReadOnly)) {
-        errors << "Cannot read transaction input" << Qt::endl;
-        return 2;
-    }
     QString error;
-    const QByteArray payload = stream.readAll();
-    if (payload.size() > 1048576) {
+    if (payload.size() > 16 * 1024 * 1024) {
         errors << "Transaction payload is too large" << Qt::endl;
         return 2;
     }
@@ -426,17 +340,86 @@ int main(int argc, char **argv)
         return 3;
     }
     QTextStream(stdout) << "Configuration backup and execution report: " << backup.directory() << Qt::endl;
-    QTextStream(stdout) << "Backup covers GUI-edited configuration and observed firmware state; generator outputs and EFI programs are not included." << Qt::endl;
-    const bool applied = apply(operations, backup);
+    const bool applied = apply(operations, backup, snapshot);
     if (!backup.finish(applied, &error)) {
         errors << "Execution report could not be finalized: " << error << Qt::endl;
         return 4;
     }
     if (!applied) {
-        errors << "Transaction stopped. Some earlier operations may already have been applied."
+        errors << "Operation failed."
                << Qt::endl;
         return 4;
     }
     QTextStream(stdout) << "Transaction completed" << Qt::endl;
     return 0;
+}
+
+bool respond(QFile &channel, const QJsonObject &response)
+{
+    const auto data = QJsonDocument(response).toJson(QJsonDocument::Compact) + '\n';
+    return channel.write(data) == data.size() && channel.flush();
+}
+}
+
+int main(int argc, char **argv)
+{
+    QCoreApplication app(argc, argv);
+    const QStringList args = app.arguments();
+    if (geteuid() != 0 || args.size() != 2 || args[1] != QLatin1String("--session")) {
+        QTextStream(stderr) << "Administrator authorization required" << Qt::endl;
+        return 2;
+    }
+    const pid_t parent = getppid();
+    if (parent == 1 || (getpgrp() != getpid() && setpgid(0, 0) != 0)) return 2;
+    struct sigaction terminate{};
+    terminate.sa_handler = endSession;
+    sigemptyset(&terminate.sa_mask);
+    if (sigaction(SIGUSR1, &terminate, nullptr) != 0
+        || prctl(PR_SET_PDEATHSIG, SIGUSR1) != 0 || getppid() != parent) return 2;
+    // Watch disconnection independently of a scan or command in progress.
+    std::thread([] {
+        pollfd input{STDIN_FILENO, 0, 0};
+        int result;
+        do { result = poll(&input, 1, -1); } while (result < 0 && errno == EINTR);
+        endSession(0);
+    }).detach();
+    QTranslator translator;
+    if (QLocale::system().language() == QLocale::Chinese) {
+        const QString directory = QCoreApplication::applicationDirPath();
+        const QStringList locations{directory, directory + QStringLiteral("/translations"),
+            QDir::cleanPath(directory + QStringLiteral("/../../share/catos-boot-manager/translations"))};
+        for (const auto &location : locations) {
+            if (translator.load(QStringLiteral("catos-boot-manager_zh_CN"), location)) {
+                app.installTranslator(&translator);
+                break;
+            }
+        }
+    }
+    // Reserve stdout for responses. Commands and their child processes log to stderr.
+    const int responseFd = fcntl(STDOUT_FILENO, F_DUPFD_CLOEXEC, 3);
+    if (responseFd < 0 || dup2(STDERR_FILENO, STDOUT_FILENO) < 0) return 2;
+    QFile responses;
+    QFile requests;
+    if (!responses.open(responseFd, QIODevice::WriteOnly, QFileDevice::AutoCloseHandle)
+        || !requests.open(stdin, QIODevice::ReadOnly)) return 2;
+    if (!respond(responses, {{QStringLiteral("type"), QStringLiteral("ready")},
+                            {QStringLiteral("version"), 1}, {QStringLiteral("uid"), 0}})) return 2;
+    for (;;) {
+        const QByteArray line = requests.readLine(1048578);
+        if (line.isEmpty()) return requests.error() == QFileDevice::NoError ? 0 : 2;
+        if (!line.endsWith('\n') || line.size() > 16 * 1024 * 1024) return 2;
+        const auto document = QJsonDocument::fromJson(line);
+        if (!document.isObject()) return 2;
+        const auto request = document.object();
+        const QString action = request.value(QStringLiteral("action")).toString();
+        if (action == QLatin1String("scan")) {
+            const auto snapshot = BootProbe::inspect();
+            if (!respond(responses, {{QStringLiteral("type"), QStringLiteral("snapshot")},
+                {QStringLiteral("data"), QString::fromLatin1(BootSnapshotCodec::encode(snapshot))}})) return 2;
+        } else if (action == QLatin1String("apply")) {
+            const bool success = executeTransaction(request.value(QStringLiteral("transaction")).toString().toLatin1()) == 0;
+            if (!respond(responses, {{QStringLiteral("type"), QStringLiteral("result")},
+                                    {QStringLiteral("success"), success}})) return 2;
+        } else return 2;
+    }
 }

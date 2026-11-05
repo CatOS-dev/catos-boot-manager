@@ -5,6 +5,7 @@
 #include <QString>
 #include <QStringList>
 #include <QMap>
+#include <QJsonArray>
 #include <array>
 
 enum class LoaderKind { Grub, Limine, Refind, SystemdBoot, Uki, EfiStub };
@@ -65,12 +66,29 @@ struct BootInstallation {
     SignatureState signature = SignatureState::Unknown;
     QString signatureDetails;
     QMap<QString, QString> settingValues;
+    QMap<QString, QString> settingFiles;
     bool settingsEditable = false;
     QString settingsMessage;
     QString menuContent;
     QString menuMessage;
     QStringList issues;
     qint64 espBytesAvailable = -1;
+};
+
+struct BootDevice {
+    QString path;
+    QString type;
+    QString filesystem;
+    QString size;
+    QString partuuid;
+    QString description;
+
+    QString label() const
+    {
+        return path + QStringLiteral(" · ") + size
+            + (filesystem.isEmpty() ? QString() : QStringLiteral(" · ") + filesystem)
+            + (description.isEmpty() ? QString() : QStringLiteral(" · ") + description);
+    }
 };
 
 struct BootSnapshot {
@@ -93,6 +111,11 @@ struct BootSnapshot {
     QString pendingMok;
     QStringList securityMessages;
     QString systemdDefaultOverride;
+    QList<BootDevice> devices;
+    QStringList repairRoots;
+    QStringList espMounts;
+    QMap<QString, QString> mountSources;
+    QJsonArray kernels;
 
     QList<BootInstallation> manageableInstallations() const
     {

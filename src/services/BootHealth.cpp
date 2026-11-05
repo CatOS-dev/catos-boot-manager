@@ -16,7 +16,7 @@ void BootHealth::inspect(BootSnapshot &snapshot)
                 if (QFileInfo(installation.binary).size() == 0)
                     installation.issues.append(QObject::tr("The EFI program file is empty."));
                 if (installation.imageType != QLatin1String("pe") && installation.imageType != QLatin1String("uki"))
-                    installation.issues.append(QObject::tr("The EFI program type could not be verified."));
+                    installation.issues.append(QObject::tr("Unknown EFI program format."));
                 if (snapshot.uefi && (snapshot.efiArchitecture.isEmpty() || installation.architecture.isEmpty()))
                     installation.issues.append(QObject::tr("The program or firmware architecture is unknown."));
                 else if (snapshot.uefi && installation.architecture != snapshot.efiArchitecture)

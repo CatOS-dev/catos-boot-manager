@@ -3,12 +3,14 @@
 #include "model/BootTransaction.h"
 #include "model/BootTypes.h"
 #include <QWidget>
+#include <QMap>
 
 class LoaderSelector;
+class RepairPage;
+class QStackedWidget;
 class QComboBox;
 class QLabel;
 class QPushButton;
-class QCheckBox;
 
 class MethodsPage : public QWidget {
     Q_OBJECT
@@ -17,27 +19,36 @@ public:
     void updateSnapshot(const BootSnapshot &snapshot);
     void updateTransaction(const BootTransaction &transaction);
     void selectMethod(LoaderKind kind);
+    LoaderSelector *selector() const { return selector_; }
 
 signals:
     void methodChanged(LoaderKind kind);
     void operationRequested(const BootOperation &operation);
+    void installationRequested(const BootOperation &operation);
 
 private:
     void showInstance();
     void updateActions();
     void queueSelection(bool once);
-    void updatePackages();
     const FirmwareEntry *selectedEntry() const;
 
+    struct Panel {
+        QWidget *page = nullptr;
+        QWidget *firmware = nullptr;
+        RepairPage *repair = nullptr;
+        QPushButton *installPackages = nullptr;
+        QPushButton *addEntry = nullptr;
+        QLabel *packages = nullptr;
+        QLabel *details = nullptr;
+        QLabel *status = nullptr;
+        QComboBox *entries = nullptr;
+        QPushButton *setDefault = nullptr;
+        QPushButton *once = nullptr;
+    };
+    QMap<int, Panel> panels_;
+    Panel *current_ = nullptr;
+    QStackedWidget *pages_ = nullptr;
     BootSnapshot snapshot_;
     BootTransaction transaction_;
     LoaderSelector *selector_ = nullptr;
-    QComboBox *entries_ = nullptr;
-    QLabel *details_ = nullptr;
-    QLabel *status_ = nullptr;
-    QPushButton *default_ = nullptr;
-    QPushButton *once_ = nullptr;
-    QCheckBox *snapshots_ = nullptr;
-    QCheckBox *secureBoot_ = nullptr;
-    QLabel *packages_ = nullptr;
 };

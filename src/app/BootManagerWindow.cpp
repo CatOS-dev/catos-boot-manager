@@ -7,10 +7,8 @@
 #include "pages/MethodsPage.h"
 #include "pages/SecurityPage.h"
 #include "pages/PendingPage.h"
-#include "pages/RepairPage.h"
 #include "pages/SettingsPage.h"
-#include "services/BootProbe.h"
-#include "services/BootScan.h"
+#include "services/BootSession.h"
 
 #include <QApplication>
 #include <QFrame>
@@ -22,11 +20,12 @@
 #include <QPalette>
 #include <QPushButton>
 #include <QShortcut>
+#include "widgets/LoaderSelector.h"
 #include <QStackedWidget>
 #include <QTimer>
 #include <QVBoxLayout>
 
-BootManagerWindow::BootManagerWindow(QWidget *parent) : QMainWindow(parent)
+BootManagerWindow::BootManagerWindow(BootSession *session, QWidget *parent) : QMainWindow(parent), session_(session)
 {
     setWindowTitle(tr("CatOS Boot Manager"));
     resize(1040, 700);
@@ -49,6 +48,7 @@ BootManagerWindow::BootManagerWindow(QWidget *parent) : QMainWindow(parent)
     auto *sideLayout = new QVBoxLayout(sidebar);
     sideLayout->setContentsMargins(14, 20, 14, 16);
     auto *brand = new QLabel(tr("CatOS Boot Manager"), sidebar);
+    brand->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
     auto font = brand->font();
     font.setBold(true);
     font.setPointSize(font.pointSize() + 5);
@@ -57,8 +57,8 @@ BootManagerWindow::BootManagerWindow(QWidget *parent) : QMainWindow(parent)
     sideLayout->addWidget(brand);
     navigation_ = new QListWidget(sidebar);
     navigation_->setObjectName(QStringLiteral("navigation"));
-    navigation_->addItems({tr("Overview"), tr("Boot methods"), tr("Boot menu"), tr("Loader settings"),
-                           tr("UEFI entries"), tr("Rebuild & update"), tr("Secure Boot"), tr("Pending changes")});
+    navigation_->addItems({tr("Overview"), tr("Boot methods"), tr("Boot menu"),
+                           tr("UEFI entries"), tr("Secure Boot"), tr("Pending changes")});
     navigation_->setFrameShape(QFrame::NoFrame);
     navigation_->setSpacing(7);
     navigation_->setStyleSheet(QStringLiteral(
@@ -80,13 +80,11 @@ BootManagerWindow::BootManagerWindow(QWidget *parent) : QMainWindow(parent)
     methods_ = new MethodsPage(pages_);
     security_ = new SecurityPage(pages_);
     menu_ = new MenuPage(pages_);
-    settings_ = new SettingsPage(pages_);
+    settings_ = menu_->settings();
     firmware_ = new FirmwarePage(pages_);
-    repair_ = new RepairPage(pages_);
     pendingPage_ = new PendingPage(pages_);
     for (QWidget *page : {static_cast<QWidget *>(overview_), static_cast<QWidget *>(methods_), static_cast<QWidget *>(menu_),
-                          static_cast<QWidget *>(settings_), static_cast<QWidget *>(firmware_),
-                          static_cast<QWidget *>(repair_), static_cast<QWidget *>(security_), static_cast<QWidget *>(pendingPage_)})
+                          static_cast<QWidget *>(firmware_), static_cast<QWidget *>(security_), static_cast<QWidget *>(pendingPage_)})
         pages_->addWidget(page);
     rightLayout->addWidget(pages_, 1);
     footer_ = new QFrame(right);
@@ -94,6 +92,7 @@ BootManagerWindow::BootManagerWindow(QWidget *parent) : QMainWindow(parent)
     auto *footerLayout = new QHBoxLayout(footer_);
     footerLayout->setContentsMargins(28, 10, 34, 10);
     pending_ = new QLabel(footer_);
+    pending_->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
     footerLayout->addWidget(pending_, 1);
     discard_ = new QPushButton(tr("Discard"), footer_);
     apply_ = new QPushButton(tr("Review and apply"), footer_);
@@ -108,24 +107,27 @@ BootManagerWindow::BootManagerWindow(QWidget *parent) : QMainWindow(parent)
     connect(discard_, &QPushButton::clicked, this, [this] {
         transaction_.clear();
         settings_->updateSnapshot(snapshot_);
+        settings_->selector()->selectInstallation(menu_->selector()->method(), menu_->selector()->currentId());
         updateFooter();
     });
     connect(apply_, &QPushButton::clicked, this, &BootManagerWindow::applyTransaction);
     connect(menu_, &MenuPage::operationRequested, this, &BootManagerWindow::queue);
-    connect(menu_, &MenuPage::methodChanged, settings_, &SettingsPage::selectMethod);
-    connect(settings_, &SettingsPage::methodChanged, menu_, &MenuPage::selectMethod);
-    connect(menu_, &MenuPage::methodChanged, methods_, &MethodsPage::selectMethod);
-    connect(settings_, &SettingsPage::methodChanged, methods_, &MethodsPage::selectMethod);
-    connect(methods_, &MethodsPage::methodChanged, menu_, &MenuPage::selectMethod);
-    connect(methods_, &MethodsPage::methodChanged, settings_, &SettingsPage::selectMethod);
-    connect(methods_, &MethodsPage::methodChanged, security_, &SecurityPage::selectMethod);
-    connect(menu_, &MenuPage::methodChanged, security_, &SecurityPage::selectMethod);
-    connect(settings_, &SettingsPage::methodChanged, security_, &SecurityPage::selectMethod);
-    connect(security_, &SecurityPage::methodChanged, methods_, &MethodsPage::selectMethod);
+    const QList<LoaderSelector *> selectors{methods_->selector(), menu_->selector(), security_->selector()};
+    for (auto *source : selectors)
+        for (auto *target : selectors)
+            if (source != target)
+                connect(source, &LoaderSelector::installationChanged, this, [this, target](LoaderKind kind, const QString &id) {
+                    if (!updatingSnapshot_) target->selectInstallation(kind, id);
+                });
     connect(methods_, &MethodsPage::operationRequested, this, &BootManagerWindow::queue);
-    connect(settings_, &SettingsPage::operationRequested, this, &BootManagerWindow::queue);
+    connect(methods_, &MethodsPage::installationRequested, this, [this](const BootOperation &operation) {
+        if (session_->isBusy()) return;
+        BootTransaction installation;
+        installation.stage(operation);
+        const auto result = ApplyDialog::execute(this, *session_, installation, false);
+        if (result != ApplyResult::Cancelled && session_->isAuthorized()) rescan(true);
+    });
     connect(firmware_, &FirmwarePage::operationRequested, this, &BootManagerWindow::queue);
-    connect(repair_, &RepairPage::operationRequested, this, &BootManagerWindow::queue);
     connect(pendingPage_, &PendingPage::removalRequested, this, [this](const QString &key) {
         for (const auto &operation : transaction_.operations())
             if (operation.key() == key) settings_->discardOperation(operation);
@@ -134,16 +136,19 @@ BootManagerWindow::BootManagerWindow(QWidget *parent) : QMainWindow(parent)
     });
     auto *refreshShortcut = new QShortcut(QKeySequence::Refresh, this);
     connect(refreshShortcut, &QShortcut::activated, this, &BootManagerWindow::refresh);
-    scan_ = new BootScan(this);
-    connect(scan_, &BootScan::completed, this, [this](const BootSnapshot &snapshot) {
+    connect(session_, &BootSession::snapshotReady, this, [this](const BootSnapshot &snapshot) {
         snapshot_ = snapshot;
         overview_->updateSnapshot(snapshot_);
+        updatingSnapshot_ = true;
         methods_->updateSnapshot(snapshot_);
         security_->updateSnapshot(snapshot_);
-        menu_->updateSnapshot(snapshot_);
-        settings_->updateSnapshot(snapshot_);
+        menu_->updateSnapshot(snapshot_, preserveDrafts_);
+        menu_->selector()->selectInstallation(methods_->selector()->method(), methods_->selector()->currentId());
+        security_->selector()->selectInstallation(methods_->selector()->method(), methods_->selector()->currentId());
+        settings_->selector()->selectInstallation(menu_->selector()->method(), menu_->selector()->currentId());
+        for (const auto &operation : transaction_.operations()) settings_->reflectOperation(operation);
+        updatingSnapshot_ = false;
         firmware_->updateSnapshot(snapshot_);
-        repair_->updateSnapshot(snapshot_);
         pages_->setEnabled(true);
         refreshButton_->setEnabled(true);
         updateFooter();
@@ -155,13 +160,19 @@ BootManagerWindow::BootManagerWindow(QWidget *parent) : QMainWindow(parent)
 
 void BootManagerWindow::refresh()
 {
-    if (scan_->isRunning()) return;
+    if (session_->isBusy()) return;
     if (transaction_.count() && QMessageBox::question(this, tr("Refresh detection"),
         tr("Refreshing will discard your pending changes. Continue?")) != QMessageBox::Yes) return;
     transaction_.clear();
+    rescan();
+}
+
+void BootManagerWindow::rescan(bool preserveDrafts)
+{
+    preserveDrafts_ = preserveDrafts;
     pages_->setEnabled(false);
     refreshButton_->setEnabled(false);
-    scan_->start();
+    session_->scan();
     updateFooter();
 }
 
@@ -178,21 +189,22 @@ void BootManagerWindow::updateFooter()
     pendingPage_->updateTransaction(transaction_, snapshot_);
     firmware_->updateTransaction(transaction_);
     methods_->updateTransaction(transaction_);
-    pending_->setText(scan_->isRunning() ? tr("Detecting boot state…")
+    menu_->updateTransaction(transaction_);
+    pending_->setText(session_->isBusy() ? tr("Detecting boot state…")
         : count ? tr("%1 pending change(s)").arg(count) : tr("No pending changes"));
-    apply_->setEnabled(!scan_->isRunning() && count > 0 && conflict.isEmpty());
+    apply_->setEnabled(!session_->isBusy() && count > 0 && conflict.isEmpty());
     apply_->setToolTip(conflict);
-    discard_->setEnabled(!scan_->isRunning() && count > 0);
+    discard_->setEnabled(!session_->isBusy() && count > 0);
 }
 
 void BootManagerWindow::applyTransaction()
 {
-    if (scan_->isRunning() || !BootPlan::firmwareConflict(transaction_.operations(), snapshot_).isEmpty()) return;
-    const auto result = ApplyDialog::execute(this, transaction_);
-    if (result == ApplyResult::Cancelled) return;
+    if (session_->isBusy() || !BootPlan::firmwareConflict(transaction_.operations(), snapshot_).isEmpty()) return;
+    const auto result = ApplyDialog::execute(this, *session_, transaction_);
+    if (result == ApplyResult::Cancelled || !session_->isAuthorized()) return;
     transaction_.clear();
     refresh();
     if (result == ApplyResult::Failed)
         QMessageBox::warning(this, tr("Boot changes incomplete"),
-            tr("The operation did not finish. System state is being reloaded; review the log before making another change."));
+            tr("Operation failed."));
 }

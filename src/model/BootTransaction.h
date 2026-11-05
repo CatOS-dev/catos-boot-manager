@@ -15,8 +15,7 @@ struct BootOperation {
 
     QString key() const
     {
-        return kind + QLatin1Char(':') + target
-            + (kind == QLatin1String("limine-remove-entry") ? QLatin1Char(':') + value : QString());
+        return kind + QLatin1Char(':') + target;
     }
     QJsonObject json() const;
     static BootOperation fromJson(const QJsonObject &object);

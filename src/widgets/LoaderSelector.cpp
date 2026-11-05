@@ -1,11 +1,12 @@
 #include "LoaderSelector.h"
+#include "BootUi.h"
 
 #include <QComboBox>
 #include <QDir>
 #include <QTabBar>
 #include <QVBoxLayout>
 
-LoaderSelector::LoaderSelector(QWidget *parent) : QWidget(parent)
+LoaderSelector::LoaderSelector(QWidget *parent, bool menuScope) : QWidget(parent), menuScope_(menuScope)
 {
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -16,6 +17,7 @@ LoaderSelector::LoaderSelector(QWidget *parent) : QWidget(parent)
     for (const auto kind : loaderKinds) tabs_->addTab(loaderName(kind));
     layout->addWidget(tabs_);
     instances_ = new QComboBox(this);
+    BootUi::enableCopy(instances_);
     instances_->setObjectName(QStringLiteral("loaderInstallation"));
     instances_->setPlaceholderText(tr("No installation detected for this method"));
     layout->addWidget(instances_);
@@ -27,6 +29,7 @@ LoaderSelector::LoaderSelector(QWidget *parent) : QWidget(parent)
     connect(instances_, &QComboBox::currentIndexChanged, this, [this] {
         selected_.insert(static_cast<int>(method()), currentId());
         emit selectionChanged();
+        emit installationChanged(method(), currentId());
     });
 }
 
@@ -42,9 +45,35 @@ void LoaderSelector::selectMethod(LoaderKind kind)
         if (loaderKinds[i] == kind) tabs_->setCurrentIndex(i);
 }
 
+void LoaderSelector::selectInstallation(LoaderKind kind, const QString &id)
+{
+    if (method() == kind && currentId() == id) return;
+    bool available = false;
+    for (const auto &installation : installations_)
+        available |= installation.kind == kind && installation.id == id;
+    if (available) selected_.insert(static_cast<int>(kind), id);
+    if (method() != kind) selectMethod(kind);
+    else if (available) instances_->setCurrentIndex(instances_->findData(id));
+}
+
 void LoaderSelector::updateSnapshot(const BootSnapshot &snapshot)
 {
-    installations_ = snapshot.manageableInstallations();
+    installations_.clear();
+    QSet<int> deployments;
+    QSet<int> configurations;
+    for (const auto &installation : snapshot.installations) {
+        if (!installation.binary.isEmpty()) deployments.insert(static_cast<int>(installation.kind));
+        if (installation.esp.isEmpty() && !installation.config.isEmpty()
+            && installation.kind == LoaderKind::Grub)
+            configurations.insert(static_cast<int>(installation.kind));
+    }
+    for (const auto &installation : snapshot.installations) {
+        const int kind = static_cast<int>(installation.kind);
+        const bool generator = configurations.contains(kind) && installation.esp.isEmpty() && !installation.config.isEmpty();
+        if (menuScope_ && configurations.contains(kind) && !generator) continue;
+        if (!menuScope_ && generator && deployments.contains(kind)) continue;
+        installations_.append(installation);
+    }
     tabs_->blockSignals(true);
     if (!initialized_ && !installations_.isEmpty()) {
         LoaderKind initial = installations_.first().kind;
@@ -96,6 +125,7 @@ void LoaderSelector::rebuild()
     instances_->blockSignals(false);
     selected_.insert(static_cast<int>(method()), currentId());
     emit selectionChanged();
+    emit installationChanged(method(), currentId());
 }
 
 int LoaderSelector::currentIndex() const { return instances_->currentIndex(); }

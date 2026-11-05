@@ -36,7 +36,9 @@ bool BootBackup::prepare(const QList<BootOperation> &operations, const BootSnaps
     for (const auto &op : operations) {
         plan.append(op.json());
         if (op.kind == QLatin1String("grub-setting")) paths.insert(BootSettings::configPath(LoaderKind::Grub, {}));
-        if (op.kind == QLatin1String("limine-setting")) paths.insert(BootSettings::configPath(LoaderKind::Limine, {}));
+        if (op.kind == QLatin1String("menu-write") || op.kind == QLatin1String("rebuild-image")) paths.insert(op.target);
+        if (op.kind == QLatin1String("limine-setting") || op.kind == QLatin1String("uki-setting") || op.kind == QLatin1String("efistub-setting"))
+            paths.insert(op.target.left(op.target.lastIndexOf('|')));
         if (op.kind == QLatin1String("systemd-setting")) {
             const QString esp = op.target.left(op.target.lastIndexOf(QLatin1Char('|')));
             paths.insert(BootSettings::configPath(LoaderKind::SystemdBoot, esp));

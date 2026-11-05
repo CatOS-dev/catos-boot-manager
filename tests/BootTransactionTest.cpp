@@ -13,7 +13,7 @@ class BootTransactionTest : public QObject {
     Q_OBJECT
 private slots:
     void restoreFirmwareValues();
-    void distinctLimineOccurrences();
+    void distinctMenuConfigurations();
     void cancelIndividualOperation();
     void clearStagedBootNext();
     void restoreOrderThroughPage();
@@ -36,11 +36,11 @@ void BootTransactionTest::restoreFirmwareValues()
     QCOMPARE(transaction.count(), 0);
 }
 
-void BootTransactionTest::distinctLimineOccurrences()
+void BootTransactionTest::distinctMenuConfigurations()
 {
     BootTransaction transaction;
-    transaction.stage({"limine-remove-entry", "Linux", "1", "hash", "Remove first"});
-    transaction.stage({"limine-remove-entry", "Linux", "2", "hash", "Remove second"});
+    transaction.stage({"menu-write", "/first/limine.conf", "first contents", "hash", "Edit first menu"});
+    transaction.stage({"menu-write", "/second/limine.conf", "second contents", "hash", "Edit second menu"});
     QCOMPARE(transaction.count(), 2);
     QString error;
     const auto decoded = BootTransaction::decode(transaction.encoded(), &error);

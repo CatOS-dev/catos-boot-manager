@@ -8,6 +8,7 @@ private slots:
     void shareBackendWithoutRequiringUkifyForEfiStub();
     void addOnlySelectedFeaturesAndPreserveInstalledKernel();
     void distinguishUnknownPackageStateAndUnsupportedFeatures();
+    void installOnlyTheChosenLoadersPackages();
 };
 
 void BootPackagesTest::shareBackendWithoutRequiringUkifyForEfiStub()
@@ -63,6 +64,30 @@ void BootPackagesTest::distinguishUnknownPackageStateAndUnsupportedFeatures()
     const auto biosGrub = BootPackages::plan(LoaderKind::Grub, false, false, snapshot);
     QVERIFY(biosGrub.error.isEmpty());
     QCOMPARE(biosGrub.required, QStringList({"grub"}));
+}
+
+void BootPackagesTest::installOnlyTheChosenLoadersPackages()
+{
+    BootSnapshot snapshot;
+    snapshot.uefi = true;
+    snapshot.packageStateAvailable = true;
+    const BootOperation grub{"install-packages", "GRUB", "grub,efibootmgr"};
+    const BootOperation limine{"install-packages", "Limine", "limine,limine-tool,efibootmgr"};
+    QString error;
+    QCOMPARE(BootPackages::installArguments({grub, limine}, snapshot, &error),
+        QStringList({"-S", "--needed", "--noconfirm", "--", "grub", "efibootmgr", "limine", "limine-tool"}));
+    QVERIFY(error.isEmpty());
+    auto invalid = grub;
+    invalid.value = "grub,--root=/tmp/unrelated";
+    QVERIFY(BootPackages::installArguments({invalid}, snapshot, &error).isEmpty());
+    QVERIFY(!error.isEmpty());
+    invalid = grub;
+    invalid.target = "unrelated";
+    QVERIFY(BootPackages::installArguments({invalid}, snapshot, &error).isEmpty());
+    QVERIFY(!error.isEmpty());
+    snapshot.packageStateAvailable = false;
+    QVERIFY(BootPackages::installArguments({grub}, snapshot, &error).isEmpty());
+    QVERIFY(!error.isEmpty());
 }
 
 QTEST_GUILESS_MAIN(BootPackagesTest)

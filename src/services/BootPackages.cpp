@@ -54,7 +54,7 @@ BootPackages::Plan BootPackages::plan(LoaderKind kind, bool snapshots, bool secu
         result.required.append(QStringLiteral("catos-secureboot"));
     }
     if (!snapshot.packageStateAvailable) {
-        result.error = QObject::tr("The target package database could not be read. Missing packages are unknown.");
+        result.error = QObject::tr("Unable to read software package status.");
         return result;
     }
     for (const auto &name : result.required) {
@@ -62,4 +62,31 @@ BootPackages::Plan BootPackages::plan(LoaderKind kind, bool snapshots, bool secu
         else result.missing.append(name);
     }
     return result;
+}
+
+QStringList BootPackages::installArguments(const QList<BootOperation> &operations, const BootSnapshot &snapshot, QString *error)
+{
+    error->clear();
+    QStringList packages;
+    for (const auto &operation : operations) {
+        if (operation.kind != QLatin1String("install-packages")) continue;
+        bool matched = false;
+        for (const auto kind : loaderKinds) {
+            if (operation.target != loaderName(kind)) continue;
+            const auto required = plan(kind, false, false, snapshot);
+            if (!required.error.isEmpty() || operation.value != required.required.join(QLatin1Char(','))) {
+                *error = QObject::tr("The software package selection changed. Refresh and try again.");
+                return {};
+            }
+            matched = true;
+            for (const auto &package : required.required)
+                if (!packages.contains(package)) packages.append(package);
+        }
+        if (!matched) {
+            *error = QObject::tr("Invalid boot loader selection.");
+            return {};
+        }
+    }
+    if (packages.isEmpty()) return {};
+    return QStringList{QStringLiteral("-S"), QStringLiteral("--needed"), QStringLiteral("--noconfirm"), QStringLiteral("--")} + packages;
 }

@@ -11,9 +11,10 @@ class QComboBox;
 class LoaderSelector : public QWidget {
     Q_OBJECT
 public:
-    explicit LoaderSelector(QWidget *parent = nullptr);
+    explicit LoaderSelector(QWidget *parent = nullptr, bool menuScope = false);
     void updateSnapshot(const BootSnapshot &snapshot);
     void selectMethod(LoaderKind kind);
+    void selectInstallation(LoaderKind kind, const QString &id);
     LoaderKind method() const;
     const QList<BootInstallation> &installations() const { return filtered_; }
     int currentIndex() const;
@@ -22,6 +23,7 @@ public:
 signals:
     void selectionChanged();
     void methodChanged(LoaderKind kind);
+    void installationChanged(LoaderKind kind, const QString &id);
 
 private:
     void rebuild();
@@ -31,4 +33,5 @@ private:
     QTabBar *tabs_ = nullptr;
     QComboBox *instances_ = nullptr;
     bool initialized_ = false;
+    bool menuScope_ = false;
 };

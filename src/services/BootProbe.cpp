@@ -4,6 +4,9 @@
 #include "BootSecurity.h"
 #include "BootContent.h"
 #include "BootHealth.h"
+#include "BootDevices.h"
+#include "BootRepair.h"
+#include "BootDeploy.h"
 
 #include <QDir>
 #include <QDirIterator>
@@ -13,7 +16,6 @@
 #include <QProcess>
 #include <QRegularExpression>
 #include <QSet>
-#include <QStandardPaths>
 
 namespace {
 QString cleanPath(QString path)
@@ -28,9 +30,9 @@ QString firmwareLoader(const QString &path, const QString &label)
     if (name.contains(QLatin1String("systemd-boot"))) return QStringLiteral("systemd-boot");
     if (name.contains(QLatin1String("refind"))) return QStringLiteral("rEFInd");
     if (name.contains(QLatin1String("grub"))) return QStringLiteral("GRUB");
-    if (name.contains(QLatin1String("shim"))) return QObject::tr("shim (may chainload GRUB)");
-    if (name.contains(QLatin1String("bootx64.efi"))) return QObject::tr("EFI fallback (not identified)");
-    if (label.contains(QLatin1String("limine"), Qt::CaseInsensitive)) return QObject::tr("Limine (firmware label only)");
+    if (name.contains(QLatin1String("shim"))) return QObject::tr("shim");
+    if (name.contains(QLatin1String("bootx64.efi"))) return QObject::tr("EFI fallback");
+    if (label.contains(QLatin1String("limine"), Qt::CaseInsensitive)) return QObject::tr("Limine");
     return {};
 }
 
@@ -57,25 +59,11 @@ QString readLoaderInfo()
 
 QString BootProbe::runReadOnly(const QString &program, const QStringList &arguments)
 {
-    QString executable = program;
-    QStringList args = arguments;
-    if (executable == QLatin1String("limine-list")) {
-        executable = QStringLiteral("limine-entry-tool");
-        args.prepend(QStringLiteral("--tree"));
-    }
-    if (executable == QLatin1String("limine-entry-tool")) {
-        // Older Limine packages have a bash launcher which asks for sudo even
-        // for harmless queries. Query its underlying CLI directly so opening
-        // the graphical manager never triggers a second authorization.
-        const QString launcher = QStandardPaths::findExecutable(executable);
-        QFile file(launcher);
-        if (file.open(QIODevice::ReadOnly) && file.read(2) == QByteArrayLiteral("#!")) {
-            const QString legacy = QStringLiteral("/usr/lib/limine/limine-entry-tool");
-            if (QFileInfo(legacy).isExecutable()) executable = legacy;
-        }
-    }
+    const QStringList args = program == QLatin1String("limine-entry-tool")
+        ? QStringList{QStringLiteral("--no-hooks"), QStringLiteral("--no-mutex")} + arguments
+        : arguments;
     QProcess process;
-    process.start(executable, args);
+    process.start(program, args);
     if (!process.waitForStarted(2000) || !process.waitForFinished(6500)
         || process.exitStatus() != QProcess::NormalExit || process.exitCode() != 0) {
         if (process.state() != QProcess::NotRunning) process.kill();
@@ -191,6 +179,15 @@ BootSnapshot BootProbe::inspect()
         state.messages.append(QObject::tr("Could not read UEFI variables; firmware management is unavailable."));
 
     const QStringList mounts = espMounts();
+    state.espMounts = mounts;
+    state.devices = BootDevices::discover();
+    state.repairRoots = BootRepair::mountedTargets();
+    QStringList targets = state.repairRoots + mounts;
+    targets.removeDuplicates();
+    for (const auto &target : targets)
+        state.mountSources.insert(target, runReadOnly(QStringLiteral("findmnt"),
+            {QStringLiteral("-rn"), QStringLiteral("-M"), target,
+             QStringLiteral("-o"), QStringLiteral("SOURCE")}).trimmed());
     QList<BootDiscovery::Esp> partitions;
     for (const auto &esp : mounts) {
         const QString source = runReadOnly(QStringLiteral("findmnt"),
@@ -206,6 +203,7 @@ BootSnapshot BootProbe::inspect()
             details.completed && details.exitCode == 0 ? BootDiscovery::architectureFromObjdump(details.output) : QString()};
     });
     BootSecurity::inspect(state);
+    BootDeploy::populate(state);
     BootContent::populate(state);
     BootHealth::inspect(state);
     if (!state.uefi) state.messages.append(QObject::tr("This system was not booted in UEFI mode."));

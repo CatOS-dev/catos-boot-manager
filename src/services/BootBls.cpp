@@ -18,7 +18,7 @@ QJsonArray BootBls::entries(const QString &json, const QString &esp, QString *er
     error->clear();
     const auto document = QJsonDocument::fromJson(json.toUtf8());
     if (!document.isArray()) {
-        *error = QObject::tr("bootctl did not return a structured entry list. Check the selected ESP and refresh detection.");
+        *error = QObject::tr("Unable to read boot entries. Refresh and try again.");
         return {};
     }
     QJsonArray result;
@@ -31,7 +31,7 @@ QJsonArray BootBls::entries(const QString &json, const QString &esp, QString *er
         const QString id = entry.value(QStringLiteral("id")).toString();
         const QString path = QDir::cleanPath(entry.value(QStringLiteral("path")).toString());
         if (!validId(id) || !path.startsWith(QDir::cleanPath(esp) + QLatin1Char('/')) || identities.contains(id)) {
-            *error = QObject::tr("The structured entry list contains an invalid or duplicate identity.");
+            *error = QObject::tr("Boot entries changed. Refresh and try again.");
             return {};
         }
         identities.insert(id);

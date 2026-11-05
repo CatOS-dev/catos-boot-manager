@@ -1,14 +1,30 @@
 cmake_minimum_required(VERSION 3.26)
-project(CatOSBootManager VERSION 0.1.0 LANGUAGES CXX)
+project(CatOSBootManager VERSION 0.2.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Core Widgets Concurrent LinguistTools)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(EFIBOOT REQUIRED IMPORTED_TARGET efiboot efivar)
+
+set(LIMINE_TOOL_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/../limine-tool" CACHE PATH "Limine parser source")
+find_program(CARGO_EXECUTABLE cargo REQUIRED)
+configure_file(tools/limine-menu/Cargo.toml.in limine-menu/Cargo.toml @ONLY)
+configure_file(tools/limine-menu/Cargo.lock limine-menu/Cargo.lock COPYONLY)
+file(GLOB_RECURSE LIMINE_PARSER_SOURCES CONFIGURE_DEPENDS "${LIMINE_TOOL_SOURCE}/src/*.rs")
+add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/catos-limine-menu"
+    COMMAND ${CARGO_EXECUTABLE} build --locked --release --manifest-path "${CMAKE_CURRENT_BINARY_DIR}/limine-menu/Cargo.toml" --target-dir "${CMAKE_CURRENT_BINARY_DIR}/menu-tools"
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_BINARY_DIR}/menu-tools/release/catos-limine-menu" "${CMAKE_CURRENT_BINARY_DIR}/catos-limine-menu"
+    DEPENDS tools/limine-menu/src/main.rs tools/limine-menu/Cargo.toml.in tools/limine-menu/Cargo.lock ${LIMINE_PARSER_SOURCES}
+    VERBATIM)
+add_custom_target(catos-menu-tools ALL DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/catos-limine-menu")
 
 add_library(catos-boot-core STATIC
     src/model/BootTypes.h
+    src/model/BootSnapshotCodec.h
+    src/model/BootSnapshotCodec.cpp
     src/model/BootTransaction.h
     src/model/BootTransaction.cpp
     src/model/BootPlan.h
@@ -25,12 +41,18 @@ add_library(catos-boot-core STATIC
     src/services/BootBackup.cpp
     src/services/BootContent.h
     src/services/BootContent.cpp
+    src/services/BootMenus.h
+    src/services/BootMenus.cpp
+    src/services/BootDeploy.h
+    src/services/BootDeploy.cpp
     src/services/BootBls.h
     src/services/BootBls.cpp
     src/services/BootHealth.h
     src/services/BootHealth.cpp
     src/services/BootScan.h
     src/services/BootScan.cpp
+    src/services/BootSession.h
+    src/services/BootSession.cpp
     src/services/BootSettings.h
     src/services/BootSettings.cpp
     src/services/BootDevices.h
@@ -39,7 +61,8 @@ add_library(catos-boot-core STATIC
     src/services/BootRepair.cpp
 )
 target_include_directories(catos-boot-core PUBLIC src)
-target_link_libraries(catos-boot-core PUBLIC Qt6::Core Qt6::Concurrent)
+target_link_libraries(catos-boot-core PUBLIC Qt6::Core Qt6::Concurrent PkgConfig::EFIBOOT)
+add_dependencies(catos-boot-core catos-menu-tools)
 
 qt_add_executable(catos-boot-manager
     src/app/Main.cpp
@@ -76,6 +99,27 @@ target_link_libraries(catos-boot-apply PRIVATE catos-boot-core)
 include(CTest)
 if(BUILD_TESTING)
     find_package(Qt6 REQUIRED COMPONENTS Test)
+    qt_add_executable(boot-menus-test tests/BootMenusTest.cpp)
+    target_link_libraries(boot-menus-test PRIVATE catos-boot-core Qt6::Test)
+    add_test(NAME boot-menus COMMAND boot-menus-test)
+    qt_add_executable(boot-deploy-test tests/BootDeployTest.cpp)
+    target_link_libraries(boot-deploy-test PRIVATE catos-boot-core Qt6::Test)
+    add_test(NAME boot-deploy COMMAND boot-deploy-test)
+    qt_add_executable(boot-session-test tests/BootSessionTest.cpp)
+    target_link_libraries(boot-session-test PRIVATE catos-boot-core Qt6::Test)
+    add_dependencies(boot-session-test catos-boot-apply catos-boot-manager)
+    add_test(NAME boot-session COMMAND boot-session-test)
+    qt_add_executable(boot-install-test tests/BootInstallTest.cpp)
+    target_link_libraries(boot-install-test PRIVATE catos-boot-core Qt6::Test)
+    add_test(NAME boot-install COMMAND boot-install-test)
+    qt_add_executable(boot-overview-test tests/OverviewPageTest.cpp src/pages/OverviewPage.cpp src/widgets/BootUi.cpp)
+    target_link_libraries(boot-overview-test PRIVATE catos-boot-core Qt6::Widgets Qt6::Test)
+    add_test(NAME boot-overview COMMAND boot-overview-test)
+    set_tests_properties(boot-overview PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    qt_add_executable(boot-copy-test tests/BootCopyTest.cpp src/widgets/BootUi.cpp)
+    target_link_libraries(boot-copy-test PRIVATE catos-boot-core Qt6::Widgets Qt6::Test)
+    add_test(NAME boot-copy COMMAND boot-copy-test)
+    set_tests_properties(boot-copy PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     qt_add_executable(boot-transaction-test
         tests/BootTransactionTest.cpp
         src/pages/FirmwarePage.cpp
@@ -116,16 +160,16 @@ if(BUILD_TESTING)
     target_link_libraries(boot-content-test PRIVATE catos-boot-core Qt6::Test)
     add_test(NAME boot-content COMMAND boot-content-test)
     qt_add_executable(boot-systemd-menu-test tests/SystemdMenuTest.cpp
-        src/pages/MenuPage.cpp src/widgets/LoaderSelector.cpp src/widgets/BootUi.cpp)
+        src/pages/MenuPage.cpp src/pages/SettingsPage.cpp src/widgets/LoaderSelector.cpp src/widgets/BootUi.cpp)
     target_link_libraries(boot-systemd-menu-test PRIVATE catos-boot-core Qt6::Widgets Qt6::Test)
     add_test(NAME boot-systemd-menu COMMAND boot-systemd-menu-test)
     set_tests_properties(boot-systemd-menu PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
-    qt_add_executable(boot-loader-selector-test tests/LoaderSelectorTest.cpp src/widgets/LoaderSelector.cpp)
+    qt_add_executable(boot-loader-selector-test tests/LoaderSelectorTest.cpp src/widgets/LoaderSelector.cpp src/widgets/BootUi.cpp)
     target_link_libraries(boot-loader-selector-test PRIVATE catos-boot-core Qt6::Widgets Qt6::Test)
     add_test(NAME boot-loader-selector COMMAND boot-loader-selector-test)
     set_tests_properties(boot-loader-selector PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     qt_add_executable(boot-methods-test tests/MethodsPageTest.cpp
-        src/pages/MethodsPage.cpp src/widgets/LoaderSelector.cpp src/widgets/BootUi.cpp)
+        src/pages/MethodsPage.cpp src/pages/RepairPage.cpp src/widgets/LoaderSelector.cpp src/widgets/BootUi.cpp)
     target_link_libraries(boot-methods-test PRIVATE catos-boot-core Qt6::Widgets Qt6::Test)
     add_test(NAME boot-methods COMMAND boot-methods-test)
     set_tests_properties(boot-methods PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
@@ -138,5 +182,6 @@ qt_add_lrelease(catos-boot-manager
 
 install(TARGETS catos-boot-manager RUNTIME DESTINATION bin)
 install(TARGETS catos-boot-apply RUNTIME DESTINATION lib/catos)
+install(PROGRAMS "${CMAKE_CURRENT_BINARY_DIR}/catos-limine-menu" DESTINATION lib/catos)
 install(FILES data/catos-boot-manager.desktop DESTINATION share/applications)
 install(FILES ${QM_FILES} DESTINATION share/catos-boot-manager/translations)

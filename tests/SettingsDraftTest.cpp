@@ -13,11 +13,100 @@
 class SettingsDraftTest : public QObject {
     Q_OBJECT
 private slots:
+    void booleanChoices_data();
+    void booleanChoices();
+    void chooseSwitchesAndPreserveDrafts();
     void preserveDraftAndOriginalValue();
     void rejectUnboundGeneratorConfiguration();
     void editOnlySelectedRefindConfiguration();
-    void rejectRefindIncludesAndManualBlocks();
+    void editRefindIncludesAndManualBlocks();
 };
+
+void SettingsDraftTest::booleanChoices_data()
+{
+    QTest::addColumn<int>("kind");
+    QTest::addColumn<QString>("key");
+    for (const auto &key : {"GRUB_DISABLE_OS_PROBER", "GRUB_DISABLE_LINUX_UUID"})
+        QTest::newRow(key) << int(LoaderKind::Grub) << QString(key);
+    for (const auto &key : {"quiet", "graphics", "remember_last_entry"})
+        QTest::newRow(key) << int(LoaderKind::Limine) << QString(key);
+    for (const auto &key : {"editor", "auto-entries", "auto-firmware", "beep"})
+        QTest::newRow(key) << int(LoaderKind::SystemdBoot) << QString(key);
+}
+
+void SettingsDraftTest::booleanChoices()
+{
+    QFETCH(int, kind); QFETCH(QString, key);
+    BootInstallation loader;
+    loader.kind = LoaderKind(kind); loader.id = "test"; loader.settingsEditable = true;
+    loader.configPresent = true;
+    loader.config = loader.kind == LoaderKind::Grub ? "/etc/default/grub" : "/test/loader.conf";
+    loader.esp = loader.kind == LoaderKind::Grub ? QString() : QString("/test");
+    BootSnapshot snapshot; snapshot.installations = {loader};
+    SettingsPage page; page.updateSnapshot(snapshot);
+    auto *choice = page.findChild<QComboBox *>(key); QVERIFY(choice);
+    QVERIFY(!choice->isEditable()); QCOMPARE(choice->count(), 3);
+    QCOMPARE(choice->currentData().toString(), QString());
+    auto *queue = page.findChild<QPushButton *>("queueSettings"); QVERIFY(queue);
+    BootTransaction transaction;
+    connect(&page, &SettingsPage::operationRequested, &page, [&](const BootOperation &op) { transaction.stage(op); });
+    choice->setCurrentIndex(1); queue->click();
+    QCOMPARE(transaction.count(), 1);
+    const QString enabled = loader.kind == LoaderKind::Grub ? "true" : "yes";
+    const QString disabled = loader.kind == LoaderKind::Grub ? "false" : "no";
+    QCOMPARE(transaction.operations()[0].value, enabled);
+    choice->setCurrentIndex(2); queue->click();
+    QCOMPARE(transaction.operations()[0].value, disabled);
+    QVERIFY(BootSettings::allowed(loader.kind, key, QString()));
+    choice->setCurrentIndex(0); queue->click();
+    QCOMPARE(transaction.count(), 0);
+}
+
+void SettingsDraftTest::chooseSwitchesAndPreserveDrafts()
+{
+    QTemporaryDir dir; QVERIFY(dir.isValid());
+    const QString config = dir.path() + "/limine.conf";
+    QFile file(config); QVERIFY(file.open(QIODevice::WriteOnly));
+    QVERIFY(file.write("quiet: no\ngraphics: yes\nwallpaper_style: tiled\n/Linux\nprotocol: linux\npath: boot():/vmlinuz\n") > 0);
+    file.close();
+    BootSnapshot snapshot;
+    snapshot.installations = {{LoaderKind::Limine, "limine", dir.path(), {}, {}, config, true}};
+    BootContent::populate(snapshot);
+    SettingsPage page; page.updateSnapshot(snapshot);
+    const auto field = [&](const QString &key) {
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        return page.findChild<QComboBox *>(key);
+    };
+    auto *quiet = field("quiet"); QVERIFY(quiet); QVERIFY(!quiet->isEditable());
+    QCOMPARE(quiet->currentData().toString(), QString("no"));
+    quiet->setCurrentIndex(quiet->findData("yes"));
+    auto *remember = field("remember_last_entry"); QVERIFY(remember);
+    QCOMPARE(remember->currentData().toString(), QString());
+    auto *style = field("wallpaper_style"); QVERIFY(style);
+    QCOMPARE(style->currentData().toString(), QString("tiled"));
+    style->setCurrentIndex(style->findData("centered"));
+    page.selectMethod(LoaderKind::Uki); page.selectMethod(LoaderKind::Limine);
+    quiet = field("quiet"); QVERIFY(quiet);
+    QCOMPARE(quiet->currentData().toString(), QString("yes"));
+    style = field("wallpaper_style"); QVERIFY(style);
+    QCOMPARE(style->currentData().toString(), QString("centered"));
+    BootTransaction transaction;
+    connect(&page, &SettingsPage::operationRequested, &page, [&](const BootOperation &op) { transaction.stage(op); });
+    auto *queue = page.findChild<QPushButton *>("queueSettings"); QVERIFY(queue); queue->click();
+    QCOMPARE(transaction.count(), 2);
+    QCOMPARE(transaction.operations()[0].target, config + "|quiet");
+    QCOMPARE(transaction.operations()[0].value, QString("yes"));
+    page.discardOperation(transaction.operations()[0]);
+    QCOMPARE(quiet->currentData().toString(), QString("no"));
+    page.reflectOperation({"limine-setting", config + "|remember_last_entry", "yes"});
+    remember = field("remember_last_entry"); QVERIFY(remember);
+    QCOMPARE(remember->currentData().toString(), QString("yes"));
+    page.discardOperation({"limine-setting", config + "|remember_last_entry", "yes"});
+    QCOMPARE(remember->currentData().toString(), QString());
+    quiet->setCurrentIndex(quiet->findData(QString()));
+    queue->click();
+    QCOMPARE(transaction.operations()[0].value, QString());
+}
 
 void SettingsDraftTest::preserveDraftAndOriginalValue()
 {
@@ -93,6 +182,10 @@ void SettingsDraftTest::preserveDraftAndOriginalValue()
     QVERIFY(timeout);
     QCOMPARE(timeout->text(), QString("9"));
     BootContent::populate(snapshot);
+    page.updateSnapshot(snapshot, true);
+    timeout = currentTimeout();
+    QVERIFY(timeout);
+    QCOMPARE(timeout->text(), QString("9"));
     page.updateSnapshot(snapshot);
     timeout = currentTimeout();
     QVERIFY(timeout);
@@ -148,28 +241,28 @@ void SettingsDraftTest::editOnlySelectedRefindConfiguration()
     BootContent::populate(snapshot);
     page.updateSnapshot(snapshot);
     auto *timeout = page.findChild<QLineEdit *>("timeout");
-    auto *selection = page.findChild<QLineEdit *>("default_selection");
     auto *queue = page.findChild<QPushButton *>("queueSettings");
     QVERIFY(timeout);
-    QVERIFY(selection);
+    QVERIFY(!page.findChild<QLineEdit *>("default_selection"));
     QVERIFY(queue);
     QVERIFY(queue->isEnabled());
     QCOMPARE(timeout->text(), QString("5"));
-    QCOMPARE(selection->text(), QString("CatOS Linux"));
     timeout->setText("8");
-    selection->setText("CatOS LTS");
     BootTransaction transaction;
     connect(&page, &SettingsPage::operationRequested, &page, [&](const BootOperation &op) { transaction.stage(op); });
     queue->click();
-    QCOMPARE(transaction.count(), 2);
+    QCOMPARE(transaction.count(), 1);
     QCOMPARE(transaction.operations()[0].kind, QString("refind-setting"));
     QCOMPARE(transaction.operations()[0].target, config.fileName() + "|timeout");
     QCOMPARE(transaction.operations()[0].expected, QString("5"));
     QString error;
     QVERIFY2(BootSettings::write(LoaderKind::Refind, config.fileName(), "timeout", "8", &error), qPrintable(error));
     QVERIFY2(BootSettings::write(LoaderKind::Refind, config.fileName(), "default_selection", "CatOS LTS", &error), qPrintable(error));
-    QCOMPARE(BootSettings::read(LoaderKind::Refind, config.fileName(), "timeout"), QString("8"));
-    QCOMPARE(BootSettings::read(LoaderKind::Refind, config.fileName(), "default_selection"), QString("CatOS LTS"));
+    QString readError;
+    QCOMPARE(BootSettings::read(LoaderKind::Refind, config.fileName(), "timeout", &readError), QString("8"));
+    QVERIFY(readError.isEmpty());
+    QCOMPARE(BootSettings::read(LoaderKind::Refind, config.fileName(), "default_selection", &readError), QString("CatOS LTS"));
+    QVERIFY(readError.isEmpty());
     QFile other(second + "/refind.conf");
     QVERIFY(other.open(QIODevice::ReadOnly));
     QCOMPARE(other.readAll(), original);
@@ -183,7 +276,7 @@ void SettingsDraftTest::editOnlySelectedRefindConfiguration()
     QVERIFY(!config.readAll().contains("default_selection"));
 }
 
-void SettingsDraftTest::rejectRefindIncludesAndManualBlocks()
+void SettingsDraftTest::editRefindIncludesAndManualBlocks()
 {
     QTemporaryDir directory;
     QVERIFY(directory.isValid());
@@ -203,10 +296,10 @@ void SettingsDraftTest::rejectRefindIncludesAndManualBlocks()
     QVERIFY(config.open(QIODevice::WriteOnly | QIODevice::Truncate));
     QCOMPARE(config.write(manual), qint64(manual.size()));
     config.close();
-    QVERIFY(!BootSettings::refindEditable(config.fileName(), &error));
-    QVERIFY(!BootSettings::write(LoaderKind::Refind, config.fileName(), "timeout", "8", &error));
+    QVERIFY2(BootSettings::refindEditable(config.fileName(), &error), qPrintable(error));
+    QVERIFY2(BootSettings::write(LoaderKind::Refind, config.fileName(), "timeout", "8", &error), qPrintable(error));
     QVERIFY(config.open(QIODevice::ReadOnly));
-    QCOMPARE(config.readAll(), manual);
+    QCOMPARE(config.readAll(), QByteArray("timeout 8\nmenuentry CatOS {\n loader /vmlinuz\n}\n"));
     QVERIFY(!BootSettings::allowed(LoaderKind::Refind, "default_selection", "Linux\"\ninclude bad"));
     QVERIFY(!BootSettings::allowed(LoaderKind::Refind, "resolution", "1920x1080"));
     QVERIFY(BootSettings::allowed(LoaderKind::Refind, "resolution", "1920 1080"));

@@ -1,90 +1,95 @@
 #include "BootContent.h"
 #include "BootSettings.h"
 #include "BootBls.h"
+#include "BootMenus.h"
+#include "BootDeploy.h"
 
 #include <QDir>
-#include <QFile>
+#include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QObject>
-
-namespace {
-QString readText(const QString &path)
-{
-    QFile file(path);
-    if (path.isEmpty() || !file.open(QIODevice::ReadOnly | QIODevice::Text)) return {};
-    return QString::fromUtf8(file.readAll());
-}
-}
 
 void BootContent::populate(BootSnapshot &snapshot, const Reader &reader, const QString &systemRoot)
 {
     for (auto &loader : snapshot.installations) {
         loader.settingValues.clear();
+        loader.settingFiles.clear();
         loader.settingsEditable = false;
         loader.settingsMessage.clear();
         loader.menuContent.clear();
         loader.menuMessage.clear();
-        const QString location = loader.kind == LoaderKind::Refind ? loader.config : loader.esp;
-        const QString config = BootSettings::configPath(loader.kind, location);
         const auto settings = BootSettings::settings(loader.kind);
-        const bool bound = !config.isEmpty() && loader.config == config
-            && (loader.kind == LoaderKind::SystemdBoot || loader.kind == LoaderKind::Refind || loader.esp.isEmpty());
-        QString refindError;
-        const bool refindReady = loader.kind != LoaderKind::Refind || !bound
-            || BootSettings::refindEditable(config, &refindError);
-        if (settings.isEmpty()) loader.settingsMessage = QObject::tr("Configuration editing is not available for this method.");
-        else if (!bound) loader.settingsMessage = QObject::tr("This EFI program is not associated with the current system's generator configuration.");
-        else if (!refindReady) loader.settingsMessage = refindError;
-        else if (loader.kind == LoaderKind::Limine) {
-            const auto document = QJsonDocument::fromJson(reader(QStringLiteral("limine-entry-tool"),
-                {QStringLiteral("--config-json")}).toUtf8());
-            if (!document.isObject() || !document.object().value(QStringLiteral("values")).isObject()
-                || !document.object().value(QStringLiteral("kernel_cmdlines")).isObject())
-                loader.settingsMessage = QObject::tr("The structured Limine settings query failed. Check limine-tool and refresh detection.");
-            else {
-                const auto root = document.object();
-                const auto values = root.value(QStringLiteral("values")).toObject();
-                const auto cmdlines = root.value(QStringLiteral("kernel_cmdlines")).toObject();
-                for (const auto &setting : settings) {
-                    const QString value = setting.key == QLatin1String("KERNEL_CMDLINE[default]")
-                        ? cmdlines.value(QStringLiteral("default")).toString() : values.value(setting.key).toString();
-                    loader.settingValues.insert(setting.key, value);
-                }
-                loader.settingsEditable = true;
+        if (BootDeploy::directImage(loader.kind)) {
+            loader.config = BootDeploy::profilePath(loader.binary);
+            const auto profile = BootDeploy::profile(loader.config, &loader.settingsMessage);
+            for (const auto &setting : settings) loader.settingValues.insert(setting.key, profile.value(setting.key).toString());
+            if (!profile.isEmpty()) {
+                QString rootError;
+                const auto root = BootDeploy::targetRoot(profile, snapshot.repairRoots, &rootError);
+                if (rootError.isEmpty()) loader.settingValues.insert("root", root);
             }
-        } else {
-            for (const auto &setting : settings)
-                loader.settingValues.insert(setting.key, BootSettings::read(loader.kind, location, setting.key));
-            loader.settingsEditable = true;
+            loader.settingsEditable = loader.settingsMessage.isEmpty();
+            loader.menuContent = QString::fromUtf8(QJsonDocument(QJsonObject{{"binary", loader.binary}, {"label", profile.value("label")}, {"fingerprint", BootMenus::fingerprint(QFileInfo::exists(loader.config) ? BootMenus::readText(loader.config, &loader.settingsMessage) : QString())}}).toJson(QJsonDocument::Compact));
+            continue;
         }
-        if ((loader.kind == LoaderKind::Grub || loader.kind == LoaderKind::Limine) && !loader.esp.isEmpty()) {
-            loader.menuContent = readText(loader.config);
-            loader.menuMessage = QObject::tr("This EFI installation is separate from the current system's generated menu.");
-        } else if (loader.kind == LoaderKind::Limine) {
-            loader.menuContent = reader(QStringLiteral("limine-entry-tool"), {QStringLiteral("--tree-json")});
-            const auto document = QJsonDocument::fromJson(loader.menuContent.toUtf8());
-            if (!document.isObject() || !document.object().value(QStringLiteral("entries")).isArray()
-                || !document.object().value(QStringLiteral("globals")).isObject()) {
-                loader.menuContent.clear();
-                loader.menuMessage = QObject::tr("The structured Limine menu query failed. Check limine-tool and refresh detection.");
+        if (loader.kind == LoaderKind::Limine) {
+            if (loader.esp.isEmpty()) { loader.settingsMessage = QObject::tr("Select an installed Limine menu."); continue; }
+            const QString text = BootMenus::readText(loader.config, &loader.menuMessage);
+            QJsonObject document;
+            if (loader.menuMessage.isEmpty()) document = BootMenus::limine(text, &loader.menuMessage);
+            document.insert("source", loader.config);
+            document.insert("fingerprint", BootMenus::fingerprint(text));
+            loader.menuContent = QString::fromUtf8(QJsonDocument(document).toJson(QJsonDocument::Compact));
+            for (const auto &setting : settings) loader.settingValues.insert(setting.key, document.value("globals").toObject().value(setting.key).toString());
+            loader.settingsMessage = loader.menuMessage;
+            loader.settingsEditable = loader.menuMessage.isEmpty();
+            continue;
+        }
+        if (loader.kind == LoaderKind::Refind) {
+            const auto document = BootMenus::refind(loader.config, loader.esp, &loader.menuMessage);
+            loader.menuContent = QString::fromUtf8(QJsonDocument(document).toJson(QJsonDocument::Compact));
+            for (const auto &setting : settings) {
+                loader.settingValues.insert(setting.key, document.value("globals").toObject().value(setting.key).toString());
+                loader.settingFiles.insert(setting.key, document.value("settingSources").toObject().value(setting.key).toString(loader.config));
             }
-        } else if (loader.kind == LoaderKind::Grub) {
-            loader.menuContent = readText(QDir(systemRoot).filePath(QStringLiteral("boot/grub/grub.cfg")));
-        } else if (loader.kind == LoaderKind::SystemdBoot) {
-            loader.menuContent = reader(QStringLiteral("bootctl"),
+            loader.settingsMessage = loader.menuMessage;
+            loader.settingsEditable = loader.menuMessage.isEmpty();
+            continue;
+        }
+        const QString location = loader.kind == LoaderKind::SystemdBoot ? loader.esp : loader.config;
+        const QString config = BootSettings::configPath(loader.kind, location);
+        const bool bound = !config.isEmpty() && loader.config == config
+            && (loader.kind == LoaderKind::SystemdBoot || loader.esp.isEmpty());
+        if (!bound) loader.settingsMessage = QObject::tr("No configuration found for this installation.");
+        else {
+            for (const auto &setting : settings) {
+                const auto value = loader.kind == LoaderKind::SystemdBoot && !loader.configPresent && !QFileInfo::exists(config)
+                    ? QString() : BootSettings::read(loader.kind, location, setting.key, &loader.settingsMessage);
+                if (!loader.settingsMessage.isEmpty()) { loader.settingValues.clear(); break; }
+                loader.settingValues.insert(setting.key, value);
+            }
+            loader.settingsEditable = loader.settingsMessage.isEmpty();
+        }
+        if (loader.kind == LoaderKind::SystemdBoot) {
+            const QString output = reader(QStringLiteral("bootctl"),
                 {QStringLiteral("--esp-path=") + loader.esp, QStringLiteral("--boot-path=") + loader.esp,
                  QStringLiteral("--no-pager"), QStringLiteral("--json=short"), QStringLiteral("list")});
-            const auto entries = BootBls::entries(loader.menuContent, loader.esp, &loader.menuMessage);
-            loader.menuContent = loader.menuMessage.isEmpty()
-                ? QString::fromUtf8(QJsonDocument(entries).toJson(QJsonDocument::Compact)) : QString();
-        } else if (loader.kind == LoaderKind::Refind) {
-            loader.menuContent = readText(loader.config);
-            loader.menuMessage = QObject::tr("rEFInd configuration source; automatic entries are discovered by rEFInd at boot.");
-        } else {
-            loader.menuMessage = QObject::tr("This direct boot method uses firmware entries rather than an internal boot menu.");
+            auto entries = BootBls::entries(output, loader.esp, &loader.menuMessage);
+            for (int i = 0; i < entries.size(); ++i) {
+                auto entry = entries[i].toObject();
+                if (entry.value("type").toString() == QLatin1String("type1")) {
+                    QString error;
+                    const auto source = BootMenus::bls(entry.value("path").toString(), &error);
+                    entry.insert("configuration", source);
+                    if (!error.isEmpty()) entry.insert("error", error);
+                    entries[i] = entry;
+                }
+            }
+            loader.menuContent = loader.menuMessage.isEmpty() ? QString::fromUtf8(QJsonDocument(entries).toJson(QJsonDocument::Compact)) : QString();
+        } else if (loader.kind == LoaderKind::Grub) {
+            const QString path = loader.esp.isEmpty() ? QDir(systemRoot).filePath(QStringLiteral("boot/grub/grub.cfg")) : loader.config;
+            if (!path.isEmpty()) loader.menuContent = BootMenus::readText(path, &loader.menuMessage);
         }
-        if (loader.menuContent.isEmpty() && loader.menuMessage.isEmpty())
-            loader.menuMessage = QObject::tr("No menu content could be read. Check the target and refresh detection.");
     }
 }
