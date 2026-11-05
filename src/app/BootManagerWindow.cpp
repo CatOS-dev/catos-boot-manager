@@ -11,6 +11,7 @@
 #include "services/BootSession.h"
 
 #include <QApplication>
+#include <QCloseEvent>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QIcon>
@@ -67,6 +68,7 @@ BootManagerWindow::BootManagerWindow(BootSession *session, QWidget *parent) : QM
         "QListWidget::item:selected { background: palette(highlight); color: palette(highlighted-text); }"));
     sideLayout->addWidget(navigation_);
     refreshButton_ = new QPushButton(tr("Refresh detection"), sidebar);
+    refreshButton_->setObjectName("refreshDetection");
     refreshButton_->setFlat(true);
     sideLayout->addWidget(refreshButton_);
     horizontal->addWidget(sidebar);
@@ -97,6 +99,7 @@ BootManagerWindow::BootManagerWindow(BootSession *session, QWidget *parent) : QM
     discard_ = new QPushButton(tr("Discard"), footer_);
     apply_ = new QPushButton(tr("Review and apply"), footer_);
     footerLayout->addWidget(discard_);
+    apply_->setObjectName("applyTransaction");
     footerLayout->addWidget(apply_);
     rightLayout->addWidget(footer_);
     horizontal->addWidget(right, 1);
@@ -106,7 +109,8 @@ BootManagerWindow::BootManagerWindow(BootSession *session, QWidget *parent) : QM
     connect(refreshButton_, &QPushButton::clicked, this, &BootManagerWindow::refresh);
     connect(discard_, &QPushButton::clicked, this, [this] {
         transaction_.clear();
-        settings_->updateSnapshot(snapshot_);
+        menu_->updateSnapshot(snapshot_);
+        firmware_->updateSnapshot(snapshot_);
         settings_->selector()->selectInstallation(menu_->selector()->method(), menu_->selector()->currentId());
         updateFooter();
     });
@@ -148,7 +152,7 @@ BootManagerWindow::BootManagerWindow(BootSession *session, QWidget *parent) : QM
         settings_->selector()->selectInstallation(menu_->selector()->method(), menu_->selector()->currentId());
         for (const auto &operation : transaction_.operations()) settings_->reflectOperation(operation);
         updatingSnapshot_ = false;
-        firmware_->updateSnapshot(snapshot_);
+        firmware_->updateSnapshot(snapshot_, preserveDrafts_);
         pages_->setEnabled(true);
         refreshButton_->setEnabled(true);
         updateFooter();
@@ -161,8 +165,8 @@ BootManagerWindow::BootManagerWindow(BootSession *session, QWidget *parent) : QM
 void BootManagerWindow::refresh()
 {
     if (session_->isBusy()) return;
-    if (transaction_.count() && QMessageBox::question(this, tr("Refresh detection"),
-        tr("Refreshing will discard your pending changes. Continue?")) != QMessageBox::Yes) return;
+    if (hasChanges() && QMessageBox::question(this, tr("Refresh detection"),
+        tr("Refreshing will discard your pending changes and drafts. Continue?")) != QMessageBox::Yes) return;
     transaction_.clear();
     rescan();
 }
@@ -201,10 +205,31 @@ void BootManagerWindow::applyTransaction()
 {
     if (session_->isBusy() || !BootPlan::firmwareConflict(transaction_.operations(), snapshot_).isEmpty()) return;
     const auto result = ApplyDialog::execute(this, *session_, transaction_);
-    if (result == ApplyResult::Cancelled || !session_->isAuthorized()) return;
+    if (result == ApplyResult::Cancelled) return;
+    if (result == ApplyResult::Failed) {
+        QMessageBox::warning(this, tr("Boot changes incomplete"), session_->lastApplyCode() == 2 || session_->lastApplyCode() == 3
+            ? tr("No changes were applied. Pending changes and drafts have been retained.")
+            : tr("Some changes may have been applied. Pending changes and drafts have been retained. Check the execution report before retrying."));
+        return;
+    }
+    settings_->acknowledgeApplied(transaction_);
     transaction_.clear();
-    refresh();
-    if (result == ApplyResult::Failed)
-        QMessageBox::warning(this, tr("Boot changes incomplete"),
-            tr("Operation failed."));
+    rescan(true);
+}
+
+bool BootManagerWindow::hasChanges() const
+{
+    return transaction_.count() || settings_->hasDraftChanges() || firmware_->hasDraftChanges();
+}
+
+void BootManagerWindow::closeEvent(QCloseEvent *event)
+{
+    if (session_->isBusy()) { event->ignore(); return; }
+    if (hasChanges() && QMessageBox::warning(this, tr("Unsaved changes"),
+        tr("Discard pending changes and drafts and close?"),
+        QMessageBox::Discard | QMessageBox::Cancel, QMessageBox::Cancel) != QMessageBox::Discard) {
+        event->ignore();
+        return;
+    }
+    event->accept();
 }

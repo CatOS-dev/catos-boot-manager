@@ -15,6 +15,7 @@ public:
     void stop();
     bool scan();
     bool apply(const BootTransaction &transaction);
+    int lastApplyCode() const { return lastApplyCode_; }
     bool isAuthorized() const { return state_ != State::Stopped && state_ != State::Starting; }
     bool isBusy() const { return state_ == State::Scanning || state_ == State::Applying; }
 
@@ -34,5 +35,6 @@ private:
 
     QProcess process_;
     QByteArray input_;
+    int lastApplyCode_ = -1;
     State state_ = State::Stopped;
 };

@@ -248,6 +248,17 @@ void SystemdMenuTest::editLimineNestedDefaultAndPreserveDrafts()
     QCOMPARE(transaction.operations()[1].kind, QString("limine-setting"));
     QCOMPARE(transaction.operations()[1].value, QString("2"));
     QCOMPARE(setDefault->currentText(), QString("Linux / Main"));
+    auto *remove = page.findChild<QPushButton *>("removeMenuEntry"); QVERIFY(remove);
+    tree->setCurrentItem(tree->topLevelItem(0));
+    QTimer::singleShot(0, &page, [&] {
+        auto *dialog = qobject_cast<QMessageBox *>(QApplication::activeModalWidget()); QVERIFY(dialog);
+        QCOMPARE(dialog->text(), QCoreApplication::translate("MenuPage", "Choose another default boot entry before removing this entry."));
+        dialog->accept();
+    });
+    remove->click();
+    QCOMPARE(tree->topLevelItemCount(), 2);
+    QCOMPARE(tree->topLevelItem(0)->childCount(), 1);
+    QCOMPARE(transaction.operations()[1].value, QString("2"));
     const auto request = QJsonDocument::fromJson(transaction.operations()[0].value.toUtf8()).object();
     QVERIFY(request.value("entries").toArray()[0].toObject().value("expanded").toBool());
     auto *edit = page.findChild<QPushButton *>("editMenuEntry"); QVERIFY(edit);

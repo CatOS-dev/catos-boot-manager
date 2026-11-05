@@ -51,6 +51,8 @@ FirmwarePage::FirmwarePage(QWidget *parent) : QWidget(parent)
     clearNext_ = new QPushButton(tr("Clear next boot"), content);
     clearNext_->setObjectName(QStringLiteral("clearNextBoot"));
     auto *toggle = new QPushButton(tr("Enable / Disable"), content);
+    toggle->setObjectName("toggleBootEntry");
+    next->setObjectName("bootEntryOnce");
     auto *rename = new QPushButton(tr("Rename"), content);
     auto *remove = new QPushButton(tr("Remove entry"), content);
     auto *add = new QPushButton(tr("Add EFI entry"), content);
@@ -71,11 +73,13 @@ FirmwarePage::FirmwarePage(QWidget *parent) : QWidget(parent)
     connect(add, &QPushButton::clicked, this, &FirmwarePage::queueCreation);
 }
 
-void FirmwarePage::updateSnapshot(const BootSnapshot &snapshot)
+void FirmwarePage::updateSnapshot(const BootSnapshot &snapshot, bool preserveDrafts)
 {
     snapshot_ = snapshot;
+    if (!preserveDrafts) orderDirty_ = false;
+    pendingEnabled_.clear();
     pendingNext_ = snapshot.bootNext;
-    displayOrder_ = snapshot.bootOrder;
+    if (!orderDirty_) displayOrder_ = snapshot.bootOrder;
     for (const auto &entry : snapshot.firmware)
         if (!displayOrder_.contains(entry.number)) displayOrder_.append(entry.number);
     const bool available = snapshot.uefi && !snapshot.firmware.isEmpty();
@@ -96,12 +100,15 @@ void FirmwarePage::updateSnapshot(const BootSnapshot &snapshot)
 void FirmwarePage::updateTransaction(const BootTransaction &transaction)
 {
     pendingNext_ = snapshot_.bootNext;
-    displayOrder_ = snapshot_.bootOrder;
+    QStringList order = snapshot_.bootOrder;
+    pendingEnabled_.clear();
     for (const auto &op : transaction.operations()) {
+        if (op.kind == QLatin1String("firmware-toggle")) pendingEnabled_.insert(op.target, op.value == QLatin1String("1"));
         if (op.kind == QLatin1String("firmware-next")) pendingNext_ = op.value;
         if (op.kind == QLatin1String("firmware-order"))
-            displayOrder_ = op.value.split(QLatin1Char(','), Qt::SkipEmptyParts);
+            order = op.value.split(QLatin1Char(','), Qt::SkipEmptyParts);
     }
+    if (!orderDirty_) displayOrder_ = order;
     for (const auto &entry : snapshot_.firmware)
         if (!displayOrder_.contains(entry.number)) displayOrder_.append(entry.number);
     clearNext_->setEnabled(snapshot_.uefi && !pendingNext_.isEmpty());
@@ -121,7 +128,7 @@ void FirmwarePage::redraw()
         if (!entry) continue;
         const int row = table_->rowCount();
         table_->insertRow(row);
-        const QString status = (entry->enabled ? tr("Enabled") : tr("Disabled"))
+        const QString status = (pendingEnabled_.value(id, entry->enabled) ? tr("Enabled") : tr("Disabled"))
             + (entry->current ? QStringLiteral(" · ") + tr("Current") : QString());
         const QStringList fields{QStringLiteral("Boot") + id, entry->label, entry->path, status};
         for (int column = 0; column < fields.size(); ++column) {
@@ -151,12 +158,14 @@ void FirmwarePage::moveSelected(int delta)
     if (position < 0 || position >= snapshot_.bootOrder.size()
         || destination < 0 || destination >= snapshot_.bootOrder.size()) return;
     displayOrder_.move(position, destination);
+    orderDirty_ = true;
     redraw();
     table_->selectRow(destination);
 }
 
 void FirmwarePage::queueOrder()
 {
+    orderDirty_ = false;
     const QStringList ordered = displayOrder_.mid(0, snapshot_.bootOrder.size());
     emit operationRequested({QStringLiteral("firmware-order"), QStringLiteral("BootOrder"),
         ordered.join(QLatin1Char(',')), snapshot_.bootOrder.join(QLatin1Char(',')),
@@ -200,10 +209,11 @@ void FirmwarePage::queueToggle()
 {
     const auto *entry = snapshot_.entry(selectedId());
     if (!entry) return;
+    const bool enabled = pendingEnabled_.value(entry->number, entry->enabled);
     emit operationRequested({QStringLiteral("firmware-toggle"), entry->number,
-        entry->enabled ? QStringLiteral("0") : QStringLiteral("1"),
+        enabled ? QStringLiteral("0") : QStringLiteral("1"),
         entry->enabled ? QStringLiteral("1") : QStringLiteral("0"),
-        tr("%1 firmware entry Boot%2").arg(entry->enabled ? tr("Disable") : tr("Enable"), entry->number)});
+        tr("%1 firmware entry Boot%2").arg(enabled ? tr("Disable") : tr("Enable"), entry->number)});
 }
 
 void FirmwarePage::queueRemoval()

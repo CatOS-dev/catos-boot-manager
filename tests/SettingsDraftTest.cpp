@@ -14,6 +14,7 @@ class SettingsDraftTest : public QObject {
     Q_OBJECT
 private slots:
     void chooseInstalledKernelWithoutImagePaths();
+    void detectDraftAndAcknowledgeApplied();
     void booleanChoices_data();
     void booleanChoices();
     void chooseSwitchesAndPreserveDrafts();
@@ -49,6 +50,29 @@ void SettingsDraftTest::chooseInstalledKernelWithoutImagePaths()
     QCOMPARE(transaction.count(), 1);
     QCOMPARE(transaction.operations()[0].target, loader.config + "|default_kernel");
     QCOMPARE(transaction.operations()[0].value, QString("linux-6.2"));
+}
+
+void SettingsDraftTest::detectDraftAndAcknowledgeApplied()
+{
+    BootInstallation loader;
+    loader.kind = LoaderKind::Grub; loader.id = "grub";
+    loader.configPresent = true; loader.settingsEditable = true;
+    loader.config = "/etc/default/grub";
+    loader.settingValues = {{"GRUB_TIMEOUT", "3"}};
+    BootSnapshot snapshot; snapshot.installations = {loader};
+    SettingsPage page; page.updateSnapshot(snapshot);
+    QVERIFY(!page.hasDraftChanges());
+    auto *timeout = page.findChild<QLineEdit *>("GRUB_TIMEOUT"); QVERIFY(timeout);
+    timeout->setText("5");
+    QVERIFY(page.hasDraftChanges());
+    BootTransaction transaction;
+    transaction.stage({"grub-setting", "GRUB_TIMEOUT", "5", "3"});
+    page.acknowledgeApplied(transaction);
+    QVERIFY(!page.hasDraftChanges());
+    timeout->setText("7");
+    QVERIFY(page.hasDraftChanges());
+    page.updateSnapshot(snapshot);
+    QVERIFY(!page.hasDraftChanges());
 }
 
 void SettingsDraftTest::booleanChoices_data()

@@ -408,9 +408,9 @@ int main(int argc, char **argv)
     if (!respond(responses, {{QStringLiteral("type"), QStringLiteral("ready")},
                             {QStringLiteral("version"), 1}, {QStringLiteral("uid"), 0}})) return 2;
     for (;;) {
-        const QByteArray line = requests.readLine(1048578);
+        const QByteArray line = requests.readLine(16 * 1024 * 1024 + 1026);
         if (line.isEmpty()) return requests.error() == QFileDevice::NoError ? 0 : 2;
-        if (!line.endsWith('\n') || line.size() > 16 * 1024 * 1024) return 2;
+        if (!line.endsWith('\n') || line.size() > 16 * 1024 * 1024 + 1024) return 2;
         const auto document = QJsonDocument::fromJson(line);
         if (!document.isObject()) return 2;
         const auto request = document.object();
@@ -420,9 +420,9 @@ int main(int argc, char **argv)
             if (!respond(responses, {{QStringLiteral("type"), QStringLiteral("snapshot")},
                 {QStringLiteral("data"), QString::fromLatin1(BootSnapshotCodec::encode(snapshot))}})) return 2;
         } else if (action == QLatin1String("apply")) {
-            const bool success = executeTransaction(request.value(QStringLiteral("transaction")).toString().toLatin1()) == 0;
+            const int code = executeTransaction(request.value(QStringLiteral("transaction")).toString().toLatin1());
             if (!respond(responses, {{QStringLiteral("type"), QStringLiteral("result")},
-                                    {QStringLiteral("success"), success}})) return 2;
+                                    {QStringLiteral("success"), code == 0}, {QStringLiteral("code"), code}})) return 2;
         } else return 2;
     }
 }

@@ -18,6 +18,8 @@ class SettingsPage : public QWidget {
 public:
     explicit SettingsPage(QWidget *parent = nullptr, bool embedded = false);
     void updateSnapshot(const BootSnapshot &snapshot, bool preserveDrafts = false);
+    void acknowledgeApplied(const BootTransaction &transaction);
+    bool hasDraftChanges() const;
     void reflectOperation(const BootOperation &operation);
     void discardOperation(const BootOperation &operation);
     void selectMethod(LoaderKind kind);

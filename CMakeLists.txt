@@ -99,6 +99,15 @@ target_link_libraries(catos-boot-apply PRIVATE catos-boot-core)
 include(CTest)
 if(BUILD_TESTING)
     find_package(Qt6 REQUIRED COMPONENTS Test)
+    qt_add_executable(boot-window-test tests/BootManagerWindowTest.cpp
+        src/app/BootManagerWindow.cpp src/dialogs/ApplyDialog.cpp
+        src/pages/OverviewPage.cpp src/pages/MethodsPage.cpp src/pages/SecurityPage.cpp
+        src/pages/MenuPage.cpp src/pages/SettingsPage.cpp src/pages/FirmwarePage.cpp
+        src/pages/PendingPage.cpp src/pages/RepairPage.cpp
+        src/widgets/LoaderSelector.cpp src/widgets/BootUi.cpp)
+    target_link_libraries(boot-window-test PRIVATE catos-boot-core Qt6::Widgets Qt6::Test)
+    add_test(NAME boot-window COMMAND boot-window-test)
+    set_tests_properties(boot-window PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     qt_add_executable(boot-menus-test tests/BootMenusTest.cpp)
     target_link_libraries(boot-menus-test PRIVATE catos-boot-core Qt6::Test)
     add_test(NAME boot-menus COMMAND boot-menus-test)

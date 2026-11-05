@@ -13,7 +13,8 @@ class FirmwarePage : public QWidget {
     Q_OBJECT
 public:
     explicit FirmwarePage(QWidget *parent = nullptr);
-    void updateSnapshot(const BootSnapshot &snapshot);
+    void updateSnapshot(const BootSnapshot &snapshot, bool preserveDrafts = false);
+    bool hasDraftChanges() const { return orderDirty_; }
     void updateTransaction(const BootTransaction &transaction);
 
 signals:
@@ -33,6 +34,8 @@ private:
 
     BootSnapshot snapshot_;
     QString pendingNext_;
+    QHash<QString, bool> pendingEnabled_;
+    bool orderDirty_ = false;
     QStringList displayOrder_;
     QTableWidget *table_ = nullptr;
     QLabel *detail_ = nullptr;

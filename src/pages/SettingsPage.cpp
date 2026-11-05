@@ -236,3 +236,24 @@ void SettingsPage::stageChanges()
     }
     for (const auto &item : pending) emit operationRequested(item);
 }
+
+bool SettingsPage::hasDraftChanges() const
+{
+    for (const auto &draft : drafts_)
+        if (draft.values != draft.baseline) return true;
+    return false;
+}
+
+void SettingsPage::acknowledgeApplied(const BootTransaction &transaction)
+{
+    for (const auto &loader : snapshot_.installations) {
+        auto draft = drafts_.find(loader.id);
+        if (draft == drafts_.end()) continue;
+        const auto specs = BootSettings::settings(loader.kind);
+        for (int i = 0; i < specs.size(); ++i)
+            for (const auto &operation : transaction.operations())
+                if (operation.kind == BootSettings::operationKind(loader.kind)
+                    && operation.target == BootSettings::operationTarget(loader, specs[i].key))
+                    draft->baseline[i] = operation.value;
+    }
+}

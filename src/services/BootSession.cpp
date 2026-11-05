@@ -84,6 +84,7 @@ bool BootSession::scan()
 
 bool BootSession::apply(const BootTransaction &transaction)
 {
+    lastApplyCode_ = -1;
     if (!transaction.count()) return false;
     return send({{QStringLiteral("action"), QStringLiteral("apply")},
                  {QStringLiteral("transaction"), QString::fromLatin1(transaction.encoded())}}, State::Applying);
@@ -117,8 +118,14 @@ void BootSession::receive()
             state_ = State::Ready;
             emit snapshotReady(snapshot);
         } else if (document.isObject() && type == QLatin1String("result") && state_ == State::Applying
-                   && response.value(QStringLiteral("success")).isBool()) {
+                   && response.value(QStringLiteral("success")).isBool()
+                   && response.value(QStringLiteral("code")).isDouble()
+                   && response.value(QStringLiteral("code")).toInt(-1) >= 0
+                   && response.value(QStringLiteral("code")).toInt(-1) <= 4
+                   && response.value(QStringLiteral("success")).toBool()
+                       == (response.value(QStringLiteral("code")).toInt() == 0)) {
             emit output(QString::fromUtf8(process_.readAllStandardError()));
+            lastApplyCode_ = response.value(QStringLiteral("code")).toInt(-1);
             state_ = State::Ready;
             emit operationFinished(response.value(QStringLiteral("success")).toBool());
         } else {

@@ -24,7 +24,11 @@ class BootManagerWindow : public QMainWindow {
 public:
     explicit BootManagerWindow(BootSession *session, QWidget *parent = nullptr);
 
+protected:
+    void closeEvent(QCloseEvent *event) override;
+
 private:
+    bool hasChanges() const;
     void refresh();
     void rescan(bool preserveDrafts = false);
     void queue(const BootOperation &operation);

@@ -85,6 +85,26 @@
         <source>Detecting boot state…</source>
         <translation>正在检测引导状态…</translation>
     </message>
+    <message>
+        <source>Refreshing will discard your pending changes and drafts. Continue?</source>
+        <translation>刷新将丢弃待办更改和草稿。是否继续？</translation>
+    </message>
+    <message>
+        <source>No changes were applied. Pending changes and drafts have been retained.</source>
+        <translation>未执行任何更改。待办更改和草稿已保留。</translation>
+    </message>
+    <message>
+        <source>Some changes may have been applied. Pending changes and drafts have been retained. Check the execution report before retrying.</source>
+        <translation>部分更改可能已经执行。待办更改和草稿已保留，请先检查执行报告再重试。</translation>
+    </message>
+    <message>
+        <source>Unsaved changes</source>
+        <translation>未保存的更改</translation>
+    </message>
+    <message>
+        <source>Discard pending changes and drafts and close?</source>
+        <translation>是否丢弃待办更改和草稿并关闭？</translation>
+    </message>
 </context>
 <context>
     <name>BootSession</name>
@@ -673,6 +693,14 @@
         <location filename="../src/pages/MenuPage.cpp" line="754"/>
         <source>Change menu timeout: %1</source>
         <translation>修改菜单等待时间：%1</translation>
+    </message>
+    <message>
+        <source>Default boot entry</source>
+        <translation>默认启动项</translation>
+    </message>
+    <message>
+        <source>Choose another default boot entry before removing this entry.</source>
+        <translation>请先选择另一个默认启动项，再删除此项。</translation>
     </message>
 </context>
 <context>

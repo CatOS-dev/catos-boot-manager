@@ -29,7 +29,8 @@ void BootTransaction::stage(const BootOperation &operation)
         if (operations_[i].key() != operation.key()) continue;
         if ((operation.kind.endsWith(QLatin1String("-setting"))
              || operation.kind == QLatin1String("firmware-next")
-             || operation.kind == QLatin1String("firmware-order"))
+             || operation.kind == QLatin1String("firmware-order")
+             || operation.kind == QLatin1String("firmware-toggle"))
             && operation.value == operations_[i].expected) {
             operations_.removeAt(i);
         } else {
@@ -41,7 +42,8 @@ void BootTransaction::stage(const BootOperation &operation)
     }
     if ((operation.kind.endsWith(QLatin1String("-setting"))
          || operation.kind == QLatin1String("firmware-next")
-         || operation.kind == QLatin1String("firmware-order"))
+         || operation.kind == QLatin1String("firmware-order")
+         || operation.kind == QLatin1String("firmware-toggle"))
         && operation.value == operation.expected) return;
     operations_.append(operation);
 }

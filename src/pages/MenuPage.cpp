@@ -599,6 +599,18 @@ void MenuPage::removeEntry()
 {
     const auto *loader = installation(); auto *item = menu_->currentItem();
     if (!loader || !item || !remove_->isEnabled()) return;
+    if (loader->kind == LoaderKind::Limine && limineDefaults_.contains(loader->config)) {
+        const QString selection = limineDefaults_.value(loader->config);
+        for (QTreeWidgetItemIterator it(menu_); *it; ++it) {
+            if ((*it)->data(0, dataRole).toJsonObject().value("selection").toString() != selection) continue;
+            for (auto *ancestor = *it; ancestor; ancestor = ancestor->parent()) {
+                if (ancestor != item) continue;
+                QMessageBox::warning(this, tr("Default boot entry"),
+                    tr("Choose another default boot entry before removing this entry."));
+                return;
+            }
+        }
+    }
     if (QMessageBox::question(this, tr("Remove boot entry"), tr("Remove %1?").arg(item->text(0))) != QMessageBox::Yes) return;
     const auto entry = item->data(0, dataRole).toJsonObject();
     const auto document = QJsonDocument::fromJson(loader->menuContent.toUtf8()).object();

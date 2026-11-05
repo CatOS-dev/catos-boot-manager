@@ -68,7 +68,7 @@ int fixtureSession()
             const auto operations = BootTransaction::decode(request.value("transaction").toString().toLatin1(), &error);
             if (!error.isEmpty() || operations.size() != 1) return 2;
             QTextStream(stderr) << "operation log" << Qt::endl;
-            if (!writeResponse(output, {{"type", "result"}, {"success", operations[0].value != "fail"}})) return 2;
+            if (!writeResponse(output, {{"type", "result"}, {"success", operations[0].value != "fail"}, {"code", operations[0].value == "fail" ? 4 : 0}})) return 2;
         } else return 2;
     }
 }
@@ -296,6 +296,15 @@ void BootSessionTest::rootExecutorSession()
     QVERIFY(session.apply(invalid));
     QTRY_COMPARE_WITH_TIMEOUT(results.count(), 1, 60000);
     QCOMPARE(results.first().first().toBool(), false);
+    QCOMPARE(session.lastApplyCode(), 3);
+    BootTransaction large;
+    large.stage({"menu-write", "/nonexistent/limine.conf", QString(1200 * 1024, QLatin1Char('x')), "hash"});
+    QVERIFY(large.encoded().size() > 1024 * 1024);
+    QVERIFY(session.apply(large));
+    QTRY_COMPARE_WITH_TIMEOUT(results.count(), 2, 60000);
+    QCOMPARE(results.last().first().toBool(), false);
+    QCOMPARE(session.lastApplyCode(), 3);
+    QVERIFY(session.isAuthorized());
     QVERIFY(session.scan());
     QTRY_COMPARE_WITH_TIMEOUT(snapshots.size(), 2, 60000);
     session.stop();

@@ -12,6 +12,7 @@
 class BootTransactionTest : public QObject {
     Q_OBJECT
 private slots:
+    void toggleAndPreserveOrderDraft();
     void restoreFirmwareValues();
     void distinctMenuConfigurations();
     void cancelIndividualOperation();
@@ -22,6 +23,41 @@ private slots:
     void rejectEditOfRemovedEntry();
     void validateRemainingOrder();
 };
+
+void BootTransactionTest::toggleAndPreserveOrderDraft()
+{
+    BootSnapshot snapshot;
+    snapshot.uefi = true;
+    snapshot.bootOrder = {"0001", "0002"};
+    snapshot.firmware = {{"0001", "First", "", "", true, true},
+                         {"0002", "Second", "", "", true, false}};
+    FirmwarePage page;
+    BootTransaction transaction;
+    page.updateSnapshot(snapshot);
+    connect(&page, &FirmwarePage::operationRequested, &page, [&](const BootOperation &op) {
+        transaction.stage(op);
+        page.updateTransaction(transaction);
+    });
+    auto *table = page.findChild<QTableWidget *>();
+    auto *toggle = page.findChild<QPushButton *>("toggleBootEntry");
+    QVERIFY(table); QVERIFY(toggle);
+    table->selectRow(1);
+    page.findChild<QPushButton *>("moveBootEntryUp")->click();
+    QVERIFY(page.hasDraftChanges());
+    toggle->click();
+    QCOMPARE(transaction.count(), 1);
+    QCOMPARE(transaction.operations().first().value, QString("0"));
+    QCOMPARE(table->item(0, 3)->text(), QString("Disabled"));
+    toggle->click();
+    QCOMPARE(transaction.count(), 0);
+    QCOMPARE(table->item(0, 3)->text(), QString("Enabled"));
+    page.findChild<QPushButton *>("bootEntryOnce")->click();
+    QCOMPARE(table->item(0, 0)->data(Qt::UserRole).toString(), QString("0002"));
+    QVERIFY(page.hasDraftChanges());
+    page.findChild<QPushButton *>("queueBootOrder")->click();
+    QVERIFY(!page.hasDraftChanges());
+    QCOMPARE(transaction.operations().last().value, QString("0002,0001"));
+}
 
 void BootTransactionTest::restoreFirmwareValues()
 {
