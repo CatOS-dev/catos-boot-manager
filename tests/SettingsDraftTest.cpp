@@ -13,6 +13,7 @@
 class SettingsDraftTest : public QObject {
     Q_OBJECT
 private slots:
+    void chooseInstalledKernelWithoutImagePaths();
     void booleanChoices_data();
     void booleanChoices();
     void chooseSwitchesAndPreserveDrafts();
@@ -21,6 +22,34 @@ private slots:
     void editOnlySelectedRefindConfiguration();
     void editRefindIncludesAndManualBlocks();
 };
+
+void SettingsDraftTest::chooseInstalledKernelWithoutImagePaths()
+{
+    BootInstallation loader;
+    loader.kind = LoaderKind::Uki; loader.id = "uki:/test"; loader.config = "/target/etc/catos/firmware-boot.conf";
+    loader.settingsEditable = true; loader.configPresent = true;
+    loader.settingValues = {{"root", "/target"}, {"default_kernel", "linux-6.1"}};
+    BootSnapshot snapshot; snapshot.installations = {loader};
+    snapshot.kernels = {
+        QJsonObject{{"root", "/target"}, {"name", "linux"}, {"version", "6.1"}},
+        QJsonObject{{"root", "/target"}, {"name", "linux"}, {"version", "6.2"}},
+        QJsonObject{{"root", "/other"}, {"name", "foreign"}, {"version", "7.0"}}
+    };
+    SettingsPage page; page.updateSnapshot(snapshot);
+    auto *choice = page.findChild<QComboBox *>("default_kernel"); QVERIFY(choice);
+    QVERIFY(!choice->isEditable()); QCOMPARE(choice->count(), 3);
+    QCOMPARE(choice->currentData().toString(), QString("linux-6.1"));
+    QCOMPARE(choice->itemData(2).toString(), QString("linux-6.2"));
+    QVERIFY(!page.findChild<QLineEdit *>("kernel"));
+    QVERIFY(!page.findChild<QLineEdit *>("initramfs"));
+    BootTransaction transaction;
+    connect(&page, &SettingsPage::operationRequested, &page, [&](const BootOperation &op) { transaction.stage(op); });
+    choice->setCurrentIndex(2);
+    page.findChild<QPushButton *>("queueSettings")->click();
+    QCOMPARE(transaction.count(), 1);
+    QCOMPARE(transaction.operations()[0].target, loader.config + "|default_kernel");
+    QCOMPARE(transaction.operations()[0].value, QString("linux-6.2"));
+}
 
 void SettingsDraftTest::booleanChoices_data()
 {

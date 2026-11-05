@@ -9,11 +9,11 @@ CatOS 的 Qt 6 引导管理器，提供按引导方式独立组织的安装和�
 - **Limine**：编辑嵌套分组和启动项、调整顺序、默认项、等待时间、内核参数和菜单外观，按所选 EFI 分区保存。
 - **systemd-boot**：增删改 BLS 启动项，编辑内核、多份 initramfs、启动参数、默认项及 loader.conf。菜单通过 bootctl 读取。
 - **rEFInd**：编辑手动启动项、启动参数、扫描、默认项和外观设置；读取包含文件并把设置写回实际来源；部署时保留已有配置。
-- **UKI**：选择目标系统、内核、initramfs、启动参数和可选签名材料，通过 ukify 生成镜像；支持部署、更新、修复和重建。
-- **EFI Stub**：将所选内核和 initramfs 部署到指定 EFI 分区，并管理对应固件启动参数。
+- **UKI**：选择目标系统和安装目录，使用 catos-firmware-boot 为全部已安装内核生成镜像；支持部署、更新、修复和重建。
+- **EFI Stub**：使用 catos-firmware-boot 按内核版本生成 initramfs，成对部署内核和 initramfs，并管理对应固件启动参数。
 - **固件**：管理 BootOrder、BootNext、启动项增删和启用状态。
 
-UKI 和 EFI Stub 为每个镜像独立保存生成设置，位于镜像旁的 `.catos.json` 文件。重建时根据系统分区身份定位目标系统。安装支持当前系统、已挂载系统，以及临时挂载的 Linux 根分区。
+UKI 和 EFI Stub 统一使用目标系统的 `/etc/catos/firmware-boot.conf` 和 `/etc/kernel/cmdline`；主程序通过包提供的接口读取和修改配置，安装成功后保存目录和固件注册选项，供后续软件包更新使用。安装目录可以是普通目录，不检查分区类型或文件系统。安装支持当前系统、已挂载系统，以及临时挂载的 Linux 根分区。
 
 ## 执行结构
 
@@ -38,6 +38,6 @@ cargo test --manifest-path build/limine-menu/Cargo.toml --target-dir build/menu-
 
 生成 `catos-boot-manager`、`catos-boot-apply` 和 `catos-limine-menu`。桌面程序安装到 `bin`，两个辅助程序安装到 `lib/catos`。
 
-运行工具按所选引导方式使用：pacman、efibootmgr、grub-install、grub-mkconfig、limine-tool、bootctl、ukify；挂载其他系统使用 mount、umount 和 arch-chroot。
+运行工具按所选引导方式使用：pacman、efibootmgr、grub-install、grub-mkconfig、limine-tool、bootctl、catos-firmware-boot-update；挂载其他系统使用 mount、umount 和 arch-chroot。
 
-测试使用临时目录和模拟命令验证菜单文件、部署位置、配置保留、失败处理及界面信号。UKI 测试使用原生 ukify、bootctl 和 objcopy 检查生成镜像中的内核、initramfs 和启动参数。特权会话测试使用 unshare 用户命名空间。
+测试使用临时目录和模拟命令验证菜单文件、部署位置、配置保留、失败处理及界面信号。UKI／Stub 测试验证主程序调用包接口、传递安装目录、保存设置和传播执行失败；生成工具自身的测试由 catos-firmware-boot 包负责。特权会话测试使用 unshare 用户命名空间。

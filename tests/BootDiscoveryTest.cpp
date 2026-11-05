@@ -28,10 +28,35 @@ class BootDiscoveryTest : public QObject {
     Q_OBJECT
 private slots:
     void preserveInstancesAndBindFirmwareByPartitionAndPath();
+    void bindSubdirectoryDeploymentsWithoutDuplicatingPrograms();
     void identifyRealUkiWithBootctl();
     void retainMissingRegisteredProgram();
     void distinguishEfiArchitectures();
 };
+
+void BootDiscoveryTest::bindSubdirectoryDeploymentsWithoutDuplicatingPrograms()
+{
+    QTemporaryDir directory; QVERIFY(directory.isValid());
+    const auto mount = directory.path() + "/partition";
+    const auto destination = mount + "/EFI/custom/output";
+    const auto stub = destination + "/EFI/CatOS/linux/hash/vmlinuz.efi";
+    QVERIFY(fixture(stub));
+    QVERIFY(fixture(QFileInfo(stub).absolutePath() + "/initramfs.img"));
+    BootSnapshot snapshot;
+    snapshot.bootOrder = {"0001"};
+    snapshot.firmware = {{"0001", "CatOS linux", "\\EFI\\custom\\output\\EFI\\CatOS\\linux\\hash\\vmlinuz.efi", "uuid", true, true}};
+    BootDiscovery::populate(snapshot, {{mount, "uuid"}, {destination, "uuid", "EFI/custom/output"}}, directory.path() + "/root",
+        [](const QString &) { return BootDiscovery::Image{"pe", "x64"}; });
+    QCOMPARE(snapshot.installations.size(), 1);
+    QCOMPARE(snapshot.installations[0].firmwareEntries, QStringList{"0001"});
+    QVERIFY(snapshot.installations[0].current);
+    const auto identity = snapshot.installations[0].id;
+    BootDiscovery::populate(snapshot, {{destination, "uuid", "EFI/custom/output"}}, directory.path() + "/root",
+        [](const QString &) { return BootDiscovery::Image{"pe", "x64"}; });
+    QCOMPARE(snapshot.installations.size(), 1);
+    QCOMPARE(snapshot.installations[0].id, identity);
+    QCOMPARE(snapshot.installations[0].firmwareEntries, QStringList{"0001"});
+}
 
 void BootDiscoveryTest::preserveInstancesAndBindFirmwareByPartitionAndPath()
 {

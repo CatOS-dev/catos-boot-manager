@@ -39,6 +39,11 @@ bool BootBackup::prepare(const QList<BootOperation> &operations, const BootSnaps
         if (op.kind == QLatin1String("menu-write") || op.kind == QLatin1String("rebuild-image")) paths.insert(op.target);
         if (op.kind == QLatin1String("limine-setting") || op.kind == QLatin1String("uki-setting") || op.kind == QLatin1String("efistub-setting"))
             paths.insert(op.target.left(op.target.lastIndexOf('|')));
+        if ((op.kind == QLatin1String("uki-setting") || op.kind == QLatin1String("efistub-setting")) && op.target.endsWith(QLatin1String("|cmdline"))) {
+            const auto config = op.target.left(op.target.lastIndexOf('|'));
+            const auto prefix = config.left(config.size() - QStringLiteral("/etc/catos/firmware-boot.conf").size());
+            paths.insert(prefix + QStringLiteral("/etc/kernel/cmdline"));
+        }
         if (op.kind == QLatin1String("systemd-setting")) {
             const QString esp = op.target.left(op.target.lastIndexOf(QLatin1Char('|')));
             paths.insert(BootSettings::configPath(LoaderKind::SystemdBoot, esp));

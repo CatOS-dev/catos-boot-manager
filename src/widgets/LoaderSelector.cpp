@@ -1,5 +1,6 @@
 #include "LoaderSelector.h"
 #include "BootUi.h"
+#include "services/BootDeploy.h"
 
 #include <QComboBox>
 #include <QDir>
@@ -63,13 +64,13 @@ void LoaderSelector::updateSnapshot(const BootSnapshot &snapshot)
     QSet<int> configurations;
     for (const auto &installation : snapshot.installations) {
         if (!installation.binary.isEmpty()) deployments.insert(static_cast<int>(installation.kind));
-        if (installation.esp.isEmpty() && !installation.config.isEmpty()
-            && installation.kind == LoaderKind::Grub)
+        if (installation.binary.isEmpty() && !installation.config.isEmpty()
+            && (installation.kind == LoaderKind::Grub || BootDeploy::directImage(installation.kind)))
             configurations.insert(static_cast<int>(installation.kind));
     }
     for (const auto &installation : snapshot.installations) {
         const int kind = static_cast<int>(installation.kind);
-        const bool generator = configurations.contains(kind) && installation.esp.isEmpty() && !installation.config.isEmpty();
+        const bool generator = configurations.contains(kind) && installation.binary.isEmpty() && !installation.config.isEmpty();
         if (menuScope_ && configurations.contains(kind) && !generator) continue;
         if (!menuScope_ && generator && deployments.contains(kind)) continue;
         installations_.append(installation);

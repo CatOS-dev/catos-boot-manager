@@ -265,7 +265,7 @@ MenuPage::MenuPage(QWidget *parent) : QWidget(parent)
         if (!loader || !rebuild_->isEnabled()) return;
         const QString kind = loader->kind == LoaderKind::Grub ? QStringLiteral("rebuild-grub")
             : loader->kind == LoaderKind::Limine ? QStringLiteral("rebuild-limine") : QStringLiteral("rebuild-image");
-        emit operationRequested({kind, (BootDeploy::directImage(loader->kind) || loader->kind == LoaderKind::Limine) ? loader->config : BootDeploy::loaderId(loader->kind), {},
+        emit operationRequested({kind, (BootDeploy::directImage(loader->kind) || loader->kind == LoaderKind::Limine) ? loader->config : BootDeploy::loaderId(loader->kind), BootDeploy::directImage(loader->kind) ? BootDeploy::loaderId(loader->kind) : QString(),
             BootDeploy::directImage(loader->kind) ? QJsonDocument::fromJson(loader->menuContent.toUtf8()).object().value("fingerprint").toString() : QString(), tr("Rebuild boot files")});
     });
     layout->addStretch();
@@ -335,7 +335,7 @@ void MenuPage::loadMenu()
     indent_->setVisible(limine); outdent_->setVisible(limine);
     rebuild_->setVisible(kind == LoaderKind::Grub || limine || image);
     rebuild_->setText(image ? tr("Rebuild image") : tr("Rebuild boot menu"));
-    rebuild_->setEnabled(loader && (image || (loader->settingsEditable && loader->esp.isEmpty())));
+    rebuild_->setEnabled(loader && loader->settingsEditable && (image || loader->esp.isEmpty()));
     if (limine) {
         rebuild_->setEnabled(loader && loader->settingsEditable && !drafts_.contains(loader->config));
         rebuild_->setToolTip(loader && drafts_.contains(loader->config) ? tr("Apply menu changes before rebuilding.") : QString());

@@ -154,7 +154,7 @@ public:
                 .split(QLatin1Char('\n'), Qt::SkipEmptyParts).value(0).trimmed();
             const QStringList arguments = !currentMount.isEmpty() && QFileInfo(currentMount).isDir()
                 ? QStringList{QStringLiteral("--bind"), currentMount, target}
-                : QStringList{QStringLiteral("-t"), QStringLiteral("vfat"), espDevice, target};
+                : QStringList{espDevice, target};
             if (!run(QStringLiteral("mount"), arguments)) {
                 *error = QStringLiteral("Could not mount selected EFI system partition");
                 return false;
@@ -244,7 +244,7 @@ bool validateAuto(const BootOperation &operation, const QJsonObject &data, QStri
     } else {
         const auto *efi = BootDevices::byPath(devices, espDevice);
         if (!efi || efi->type != QLatin1String("part")
-            || efi->filesystem != QLatin1String("vfat") || espDevice == rootDevice
+            || espDevice == rootDevice
             || !validEspMount(data.value(QStringLiteral("espRelative")).toString())
             || !data.value(QStringLiteral("esp")).toString().isEmpty()
             || !data.value(QStringLiteral("disk")).toString().isEmpty()
@@ -341,15 +341,18 @@ bool BootRepair::validate(const BootOperation &operation, QString *error)
         if (!disk.isEmpty() || (fallback && loader == QLatin1String("systemd-boot"))) {
             *error = QStringLiteral("Unsupported UEFI installation options"); return false;
         }
-        const QStringList mounts = BootProbe::espMounts();
-        if (!esp.isEmpty() && (!mounts.contains(esp) || targetPath(root, esp).isEmpty()
-            || mountSource(esp).isEmpty()
-            || mountSource(esp) != data.value(QStringLiteral("espSource")).toString())) {
-            *error = QStringLiteral("The selected ESP is not mounted inside the target OS");
-            return false;
-        }
-        if (loader != QLatin1String("limine") && esp.isEmpty()) {
-            *error = QStringLiteral("An explicitly mounted ESP is required"); return false;
+        const bool directory = QStringList{"refind", "uki", "efistub"}.contains(loader);
+        if (directory) {
+            if (!BootDeploy::validateInputs(data, root, error)) return false;
+        } else {
+            const QStringList mounts = BootProbe::espMounts();
+            if (!esp.isEmpty() && (!mounts.contains(esp) || targetPath(root, esp).isEmpty()
+                || mountSource(esp).isEmpty() || mountSource(esp) != data.value(QStringLiteral("espSource")).toString())) {
+                *error = QStringLiteral("The selected destination is not mounted inside the target OS"); return false;
+            }
+            if (loader != QLatin1String("limine") && esp.isEmpty()) {
+                *error = QStringLiteral("Choose an installation directory"); return false;
+            }
         }
         if (registerEfi && !QDir(QStringLiteral("/sys/firmware/efi")).exists()) {
             *error = QStringLiteral("UEFI firmware registration is not possible in this environment");
@@ -363,10 +366,6 @@ bool BootRepair::validate(const BootOperation &operation, QString *error)
     }
     if (QStringList{"refind", "uki", "efistub"}.contains(loader)) {
         if (!BootDeploy::validateInputs(data, root, error)) return false;
-        if (loader == QLatin1String("uki")) {
-            const QString executable = root == QLatin1String("/") ? QStandardPaths::findExecutable("ukify") : root + "/usr/bin/ukify";
-            if (executable.isEmpty() || !QFileInfo::exists(executable)) { *error = QStringLiteral("Install ukify in the target system"); return false; }
-        }
         if (registerEfi && QStandardPaths::findExecutable("efibootmgr").isEmpty()) { *error = QStringLiteral("Install efibootmgr"); return false; }
     }
     for (const Command &command : commands(data)) {
@@ -407,7 +406,7 @@ QStringList BootRepair::preview(const BootOperation &operation)
                 .split(QLatin1Char('\n'), Qt::SkipEmptyParts).value(0).trimmed();
             result.append(!currentMount.isEmpty()
                 ? QStringLiteral("mount --bind ") + currentMount + QLatin1Char(' ') + mountpoint
-                : QStringLiteral("mount -t vfat ") + espDevice + QLatin1Char(' ') + mountpoint);
+                : QStringLiteral("mount ") + espDevice + QLatin1Char(' ') + mountpoint);
             data.insert(QStringLiteral("esp"), mountpoint);
         }
     }

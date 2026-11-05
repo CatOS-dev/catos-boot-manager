@@ -13,6 +13,7 @@
 
 #include <QComboBox>
 #include <QLineEdit>
+#include <QLabel>
 #include <QFile>
 #include <QPushButton>
 #include <QTemporaryDir>
@@ -24,7 +25,7 @@ private slots:
     void stageInstanceSelectionAndRejectChangedTarget();
     void keepInstallationFormsSeparateWhenSwitchingLoaders();
     void installPackagesAndDeployImmediately();
-    void preserveKernelChoiceAndClearFieldsAcrossSystems();
+    void showInstalledKernelsWithoutManualImageInputs();
     void deployAllNewMethodsWithIndependentInputs();
 };
 
@@ -232,35 +233,29 @@ void MethodsPageTest::installPackagesAndDeployImmediately()
     QCOMPARE(queued.count(), 0);
 }
 
-void MethodsPageTest::preserveKernelChoiceAndClearFieldsAcrossSystems()
+void MethodsPageTest::showInstalledKernelsWithoutManualImageInputs()
 {
     BootSnapshot snapshot;
     snapshot.uefi = true; snapshot.repairRoots = {"/", "/target"};
-    snapshot.espMounts = {"/boot/efi", "/target/boot/efi"};
     snapshot.kernels = {
-        QJsonObject{{"root", "/"}, {"name", "linux"}, {"version", "current"}, {"kernel", "/usr/lib/modules/current/vmlinuz"}, {"initramfs", "/boot/efi/machine/linux/initramfs"}},
-        QJsonObject{{"root", "/target"}, {"name", "linux-lts"}, {"version", "lts"}, {"kernel", "/usr/lib/modules/lts/vmlinuz"}, {"initramfs", "/boot/initramfs-linux-lts.img"}}
+        QJsonObject{{"root", "/"}, {"name", "linux"}, {"version", "current"}, {"kernel", "/usr/lib/modules/current/vmlinuz"}},
+        QJsonObject{{"root", "/target"}, {"name", "linux-lts"}, {"version", "lts"}, {"kernel", "/usr/lib/modules/lts/vmlinuz"}}
     };
     for (const auto kind : {LoaderKind::Uki, LoaderKind::EfiStub}) {
         RepairPage page(kind); page.updateTargets(snapshot);
-        auto *choice = page.findChild<QComboBox *>("deploymentKernelChoice"); QVERIFY(choice);
+        auto *kernels = page.findChild<QLabel *>("deploymentInstalledKernels"); QVERIFY(kernels);
         auto *root = page.findChild<QComboBox *>("repairRootTarget"); QVERIFY(root);
-        auto *kernel = page.findChild<QLineEdit *>("deploymentKernel"); QVERIFY(kernel);
-        auto *initramfs = page.findChild<QLineEdit *>("deploymentInitramfs"); QVERIFY(initramfs);
-        QCOMPARE(choice->count(), 2); choice->setCurrentIndex(1);
-        QCOMPARE(kernel->text(), QString("/usr/lib/modules/current/vmlinuz"));
-        QCOMPARE(initramfs->text(), QString("/boot/efi/machine/linux/initramfs"));
+        auto *destination = page.findChild<QComboBox *>("installationDirectory"); QVERIFY(destination);
+        QVERIFY(destination->isEditable());
+        QCOMPARE(kernels->text(), QString("linux · current"));
+        QVERIFY(!page.findChild<QLineEdit *>("deploymentInitramfs"));
+        QVERIFY(!page.findChild<QLineEdit *>("deploymentKernel"));
+        destination->setEditText("/ordinary/custom-output");
         page.updateTargets(snapshot);
-        QCOMPARE(choice->currentIndex(), 1);
-        QCOMPARE(kernel->text(), QString("/usr/lib/modules/current/vmlinuz"));
+        QCOMPARE(destination->currentText(), QString("/ordinary/custom-output"));
         root->setCurrentIndex(root->findData("/target"));
-        QCOMPARE(choice->count(), 2); QCOMPARE(choice->currentIndex(), 0);
-        QVERIFY(kernel->text().isEmpty()); QVERIFY(initramfs->text().isEmpty());
-        choice->setCurrentIndex(1);
-        QCOMPARE(kernel->text(), QString("/usr/lib/modules/lts/vmlinuz"));
-        QCOMPARE(initramfs->text(), QString("/boot/initramfs-linux-lts.img"));
-        root->setCurrentIndex(root->findData("/"));
-        QVERIFY(kernel->text().isEmpty());
+        QCOMPARE(kernels->text(), QString("linux-lts · lts"));
+        QCOMPARE(destination->currentText(), QString("/target/boot/efi"));
     }
 }
 
@@ -290,10 +285,13 @@ void MethodsPageTest::deployAllNewMethodsWithIndependentInputs()
     for (const auto kind : {LoaderKind::Refind, LoaderKind::Uki, LoaderKind::EfiStub}) {
         page.selectMethod(kind);
         auto *form = stack->currentWidget()->findChild<RepairPage *>(); QVERIFY(form);
-        auto *id = form->findChild<QLineEdit *>("deploymentName"); QVERIFY(id); id->setText(loaderName(kind));
+        auto *destination = form->findChild<QComboBox *>("installationDirectory"); QVERIFY(destination);
+        destination->setEditText("/ordinary/custom-output");
+        page.updateSnapshot(snapshot);
+        QCOMPARE(destination->currentText(), QString("/ordinary/custom-output"));
+        destination->setEditText("/test-esp");
         auto *label = form->findChild<QLineEdit *>("deploymentLabel"); QVERIFY(label); label->setText(loaderName(kind));
-        auto *kernels = form->findChild<QComboBox *>("deploymentKernelChoice"); QVERIFY(kernels); QCOMPARE(kernels->count(), 2); kernels->setCurrentIndex(1);
-        auto *parameters = form->findChild<QLineEdit *>("deploymentParameters"); QVERIFY(parameters); QCOMPARE(parameters->text(), QString("root=UUID=test ro"));
+        auto *parameters = form->findChild<QLineEdit *>("deploymentParameters"); QVERIFY(parameters);
         parameters->setText(loaderName(kind) + " parameters");
         auto *deploy = form->findChild<QPushButton *>("deployBootLoader");
         auto *repair = form->findChild<QPushButton *>("repairBootLoader");
@@ -310,8 +308,9 @@ void MethodsPageTest::deployAllNewMethodsWithIndependentInputs()
         QCOMPARE(first.value("action").toString(), QString("install"));
         QCOMPARE(second.value("action").toString(), QString("repair"));
         QCOMPARE(third.value("action").toString(), QString("update"));
-        QCOMPARE(first.value("cmdline").toString(), loaderName(kind) + " parameters");
-        QCOMPARE(third.value("binary").toString(), QString("/test-esp/EFI/test/") + loaderName(kind) + ".efi");
+        QVERIFY(!first.contains("initramfs"));
+        QVERIFY(!third.contains("binary"));
+        QVERIFY(!first.contains("kernel"));
         page.resize(1000, 760); page.show(); QVERIFY(QTest::qWaitForWindowActive(&page));
         QVERIFY(page.grab().save("/tmp/catos-method-" + BootDeploy::loaderId(kind) + "-complete.png"));
     }

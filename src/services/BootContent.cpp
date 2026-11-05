@@ -12,6 +12,27 @@
 
 void BootContent::populate(BootSnapshot &snapshot, const Reader &reader, const QString &systemRoot)
 {
+    QMap<QString, QJsonObject> configurations;
+    for (const auto &root : snapshot.repairRoots) {
+        const auto path = BootDeploy::configurationPath(root);
+        if (!QFileInfo::exists(path)) continue;
+        QString error;
+        const auto configuration = BootDeploy::profile(path, &error);
+        if (!error.isEmpty()) continue;
+        configurations.insert(path, configuration);
+        for (int i = snapshot.installations.size() - 1; i >= 0; --i)
+            if (BootDeploy::directImage(snapshot.installations[i].kind) && snapshot.installations[i].binary.isEmpty()
+                && snapshot.installations[i].config == path) snapshot.installations.removeAt(i);
+        for (const auto kind : {LoaderKind::Uki, LoaderKind::EfiStub}) {
+            BootInstallation installation;
+            installation.kind = kind;
+            installation.id = BootDeploy::loaderId(kind) + ':' + path;
+            installation.esp = configuration.value("esp").toString();
+            installation.config = path;
+            installation.configPresent = true;
+            snapshot.installations.append(installation);
+        }
+    }
     for (auto &loader : snapshot.installations) {
         loader.settingValues.clear();
         loader.settingFiles.clear();
@@ -21,16 +42,23 @@ void BootContent::populate(BootSnapshot &snapshot, const Reader &reader, const Q
         loader.menuMessage.clear();
         const auto settings = BootSettings::settings(loader.kind);
         if (BootDeploy::directImage(loader.kind)) {
-            loader.config = BootDeploy::profilePath(loader.binary);
-            const auto profile = BootDeploy::profile(loader.config, &loader.settingsMessage);
-            for (const auto &setting : settings) loader.settingValues.insert(setting.key, profile.value(setting.key).toString());
-            if (!profile.isEmpty()) {
-                QString rootError;
-                const auto root = BootDeploy::targetRoot(profile, snapshot.repairRoots, &rootError);
-                if (rootError.isEmpty()) loader.settingValues.insert("root", root);
+            QJsonObject configuration;
+            for (auto it = configurations.begin(); it != configurations.end(); ++it) {
+                const auto destination = it.value().value("esp").toString();
+                if (destination == loader.esp || (!loader.binary.isEmpty() && loader.binary.startsWith(destination + '/'))) {
+                    if (!loader.config.isEmpty() && loader.config != it.key()) continue;
+                    loader.config = it.key(); loader.esp = destination; configuration = it.value(); break;
+                }
             }
-            loader.settingsEditable = loader.settingsMessage.isEmpty();
-            loader.menuContent = QString::fromUtf8(QJsonDocument(QJsonObject{{"binary", loader.binary}, {"label", profile.value("label")}, {"fingerprint", BootMenus::fingerprint(QFileInfo::exists(loader.config) ? BootMenus::readText(loader.config, &loader.settingsMessage) : QString())}}).toJson(QJsonDocument::Compact));
+            if (configuration.isEmpty()) { loader.settingsMessage = QObject::tr("No boot configuration found."); continue; }
+            for (const auto &setting : settings) loader.settingValues.insert(setting.key, configuration.value(setting.key).toString());
+            loader.settingValues.insert("root", configuration.value("root").toString());
+            loader.settingsEditable = true;
+            QString error;
+            const auto text = BootMenus::readText(loader.config, &error);
+            if (!error.isEmpty()) { loader.settingsMessage = error; loader.settingsEditable = false; continue; }
+            loader.menuContent = QString::fromUtf8(QJsonDocument(QJsonObject{{"binary", loader.binary},
+                {"label", configuration.value("label_prefix")}, {"fingerprint", BootMenus::fingerprint(text + configuration.value("cmdline").toString())}}).toJson(QJsonDocument::Compact));
             continue;
         }
         if (loader.kind == LoaderKind::Limine) {

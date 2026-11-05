@@ -119,7 +119,27 @@ void SettingsPage::showSettings()
             auto found = drafts_.find(id);
             if (found != drafts_.end()) found->values[i] = value;
         };
-        if (switchValue || wallpaperStyle) {
+        if (setting.key == QLatin1String("default_kernel")) {
+            auto *combo = new QComboBox(fields_->parentWidget());
+            BootUi::enableCopy(combo);
+            combo->addItem(tr("Choose a kernel"), QString());
+            const auto root = loader.settingValues.value("root");
+            QMap<QString, int> counts;
+            for (const auto &value : snapshot_.kernels) {
+                const auto kernel = value.toObject();
+                if (kernel.value("root").toString() == root) counts[kernel.value("name").toString()]++;
+            }
+            for (const auto &value : snapshot_.kernels) {
+                const auto kernel = value.toObject();
+                if (kernel.value("root").toString() != root) continue;
+                const auto name = kernel.value("name").toString();
+                const auto version = kernel.value("version").toString();
+                combo->addItem(name + " · " + version, counts.value(name) > 1 ? name + '-' + version : name);
+            }
+            edit = combo;
+            setEditorValue(edit, draft.values.value(i));
+            connect(combo, &QComboBox::currentIndexChanged, this, [combo, changed] { changed(combo->currentData().toString()); });
+        } else if (switchValue || wallpaperStyle) {
             auto *combo = new QComboBox(fields_->parentWidget());
             BootUi::enableCopy(combo);
             combo->addItem(tr("Default"), QString());

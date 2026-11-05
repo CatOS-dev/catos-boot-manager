@@ -7,6 +7,7 @@ namespace BootDiscovery {
 struct Esp {
     QString mount;
     QString partitionUuid;
+    QString firmwareDirectory;
 };
 struct Image {
     QString type;

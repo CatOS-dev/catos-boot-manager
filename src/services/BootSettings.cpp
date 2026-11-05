@@ -65,14 +65,9 @@ QList<BootSettings::Setting> BootSettings::settings(LoaderKind loader)
                 {"banner", QObject::tr("Menu background"), QObject::tr("Path to the background image")}};
     case LoaderKind::Uki:
     case LoaderKind::EfiStub: {
-        QList<Setting> result{{"root", QObject::tr("Target system"), QObject::tr("Mounted system path, for example /")},
-                {"id", QObject::tr("Image name"), QObject::tr("Letters, digits, dots, underscores and hyphens")},
-                {"label", QObject::tr("Boot entry name"), QObject::tr("Name displayed at startup")},
-                {"kernel", QObject::tr("Kernel image"), QObject::tr("Path inside the target system")},
-                {"initramfs", QObject::tr("Initramfs image"), QObject::tr("Path inside the target system")},
+        QList<Setting> result{{"label_prefix", QObject::tr("Boot entry name prefix"), QObject::tr("Name displayed before the kernel name")},
                 {"cmdline", QObject::tr("Kernel parameters"), QObject::tr("Linux startup parameters")}};
-        if (loader == LoaderKind::Uki) result.append(QList<Setting>{{"version", QObject::tr("Kernel version"), QObject::tr("Leave empty to detect automatically")}, {"private-key", QObject::tr("Signing key"), QObject::tr("Optional; select together with the certificate")},
-                {"certificate", QObject::tr("Signing certificate"), QObject::tr("Optional; select together with the signing key")}});
+        if (loader == LoaderKind::Uki) result.append({"default_kernel", QObject::tr("Removable boot kernel"), QObject::tr("Kernel used for the removable boot entry")});
         return result;
     }
     case LoaderKind::Grub:
@@ -159,12 +154,7 @@ bool BootSettings::allowed(LoaderKind loader, const QString &key, const QString 
     if (!known || value.size() > 2048 || value.contains(QLatin1Char('\n'))
         || value.contains(QLatin1Char('\r')) || value.contains(QChar::Null)) return false;
     for (QChar ch : value) if (ch.unicode() < 32 || ch.unicode() == 127) return false;
-    if (BootDeploy::directImage(loader)) {
-        if (key == QLatin1String("id")) return value.isEmpty() || QRegularExpression(QStringLiteral("^[A-Za-z0-9][A-Za-z0-9_.-]{0,70}$")).match(value).hasMatch();
-        if (QStringList{"root", "kernel", "initramfs", "private-key", "certificate"}.contains(key))
-            return value.isEmpty() || (value.startsWith('/') && QDir::cleanPath(value) == value);
-        return true;
-    }
+    if (BootDeploy::directImage(loader)) return true;
     if (loader == LoaderKind::Limine) {
         if (value.isEmpty()) return true;
         if (key == QLatin1String("default_entry")) { bool ok = false; const int index = value.toInt(&ok); return ok && index > 0 && index <= 10000; }

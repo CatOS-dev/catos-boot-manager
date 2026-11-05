@@ -1,12 +1,11 @@
 #include "services/BootDeploy.h"
 #include "services/BootContent.h"
 #include "services/BootMenus.h"
-#include "services/BootProbe.h"
+#include "services/BootSettings.h"
 #include <efivar/efiboot.h>
 #include <QDir>
 #include <QFile>
 #include <QJsonDocument>
-#include <QProcess>
 #include <QScopeGuard>
 #include <QTemporaryDir>
 #include <QtTest>
@@ -24,58 +23,129 @@ QByteArray read(const QString &path)
     if (!file.open(QIODevice::ReadOnly)) return {};
     return file.readAll();
 }
-QJsonObject image(const QString &esp, const QString &kernel, const QString &initrd, const QString &loader)
+QJsonObject image(const QString &esp, const QString &, const QString &, const QString &loader)
 {
-    return {{"loader", loader}, {"root", "/"}, {"esp", esp}, {"id", "linux"}, {"label", "CatOS Linux"},
-        {"kernel", kernel}, {"initramfs", initrd}, {"cmdline", "root=UUID=test ro"}, {"register", false}, {"fallback", false}};
+    return {{"loader", loader}, {"root", "/"}, {"esp", esp}, {"label", "CatOS Linux"},
+        {"cmdline", "root=UUID=test ro"}, {"register", false}, {"fallback", false}};
 }
 }
 class BootDeployTest : public QObject {
     Q_OBJECT
 private slots:
-    void detectInstalledKernelsWithDeployedInitramfs();
+    void detectInstalledKernelsWithoutInitramfs();
     void deployRefindPreservesConfiguration();
-    void deployStubCopiesSelectedInputsAndIndependentProfile();
-    void buildUkiWithNativeUkify();
+    void delegateGenerationAndSettingsToProvider_data();
+    void delegateGenerationAndSettingsToProvider();
+    void rejectFailedProviderWithoutTouchingExistingFiles();
     void preserveFirmwareDevicePathAndAttributes();
-    void followTargetSystemAfterRemount();
 };
 
-void BootDeployTest::detectInstalledKernelsWithDeployedInitramfs()
+void BootDeployTest::detectInstalledKernelsWithoutInitramfs()
 {
     QTemporaryDir dir; QVERIFY(dir.isValid());
-    const QString root = dir.path() + "/root";
-    const QString esp = root + "/boot/efi";
-    const QString machine = "ed7e70cc03564c939a40799647b6f8a7";
-    const QString deployment = esp + '/' + machine + "/linux-cachyos";
-    QVERIFY(fixture(root + "/etc/machine-id", machine.toUtf8() + '\n'));
-    QVERIFY(fixture(root + "/etc/kernel/cmdline", "root=UUID=test rw\n"));
-    QVERIFY(fixture(root + "/usr/lib/modules/current/pkgbase", "linux-cachyos\n"));
+    const auto root = dir.path() + "/root";
+    QVERIFY(fixture(root + "/usr/lib/modules/current/pkgbase", "linux\n"));
     QVERIFY(fixture(root + "/usr/lib/modules/current/vmlinuz", "current kernel"));
-    QVERIFY(fixture(root + "/usr/lib/modules/old/pkgbase", "linux-cachyos\n"));
+    QVERIFY(fixture(root + "/usr/lib/modules/old/pkgbase", "linux\n"));
     QVERIFY(fixture(root + "/usr/lib/modules/old/vmlinuz", "old kernel"));
-    QVERIFY(fixture(deployment + "/vmlinuz", "current kernel"));
-    QVERIFY(fixture(deployment + "/initramfs", "current initramfs"));
-    const QString foreign = dir.path() + "/foreign";
-    QVERIFY(fixture(foreign + '/' + machine + "/linux-cachyos/vmlinuz", "old kernel"));
-    QVERIFY(fixture(foreign + '/' + machine + "/linux-cachyos/initramfs", "foreign initramfs"));
+    QVERIFY(fixture(root + "/usr/lib/modules/custom/vmlinuz", "custom kernel"));
     BootSnapshot snapshot;
     snapshot.repairRoots = {root, root};
-    snapshot.espMounts = {foreign, esp};
     BootDeploy::populate(snapshot);
-    QCOMPARE(snapshot.kernels.size(), 2);
-    const auto current = snapshot.kernels[0].toObject();
-    QCOMPARE(current.value("root").toString(), root);
-    QCOMPARE(current.value("kernel").toString(), QString("/usr/lib/modules/current/vmlinuz"));
-    QCOMPARE(current.value("initramfs").toString(), "/boot/efi/" + machine + "/linux-cachyos/initramfs");
-    QCOMPARE(current.value("cmdline").toString(), QString("root=UUID=test rw"));
-    QCOMPARE(snapshot.kernels[1].toObject().value("version").toString(), QString("old"));
-    QVERIFY(snapshot.kernels[1].toObject().value("initramfs").toString().isEmpty());
+    QCOMPARE(snapshot.kernels.size(), 3);
+    QCOMPARE(snapshot.kernels[0].toObject().value("kernel").toString(), QString("/usr/lib/modules/current/vmlinuz"));
+    QCOMPARE(snapshot.kernels[1].toObject().value("name").toString(), QString("custom"));
+    QCOMPARE(snapshot.kernels[2].toObject().value("version").toString(), QString("old"));
+    for (const auto &kernel : snapshot.kernels) QVERIFY(!kernel.toObject().contains("initramfs"));
+    QVERIFY(!QFileInfo::exists(root + "/boot"));
     BootDeploy::populate(snapshot);
-    QCOMPARE(snapshot.kernels.size(), 2);
-    QVERIFY(fixture(root + "/boot/initramfs-linux-cachyos.img", "normal initramfs"));
-    BootDeploy::populate(snapshot);
-    QCOMPARE(snapshot.kernels[0].toObject().value("initramfs").toString(), QString("/boot/initramfs-linux-cachyos.img"));
+    QCOMPARE(snapshot.kernels.size(), 3);
+}
+
+void BootDeployTest::delegateGenerationAndSettingsToProvider_data()
+{
+    QTest::addColumn<QString>("loader");
+    QTest::newRow("uki") << QString("uki");
+    QTest::newRow("efistub") << QString("efistub");
+}
+
+void BootDeployTest::delegateGenerationAndSettingsToProvider()
+{
+    QFETCH(QString, loader);
+    QTemporaryDir dir; QVERIFY(dir.isValid());
+    const auto root = dir.path() + "/root";
+    const auto esp = root + "/arbitrary output/new directory";
+    const auto provider = root + "/usr/bin/catos-firmware-boot-update";
+    const auto chroot = dir.path() + "/arch-chroot";
+    QVERIFY(fixture(provider, "#!/bin/sh\nexit 0\n"));
+    QVERIFY(QFile::setPermissions(provider, QFileDevice::ReadOwner | QFileDevice::ExeOwner));
+    QVERIFY(fixture(chroot, "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$CATOS_TEST_ARGUMENTS\"\ncase \"$*\" in *--describe*) printf '%s' \"$CATOS_TEST_CONFIGURATION\";; esac\n"));
+    QVERIFY(QFile::setPermissions(chroot, QFileDevice::ReadOwner | QFileDevice::ExeOwner));
+    const auto oldPath = qgetenv("PATH");
+    const auto oldArgs = qgetenv("CATOS_TEST_ARGUMENTS");
+    const auto oldConfig = qgetenv("CATOS_TEST_CONFIGURATION");
+    const auto restore = qScopeGuard([&] { qputenv("PATH", oldPath); qputenv("CATOS_TEST_ARGUMENTS", oldArgs); qputenv("CATOS_TEST_CONFIGURATION", oldConfig); });
+    qputenv("PATH", dir.path().toUtf8());
+    qputenv("CATOS_TEST_ARGUMENTS", (dir.path() + "/arguments").toUtf8());
+    qputenv("CATOS_TEST_CONFIGURATION", QJsonDocument(QJsonObject{{"loader", loader}, {"esp", "/arbitrary output/new directory"},
+        {"cmdline", "root=UUID=test ro"}, {"label_prefix", "CatOS"}, {"default_kernel", "linux"}}).toJson(QJsonDocument::Compact));
+    auto data = image(esp, {}, {}, loader);
+    QString error;
+    QVERIFY2(BootDeploy::deploy(data, root, &error), qPrintable(error));
+    QCOMPARE(read(dir.path() + "/arguments"), (root + "\ncatos-firmware-boot-update\n--config\n/etc/catos/firmware-boot.conf\n--method\n"
+        + loader + "\n--output-root\n/arbitrary output/new directory\n--install-fallback\nno\n--save-config\n--efi-disk\n\n--efi-partition\n0\n--firmware-directory\n/\n--no-variables\n").toUtf8());
+    QVERIFY(!QFileInfo::exists(esp));
+    QVERIFY(fixture(dir.path() + "/findmnt", "#!/bin/sh\ncase \"$*\" in *SOURCE) printf /dev/mockp2;; *TARGET) printf '%s' \"$CATOS_TEST_MOUNT\";; *) exit 23;; esac\n"));
+    QVERIFY(fixture(dir.path() + "/lsblk", "#!/bin/sh\n[ \"$*\" = '-dn -o PKNAME,PARTN /dev/mockp2' ] || exit 23\nprintf 'mock 2'\n"));
+    QVERIFY(QFile::setPermissions(dir.path() + "/findmnt", QFileDevice::ReadOwner | QFileDevice::ExeOwner));
+    QVERIFY(QFile::setPermissions(dir.path() + "/lsblk", QFileDevice::ReadOwner | QFileDevice::ExeOwner));
+    const auto oldMount = qgetenv("CATOS_TEST_MOUNT");
+    const auto restoreMount = qScopeGuard([&] { qputenv("CATOS_TEST_MOUNT", oldMount); });
+    qputenv("CATOS_TEST_MOUNT", root.toUtf8());
+    data.insert("esp", root + "/nested/output"); data.insert("register", true);
+    QVERIFY2(BootDeploy::deploy(data, root, &error), qPrintable(error));
+    QVERIFY(read(dir.path() + "/arguments").contains("--efi-disk\n/dev/mock\n--efi-partition\n2\n--firmware-directory\n/nested/output\n"));
+    QVERIFY(!read(dir.path() + "/arguments").contains("--no-variables"));
+    const auto path = BootDeploy::configurationPath(root);
+    QVERIFY(fixture(path, "[boot]\nmethod=" + loader.toUtf8() + "\n"));
+    auto configuration = BootDeploy::profile(path, &error); QVERIFY2(error.isEmpty(), qPrintable(error));
+    QCOMPARE(configuration.value("esp").toString(), esp);
+    QCOMPARE(configuration.value("root").toString(), root);
+    const auto kind = loader == QLatin1String("uki") ? LoaderKind::Uki : LoaderKind::EfiStub;
+    QVERIFY2(BootDeploy::writeSetting(kind, path, "cmdline", "root=UUID=test quiet", &error), qPrintable(error));
+    QVERIFY(read(dir.path() + "/arguments").contains("--configure-only\n--cmdline=root=UUID=test quiet\n"));
+    QVERIFY2(BootDeploy::rebuild(kind, path, &error), qPrintable(error));
+    QCOMPARE(read(dir.path() + "/arguments"), (root + "\ncatos-firmware-boot-update\n--config\n/etc/catos/firmware-boot.conf\n--method\n" + loader + "\n").toUtf8());
+    BootSnapshot snapshot; snapshot.repairRoots = {root};
+    BootContent::populate(snapshot);
+    QCOMPARE(snapshot.installations.size(), 2);
+    QVERIFY(snapshot.installations[0].settingsEditable);
+    QCOMPARE(snapshot.installations[0].config, path);
+    BootContent::populate(snapshot);
+    QCOMPARE(snapshot.installations.size(), 2);
+    QVERIFY(BootDeploy::validateRebuild(kind, path, {}, snapshot, &error));
+    QVERIFY(!BootDeploy::writeSetting(kind, path, "initramfs", "/bogus", &error)); QVERIFY(!error.isEmpty());
+}
+
+void BootDeployTest::rejectFailedProviderWithoutTouchingExistingFiles()
+{
+    QTemporaryDir dir; QVERIFY(dir.isValid());
+    const auto root = dir.path() + "/root";
+    const auto provider = root + "/usr/bin/catos-firmware-boot-update";
+    QVERIFY(fixture(provider, "#!/bin/sh\nexit 0\n"));
+    QVERIFY(QFile::setPermissions(provider, QFileDevice::ReadOwner | QFileDevice::ExeOwner));
+    QVERIFY(fixture(dir.path() + "/arch-chroot", "#!/bin/sh\nexit 17\n"));
+    QVERIFY(QFile::setPermissions(dir.path() + "/arch-chroot", QFileDevice::ReadOwner | QFileDevice::ExeOwner));
+    const auto oldPath = qgetenv("PATH");
+    const auto restore = qScopeGuard([&] { qputenv("PATH", oldPath); });
+    qputenv("PATH", dir.path().toUtf8());
+    const auto destination = root + "/output";
+    QVERIFY(fixture(destination + "/EFI/Linux/existing.efi", "old image"));
+    QString error;
+    QVERIFY(!BootDeploy::deploy(image(destination, {}, {}, "uki"), root, &error)); QVERIFY(!error.isEmpty());
+    QCOMPARE(read(destination + "/EFI/Linux/existing.efi"), QByteArray("old image"));
+    QVERIFY(!QFileInfo::exists(BootDeploy::configurationPath(root)));
+    QVERIFY(!BootDeploy::profile(BootDeploy::configurationPath(root), &error).size()); QVERIFY(!error.isEmpty());
 }
 
 void BootDeployTest::deployRefindPreservesConfiguration()
@@ -113,73 +183,6 @@ void BootDeployTest::deployRefindPreservesConfiguration()
     QCOMPARE(read(esp + "/EFI/refind/refind_x64.efi"), QByteArray("unchanged"));
 }
 
-void BootDeployTest::deployStubCopiesSelectedInputsAndIndependentProfile()
-{
-    QTemporaryDir dir; QVERIFY(dir.isValid());
-    const QString esp = dir.path() + "/esp";
-    QVERIFY(QDir().mkpath(esp));
-    const QString kernel = dir.path() + "/vmlinuz";
-    const QString initrd = dir.path() + "/initrd";
-    QVERIFY(fixture(kernel, "kernel one")); QVERIFY(fixture(initrd, "initramfs one"));
-    auto data = image(esp, kernel, initrd, "efistub");
-    QString error;
-    QVERIFY2(BootDeploy::deploy(data, "/", &error), qPrintable(error));
-    const auto binary = esp + "/EFI/CatOS/linux/vmlinuz.efi";
-    QCOMPARE(read(binary), QByteArray("kernel one"));
-    QCOMPARE(read(esp + "/EFI/CatOS/linux/initramfs.img"), QByteArray("initramfs one"));
-    const auto profile = BootDeploy::profilePath(binary);
-    auto saved = BootDeploy::profile(profile, &error); QVERIFY(error.isEmpty());
-    QCOMPARE(saved.value("loader").toString(), QString("efistub"));
-    QCOMPARE(saved.value("cmdline").toString(), QString("root=UUID=test ro"));
-    const QByteArray original = read(profile);
-    data.insert("id", "second"); data.insert("cmdline", "root=UUID=other ro");
-    QVERIFY2(BootDeploy::deploy(data, "/", &error), qPrintable(error));
-    QCOMPARE(read(profile), original);
-    QVERIFY2(BootDeploy::writeSetting(LoaderKind::EfiStub, BootDeploy::profilePath(esp + "/EFI/CatOS/second/vmlinuz.efi"), "cmdline", "new parameters", &error), qPrintable(error));
-    QCOMPARE(read(profile), original);
-    data.insert("id", "linux"); data.insert("kernel", binary);
-    QVERIFY(!BootDeploy::deploy(data, "/", &error)); QVERIFY(!error.isEmpty());
-    QCOMPARE(read(binary), QByteArray("kernel one"));
-    data.insert("kernel", kernel); data.insert("binary", esp + "/EFI/CatOS/link/vmlinuz.efi");
-    QVERIFY(QFile::link(dir.path(), esp + "/EFI/CatOS/link"));
-    QVERIFY(!BootDeploy::deploy(data, "/", &error)); QVERIFY(!error.isEmpty());
-    QVERIFY(!QFileInfo::exists(dir.path() + "/vmlinuz.efi"));
-    data.remove("binary"); data.insert("fallback", true);
-    QVERIFY(!BootDeploy::deploy(data, "/", &error)); QVERIFY(!error.isEmpty());
-}
-
-void BootDeployTest::buildUkiWithNativeUkify()
-{
-    QTemporaryDir dir; QVERIFY(dir.isValid());
-    const QString esp = dir.path() + "/esp";
-    QVERIFY(QDir().mkpath(esp));
-    const QString kernel = dir.path() + "/kernel";
-    const QString initrd = dir.path() + "/initrd";
-    QVERIFY(fixture(kernel, "synthetic kernel payload")); QVERIFY(fixture(initrd, "synthetic initramfs payload"));
-    auto data = image(esp, kernel, initrd, "uki"); data.insert("version", "test-1");
-    QString error;
-    QVERIFY2(BootDeploy::deploy(data, "/", &error), qPrintable(error));
-    const auto binary = esp + "/EFI/Linux/catos-linux.efi";
-    QCOMPARE(BootProbe::runReadOnly("bootctl", {"kernel-identify", binary}).trimmed(), QString("uki"));
-    QProcess objcopy;
-    objcopy.start("objcopy", {"--dump-section", ".linux=" + dir.path() + "/linux-section", "--dump-section", ".initrd=" + dir.path() + "/initrd-section",
-        "--dump-section", ".cmdline=" + dir.path() + "/cmdline-section", binary, dir.path() + "/copy.efi"});
-    QVERIFY(objcopy.waitForFinished()); QCOMPARE(objcopy.exitCode(), 0);
-    QCOMPARE(read(dir.path() + "/linux-section"), read(kernel));
-    QCOMPARE(read(dir.path() + "/initrd-section"), read(initrd));
-    QVERIFY(read(dir.path() + "/cmdline-section").startsWith("root=UUID=test ro"));
-    const auto profile = BootDeploy::profile(BootDeploy::profilePath(binary), &error); QVERIFY(error.isEmpty());
-    QCOMPARE(profile.value("kernel").toString(), kernel); QCOMPARE(profile.value("version").toString(), QString("test-1"));
-    QVERIFY(!QFileInfo::exists(binary + ".new"));
-    data.insert("fallback", true);
-    QVERIFY2(BootDeploy::deploy(data, "/", &error), qPrintable(error));
-    QCOMPARE(read(esp + "/EFI/BOOT/BOOTX64.EFI"), read(binary));
-    const auto before = read(binary);
-    data.insert("kernel", "/missing/kernel");
-    QVERIFY(!BootDeploy::deploy(data, "/", &error)); QVERIFY(!error.isEmpty());
-    QCOMPARE(read(binary), before);
-}
-
 void BootDeployTest::preserveFirmwareDevicePathAndAttributes()
 {
     // End-of-device-path node is sufficient to exercise the native load-option codec.
@@ -203,31 +206,6 @@ void BootDeployTest::preserveFirmwareDevicePathAndAttributes()
     const auto parameters = QString::fromUtf16(reinterpret_cast<char16_t *>(optional), length / 2 - 1);
     QCOMPARE(parameters, QString("initrd=\\EFI\\CatOS\\linux\\initramfs.img root=UUID=test ro"));
     QVERIFY(BootDeploy::firmwareData("invalid", "name", "params", &error).isEmpty()); QVERIFY(!error.isEmpty());
-}
-void BootDeployTest::followTargetSystemAfterRemount()
-{
-    QTemporaryDir dir; QVERIFY(dir.isValid());
-    const auto target = dir.path() + "/remounted";
-    QVERIFY(QDir().mkpath(target));
-    const auto executable = dir.path() + "/findmnt";
-    const QByteArray script = "#!/bin/sh\n[ \"$3\" = \"$CATOS_TEST_CURRENT_ROOT\" ] || exit 1\ncase \"$5\" in UUID) printf root-uuid;; FSROOT) printf /@;; SOURCE) printf /dev/test;; esac\n";
-    QVERIFY(fixture(executable, script));
-    QVERIFY(QFile::setPermissions(executable, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner));
-    const auto oldPath = qgetenv("PATH"); const auto oldRoot = qgetenv("CATOS_TEST_CURRENT_ROOT");
-    const auto restore = qScopeGuard([&] { qputenv("PATH", oldPath); qputenv("CATOS_TEST_CURRENT_ROOT", oldRoot); });
-    qputenv("PATH", dir.path().toUtf8()); qputenv("CATOS_TEST_CURRENT_ROOT", target.toUtf8());
-    QJsonObject profile{{"loader", "efistub"}, {"root", "/previous-mount"}, {"rootUuid", "root-uuid"}, {"rootSource", "/dev/test"}, {"rootFsRoot", "/@"}};
-    QString error;
-    QCOMPARE(BootDeploy::targetRoot(profile, {"/", target}, &error), target); QVERIFY(error.isEmpty());
-    const auto binary = dir.path() + "/esp/EFI/CatOS/linux/vmlinuz.efi";
-    QVERIFY(fixture(BootDeploy::profilePath(binary), QJsonDocument(profile).toJson()));
-    BootSnapshot snapshot;
-    snapshot.repairRoots = {"/", target};
-    snapshot.installations = {{LoaderKind::EfiStub, "image", dir.path() + "/esp", {}, binary}};
-    BootContent::populate(snapshot);
-    QCOMPARE(snapshot.installations[0].settingValues.value("root"), target);
-    profile.insert("rootFsRoot", "/other");
-    QVERIFY(BootDeploy::targetRoot(profile, {"/", target}, &error).isEmpty()); QVERIFY(!error.isEmpty());
 }
 
 QTEST_GUILESS_MAIN(BootDeployTest)

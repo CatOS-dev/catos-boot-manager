@@ -48,7 +48,9 @@ bool command(const QString &root, const QString &program, QStringList args, QStr
 
 QString relativeToRoot(const QString &root, const QString &path)
 {
-    return root == QLatin1String("/") ? path : path.mid(root.size());
+    if (root == QLatin1String("/")) return path;
+    const auto relative = path.mid(root.size());
+    return relative.isEmpty() ? QStringLiteral("/") : relative;
 }
 
 QString architecture()
@@ -90,18 +92,18 @@ bool copyDirectory(const QString &source, const QString &destination, QString *e
 
 QString mountValue(const QString &root, const QString &field)
 {
-    return BootProbe::runReadOnly("findmnt", {"-rn", "-M", root, "-o", field}).trimmed();
+    return BootProbe::runReadOnly("findmnt", {"-rn", "--nofsroot", "-T", root, "-o", field}).trimmed();
 }
 
 bool registerEntry(const QJsonObject &data, const QString &binary, const QString &options, QString *error)
 {
     const bool create = data.value("register").toBool();
-    const auto loader = data.value("loader").toString();
-    if (!create && loader == QLatin1String("refind")) return true;
+    if (!create) return true;
     const QString esp = data.value("esp").toString();
     const auto source = mountValue(esp, "SOURCE");
-    if (source.isEmpty() && !create) return true;
-    const QString efiPath = (QLatin1Char('/') + QDir(esp).relativeFilePath(binary)).replace('/', '\\');
+    const auto mount = mountValue(esp, "TARGET");
+    if (mount.isEmpty()) { *error = QObject::tr("Unable to locate the boot entry's partition."); return false; }
+    const QString efiPath = (QLatin1Char('/') + QDir(mount).relativeFilePath(binary)).replace('/', '\\');
     const auto snapshot = BootProbe::inspect();
     QStringList numbers;
     const QString uuid = BootProbe::runReadOnly("lsblk", {"-dn", "-o", "PARTUUID", source}).trimmed();
@@ -177,66 +179,74 @@ QString BootDeploy::loaderId(LoaderKind kind)
 }
 
 bool BootDeploy::directImage(LoaderKind kind) { return kind == LoaderKind::Uki || kind == LoaderKind::EfiStub; }
-QString BootDeploy::profilePath(const QString &binary) { return binary + QStringLiteral(".catos.json"); }
+QString BootDeploy::configurationPath(const QString &root)
+{
+    return (root == QLatin1String("/") ? QString() : root) + QStringLiteral("/etc/catos/firmware-boot.conf");
+}
+
+namespace {
+QString configurationRoot(const QString &path)
+{
+    const QString suffix = QStringLiteral("/etc/catos/firmware-boot.conf");
+    if (!path.endsWith(suffix) || QDir::cleanPath(path) != path) return {};
+    const auto root = path.left(path.size() - suffix.size());
+    return root.isEmpty() ? QStringLiteral("/") : root;
+}
+
+QStringList configurationArguments(const QString &root)
+{
+    return {"--config", relativeToRoot(root, BootDeploy::configurationPath(root))};
+}
+}
 
 QJsonObject BootDeploy::profile(const QString &path, QString *error)
 {
     error->clear();
-    if (!QFileInfo::exists(path)) return {};
-    const auto document = QJsonDocument::fromJson(BootMenus::readText(path, error).toUtf8());
-    if (error->isEmpty() && !document.isObject()) *error = QObject::tr("Unable to read generation settings.");
-    return document.object();
+    const auto root = configurationRoot(path);
+    if (root.isEmpty()) { *error = QObject::tr("Select a target system."); return {}; }
+    const auto args = configurationArguments(root) + QStringList{"--describe"};
+    const auto output = root == QLatin1String("/")
+        ? BootProbe::runReadOnly("catos-firmware-boot-update", args)
+        : BootProbe::runReadOnly("arch-chroot", QStringList{root, "catos-firmware-boot-update"} + args);
+    QJsonParseError parseError;
+    const auto document = QJsonDocument::fromJson(output.toUtf8(), &parseError);
+    if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
+        *error = QObject::tr("Unable to read boot settings."); return {};
+    }
+    auto data = document.object();
+    data.insert("root", root);
+    if (root != QLatin1String("/")) data.insert("esp", root + data.value("esp").toString());
+    return data;
 }
 
 bool BootDeploy::validateInputs(const QJsonObject &data, const QString &root, QString *error)
 {
     error->clear();
     const auto loader = data.value("loader").toString();
-    const auto id = data.value("id").toString();
-    const auto label = data.value("label").toString();
-    for (const auto ch : label) if (ch.unicode() < 32 || ch.unicode() == 127) { *error = QObject::tr("Enter a valid installation name."); return false; }
-    if (!QStringList{"refind", "uki", "efistub"}.contains(loader)
-        || !QRegularExpression(QStringLiteral("^[A-Za-z0-9][A-Za-z0-9_.-]{0,70}$")).match(id).hasMatch()
-        || label.trimmed().isEmpty() || label.size() > 80 || label.contains('\n') || label.contains('\r')) {
-        *error = QObject::tr("Enter a valid installation name."); return false;
+    if (!QStringList{"refind", "uki", "efistub"}.contains(loader)) {
+        *error = QObject::tr("Select a boot loader."); return false;
     }
-    const auto esp = data.value("esp").toString();
-    if (esp.isEmpty() || !QDir(esp).exists() || QDir::cleanPath(esp) != esp || QFileInfo(esp).isSymLink()
-        || (root != QLatin1String("/") && !esp.startsWith(root + '/'))) {
-        *error = QObject::tr("Select a mounted EFI partition."); return false;
+    const auto destination = data.value("esp").toString();
+    if (!destination.startsWith('/') || QDir::cleanPath(destination) != destination
+        || (root != QLatin1String("/") && destination != root && !destination.startsWith(root + '/'))
+        || (destination != root && !BootMenus::safePath(destination, root))) {
+        *error = QObject::tr("Choose an installation directory."); return false;
     }
-    const auto binary = data.value("binary").toString(loader == QLatin1String("uki") ? esp + "/EFI/Linux/catos-" + id + ".efi"
-        : loader == QLatin1String("efistub") ? esp + "/EFI/CatOS/" + id + "/vmlinuz.efi" : esp + "/EFI/refind/refind_" + architecture() + ".efi");
-    if (!binary.startsWith(esp + "/EFI/") || !BootMenus::safePath(binary, esp) || !BootMenus::safePath(profilePath(binary), esp)
-        || binary == hostPath(root, data.value("kernel").toString())
-        || (loader == QLatin1String("efistub") && QFileInfo(binary).absolutePath() + "/initramfs.img" == hostPath(root, data.value("initramfs").toString()))) {
-        *error = QObject::tr("Invalid EFI destination."); return false;
+    for (const auto &key : {QStringLiteral("cmdline"), QStringLiteral("label"), QStringLiteral("label_prefix"), QStringLiteral("default_kernel")}) {
+        for (const auto ch : data.value(key).toString()) {
+            if (ch.unicode() < 32 || ch.unicode() == 127) { *error = QObject::tr("Enter a single-line value."); return false; }
+        }
     }
-    if (data.value("fallback").toBool() && loader == QLatin1String("efistub")) { *error = QObject::tr("Invalid EFI destination."); return false; }
-    const auto parameters = data.value("cmdline").toString();
-    if (parameters.contains('\n') || parameters.contains('\r') || parameters.contains(QChar::Null)
-        || (loader == QLatin1String("refind") && parameters.contains('"'))) { *error = QObject::tr("Invalid startup parameters."); return false; }
     if (loader == QLatin1String("refind")) {
         const auto source = hostPath(root, "/usr/share/refind/refind_" + architecture() + ".efi");
         if (source.isEmpty() || QFileInfo(source).size() == 0) { *error = QObject::tr("Install the rEFInd software package in the target system."); return false; }
-        return true;
-    }
-    for (const auto &key : {QStringLiteral("kernel"), QStringLiteral("initramfs")}) {
-        const auto input = hostPath(root, data.value(key).toString());
-        if (input.isEmpty() || !QFileInfo(input).isFile() || QFileInfo(input).size() == 0) {
-            *error = QObject::tr("Select an existing kernel and initramfs in the target system."); return false;
+        if (data.value("cmdline").toString().contains('"')) { *error = QObject::tr("Invalid startup parameters."); return false; }
+    } else {
+        const auto executable = root == QLatin1String("/") ? QStandardPaths::findExecutable("catos-firmware-boot-update")
+            : root + "/usr/bin/catos-firmware-boot-update";
+        if (executable.isEmpty() || !QFileInfo(executable).isExecutable()) {
+            *error = QObject::tr("Install the catos-firmware-boot software package in the target system."); return false;
         }
-    }
-    for (const auto &key : {QStringLiteral("cmdline"), QStringLiteral("version"), QStringLiteral("private-key"), QStringLiteral("certificate")}) {
-        const auto value = data.value(key).toString();
-        if (value.contains('\n') || value.contains('\r') || value.contains(QChar::Null)) { *error = QObject::tr("Invalid startup parameters."); return false; }
-    }
-    if (loader == QLatin1String("efistub") && (!data.value("private-key").toString().isEmpty() || !data.value("certificate").toString().isEmpty())) { *error = QObject::tr("Invalid image settings."); return false; }
-    const auto key = data.value("private-key").toString();
-    const auto certificate = data.value("certificate").toString();
-    if (key.isEmpty() != certificate.isEmpty()
-        || (!key.isEmpty() && (hostPath(root, key).isEmpty() || hostPath(root, certificate).isEmpty()))) {
-        *error = QObject::tr("Select both the signing key and certificate."); return false;
     }
     return true;
 }
@@ -246,14 +256,35 @@ bool BootDeploy::deploy(const QJsonObject &input, const QString &root, QString *
     if (!validateInputs(input, root, error)) return false;
     auto data = input;
     const auto esp = data.value("esp").toString();
-    if (esp.isEmpty() || QDir::cleanPath(esp) != esp || QFileInfo(esp).isSymLink() || !QDir(esp).exists()
-        || (root != QLatin1String("/") && !esp.startsWith(root + "/"))) { *error = QObject::tr("Select a mounted EFI partition."); return false; }
     const auto loader = data.value("loader").toString();
-    const auto id = data.value("id").toString();
+    if (loader != QLatin1String("refind")) {
+        auto args = configurationArguments(root);
+        args << "--method" << loader << "--output-root" << relativeToRoot(root, esp)
+             << "--install-fallback" << (data.value("fallback").toBool() ? "yes" : "no") << "--save-config";
+        if (data.value("register").toBool()) {
+            QString existing = esp;
+            while (!QFileInfo::exists(existing) && existing != QLatin1String("/")) existing = QFileInfo(existing).absolutePath();
+            const auto source = BootProbe::runReadOnly("findmnt", {"-rn", "--nofsroot", "-T", existing, "-o", "SOURCE"}).trimmed();
+            const auto device = BootProbe::runReadOnly("lsblk", {"-dn", "-o", "PKNAME,PARTN", source}).trimmed()
+                .split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
+            if (device.size() != 2 || !QRegularExpression(QStringLiteral("^[1-9][0-9]*$")).match(device[1]).hasMatch()) {
+                *error = QObject::tr("Choose a directory on the partition for this boot entry."); return false;
+            }
+            const auto mount = BootProbe::runReadOnly("findmnt", {"-rn", "-T", existing, "-o", "TARGET"}).trimmed();
+            if (mount.isEmpty() || (esp != mount && !esp.startsWith(mount == QLatin1String("/") ? mount : mount + '/'))) {
+                *error = QObject::tr("Unable to locate the boot entry's partition."); return false;
+            }
+            const auto relative = QDir(mount).relativeFilePath(esp);
+            args << "--efi-disk" << "/dev/" + device[0] << "--efi-partition" << device[1]
+                 << "--firmware-directory" << (relative == QLatin1String(".") ? QStringLiteral("/") : '/' + relative);
+        } else {
+            args << "--efi-disk" << "" << "--efi-partition" << "0" << "--firmware-directory" << "/" << "--no-variables";
+        }
+        return command(root, "catos-firmware-boot-update", args, error);
+    }
     const auto arch = architecture();
-    // Reject all symlink ancestors before creating or replacing boot files.
-    for (const auto &directory : {esp + "/EFI", esp + "/EFI/refind", esp + "/EFI/BOOT", esp + "/EFI/Linux", esp + "/EFI/CatOS", esp + "/EFI/CatOS/" + id}) {
-        if (!BootMenus::safePath(directory, esp)) { *error = QObject::tr("Invalid EFI destination."); return false; }
+    for (const auto &directory : {esp + "/EFI", esp + "/EFI/refind", esp + "/EFI/BOOT"}) {
+        if (!BootMenus::safePath(directory, root)) { *error = QObject::tr("Invalid EFI destination."); return false; }
     }
     QString binary;
     if (loader == QLatin1String("refind")) {
@@ -272,152 +303,47 @@ bool BootDeploy::deploy(const QJsonObject &input, const QString &root, QString *
             if (parameters.contains('"') || parameters.contains('\n')) { *error = QObject::tr("Invalid startup parameters."); return false; }
             if (!BootMenus::save(linuxOptions, "\"Boot Linux\" \"" + parameters + "\"\n", error)) return false;
         }
-    } else {
-        binary = data.value("binary").toString();
-        if (binary.isEmpty()) binary = loader == QLatin1String("uki") ? esp + "/EFI/Linux/catos-" + id + ".efi"
-            : esp + "/EFI/CatOS/" + id + "/vmlinuz.efi";
-        if (QDir::cleanPath(binary) != binary || !QDir::cleanPath(binary).startsWith(QDir::cleanPath(esp) + "/EFI/")
-            || !BootMenus::safePath(binary, esp) || hostPath(root, data.value("kernel").toString()) == binary
-            || hostPath(root, data.value("initramfs").toString()) == QFileInfo(binary).absolutePath() + "/initramfs.img"
-            || !QDir().mkpath(QFileInfo(binary).absolutePath())) {
-            *error = QObject::tr("Invalid EFI destination."); return false;
-        }
-        const auto kernel = data.value("kernel").toString();
-        const auto initramfs = data.value("initramfs").toString();
-        if (loader == QLatin1String("uki")) {
-            const QString temporary = binary + QStringLiteral(".new");
-            if (QFileInfo::exists(temporary) || QFileInfo(temporary).isSymLink()) { *error = QObject::tr("The output image is already being generated."); return false; }
-            QStringList args{"build", "--config=/dev/null", "--linux=" + kernel, "--initrd=" + initramfs,
-                "--cmdline=" + data.value("cmdline").toString(), "--output=" + relativeToRoot(root, temporary)};
-            if (!data.value("version").toString().isEmpty()) args << "--uname=" + data.value("version").toString();
-            if (!data.value("private-key").toString().isEmpty())
-                args << "--secureboot-private-key=" + data.value("private-key").toString()
-                     << "--secureboot-certificate=" + data.value("certificate").toString();
-            if (!command(root, "ukify", args, error)) { QFile::remove(temporary); return false; }
-            if (!copy(temporary, binary, error)) { QFile::remove(temporary); return false; }
-            if (!QFile::remove(temporary)) { *error = QObject::tr("Unable to finish writing the UKI image."); return false; }
-        } else {
-            if (!copy(hostPath(root, kernel), binary, error)
-                || !copy(hostPath(root, initramfs), QFileInfo(binary).absolutePath() + "/initramfs.img", error)) return false;
-        }
-        data.insert("binary", binary);
-        data.insert("root", root);
-        data.insert("rootSource", mountValue(root, "SOURCE"));
-        data.insert("rootUuid", mountValue(root, "UUID"));
-        data.insert("rootFsRoot", mountValue(root, "FSROOT"));
-        if (!BootMenus::save(profilePath(binary), QString::fromUtf8(QJsonDocument(data).toJson()), error)) return false;
     }
     if (data.value("fallback").toBool()) {
         const auto destination = esp + "/EFI/BOOT";
         const auto filename = arch == QLatin1String("aa64") ? QStringLiteral("BOOTAA64.EFI")
             : arch == QLatin1String("ia32") ? QStringLiteral("BOOTIA32.EFI") : QStringLiteral("BOOTX64.EFI");
-        if (!copy(binary, destination + '/' + filename, error)) return false;
-        if (loader == QLatin1String("refind") && !copyDirectory(esp + "/EFI/refind", destination, error)) return false;
+        if (!copy(binary, destination + '/' + filename, error) || !copyDirectory(esp + "/EFI/refind", destination, error)) return false;
     }
-    QString options;
-    if (loader == QLatin1String("efistub")) options = "initrd=" + (QLatin1Char('/') + QDir(esp).relativeFilePath(QFileInfo(binary).absolutePath() + "/initramfs.img")).replace('/', '\\')
-        + ' ' + data.value("cmdline").toString();
-    return registerEntry(data, binary, options, error);
+    return registerEntry(data, binary, {}, error);
 }
 
 bool BootDeploy::writeSetting(LoaderKind kind, const QString &path, const QString &key, const QString &value, QString *error)
 {
+    const auto root = configurationRoot(path);
+    if (root.isEmpty() || !QStringList{"cmdline", "label_prefix", "default_kernel"}.contains(key)) {
+        *error = QObject::tr("Invalid boot setting."); return false;
+    }
+    auto args = configurationArguments(root);
+    Q_UNUSED(kind);
+    args << "--configure-only" << "--" + QString(key).replace('_', '-') + '=' + value;
+    return command(root, "catos-firmware-boot-update", args, error);
+}
+
+bool BootDeploy::validateRebuild(LoaderKind kind, const QString &path, const QMap<QString, QString> &values, const BootSnapshot &snapshot, QString *error)
+{
     auto data = profile(path, error);
     if (!error->isEmpty()) return false;
-    const QString binary = path.left(path.size() - QStringLiteral(".catos.json").size());
-    if (data.isEmpty()) {
-        QString esp;
-        for (const auto &mount : BootProbe::espMounts()) if (binary.startsWith(mount + '/')) esp = mount;
-        if (esp.isEmpty()) { *error = QObject::tr("Select a mounted EFI partition."); return false; }
-        data = {{"loader", loaderId(kind)}, {"binary", binary}, {"esp", esp},
-            {"id", QFileInfo(binary).baseName()}, {"register", false}, {"fallback", false}};
-    }
-    if (key == QLatin1String("root") && data.value(key).toString() != value) {
-        data.remove("rootSource"); data.remove("rootUuid"); data.remove("rootFsRoot");
-    }
-    data.insert(key, value);
-    return BootMenus::save(path, QString::fromUtf8(QJsonDocument(data).toJson()), error);
+    if (!snapshot.repairRoots.contains(data.value("root").toString())) { *error = QObject::tr("Select a target system."); return false; }
+    bool bound = false;
+    for (const auto &installation : snapshot.installations)
+        bound |= directImage(kind) && installation.kind == kind && installation.config == path;
+    data.insert("loader", loaderId(kind));
+    if (!bound) { *error = QObject::tr("The boot configuration changed. Refresh and try again."); return false; }
+    for (auto it = values.begin(); it != values.end(); ++it) data.insert(it.key(), it.value());
+    return validateInputs(data, data.value("root").toString(), error);
 }
 
-namespace {
-QJsonObject rebuildData(const QString &path, const QMap<QString, QString> &values, const BootSnapshot &snapshot, QString *error)
+bool BootDeploy::rebuild(LoaderKind kind, const QString &path, QString *error)
 {
-    auto data = BootDeploy::profile(path, error);
-    if (!error->isEmpty()) return {};
-    const QString binary = path.left(path.size() - QStringLiteral(".catos.json").size());
-    const BootInstallation *installation = nullptr;
-    for (const auto &loader : snapshot.installations)
-        if (BootDeploy::directImage(loader.kind) && loader.config == path && loader.binary == binary) installation = &loader;
-    if (!installation || (!data.isEmpty() && data.value("loader").toString() != BootDeploy::loaderId(installation->kind))) {
-        *error = QObject::tr("The selected image changed. Refresh and try again."); return {};
-    }
-    if (data.isEmpty()) data = {{"id", QFileInfo(binary).baseName()}, {"label", loaderName(installation->kind)}};
-    for (auto it = values.begin(); it != values.end(); ++it) {
-        if (it.key() == QLatin1String("root") && data.value("root").toString() != it.value()) {
-            data.remove("rootSource"); data.remove("rootUuid"); data.remove("rootFsRoot");
-        }
-        data.insert(it.key(), it.value());
-    }
-    data.insert("loader", BootDeploy::loaderId(installation->kind));
-    data.insert("binary", binary);
-    data.insert("esp", installation->esp);
-    if (!error->isEmpty() || data.isEmpty()) { *error = QObject::tr("Save the generation settings first."); return {}; }
-    const auto root = BootDeploy::targetRoot(data, snapshot.repairRoots, error);
-    if (!error->isEmpty()) return {};
-    data.insert("root", root);
-    return data;
-}
-}
-
-QString BootDeploy::targetRoot(const QJsonObject &data, const QStringList &candidates, QString *error)
-{
-    error->clear();
-    QString root;
-    for (const auto &candidate : candidates) {
-        const auto uuid = data.value("rootUuid").toString();
-        const auto source = data.value("rootSource").toString();
-        const bool matches = !uuid.isEmpty() ? mountValue(candidate, "UUID") == uuid
-            : !source.isEmpty() ? mountValue(candidate, "SOURCE") == source
-            : candidate == data.value("root").toString();
-        if (matches && (data.value("rootFsRoot").toString().isEmpty()
-            || mountValue(candidate, "FSROOT") == data.value("rootFsRoot").toString())) {
-            if (!root.isEmpty()) { *error = QObject::tr("Select the target system for this image."); return QString(); }
-            root = candidate;
-        }
-    }
-    if (root.isEmpty()) { *error = QObject::tr("Mount the target system and refresh detection."); return QString(); }
-    return root;
-}
-
-bool BootDeploy::validateRebuild(const QString &path, const QMap<QString, QString> &values, const BootSnapshot &snapshot, QString *error)
-{
-    const auto data = rebuildData(path, values, snapshot, error);
-    if (!error->isEmpty()) return false;
-    const auto root = data.value("root").toString();
-    if (!validateInputs(data, root, error)) return false;
-    if (!snapshot.espMounts.contains(data.value("esp").toString())) { *error = QObject::tr("Select a mounted EFI partition."); return false; }
-    if (data.value("loader").toString() == QLatin1String("uki")) {
-        const auto executable = root == QLatin1String("/") ? QStandardPaths::findExecutable("ukify") : root + "/usr/bin/ukify";
-        if (executable.isEmpty() || !QFileInfo(executable).isExecutable()) { *error = QObject::tr("Install ukify in the target system."); return false; }
-    }
-    return true;
-}
-
-bool BootDeploy::rebuild(const QString &path, QString *error)
-{
-    BootSnapshot snapshot;
-    snapshot.repairRoots = BootRepair::mountedTargets();
-    snapshot.espMounts = BootProbe::espMounts();
-    const QString binary = path.left(path.size() - QStringLiteral(".catos.json").size());
-    auto data = profile(path, error);
-    if (!error->isEmpty()) return false;
-    const auto kind = data.value("loader").toString() == QLatin1String("uki") ? LoaderKind::Uki : LoaderKind::EfiStub;
-    for (const auto &esp : snapshot.espMounts) if (binary.startsWith(esp + "/EFI/")) {
-        BootInstallation loader; loader.kind = kind; loader.binary = binary; loader.config = path; loader.esp = esp;
-        snapshot.installations.append(loader);
-    }
-    data = rebuildData(path, {}, snapshot, error);
-    return error->isEmpty() && deploy(data, data.value("root").toString(), error);
+    const auto root = configurationRoot(path);
+    if (root.isEmpty()) { *error = QObject::tr("Select a target system."); return false; }
+    return command(root, "catos-firmware-boot-update", configurationArguments(root) + QStringList{"--method", loaderId(kind)}, error);
 }
 
 void BootDeploy::populate(BootSnapshot &snapshot)
@@ -426,42 +352,18 @@ void BootDeploy::populate(BootSnapshot &snapshot)
     QSet<QString> seen;
     for (const auto &root : snapshot.repairRoots) {
         const QString prefix = root == QLatin1String("/") ? QString() : root;
-        QString ignored;
-        const QString machineId = BootMenus::readText(prefix + "/etc/machine-id", &ignored).trimmed();
-        const QString cmdline = BootMenus::readText(prefix + "/etc/kernel/cmdline", &ignored).trimmed();
         const QString modules = prefix + "/usr/lib/modules";
         for (const auto &version : QDir(modules).entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
             const QString identity = root + '|' + version;
             if (seen.contains(identity)) continue;
-            const QString package = BootMenus::readText(modules + '/' + version + "/pkgbase", &ignored).trimmed();
             const QString kernel = QStringLiteral("/usr/lib/modules/") + version + "/vmlinuz";
-            const QString kernelHost = hostPath(root, kernel);
-            if (!QRegularExpression("^[A-Za-z0-9_.+-]+$").match(package).hasMatch() || !QFileInfo(kernelHost).isFile()) continue;
-            QString initramfs = "/boot/initramfs-" + package + ".img";
-            if (!QFileInfo(hostPath(root, initramfs)).isFile()) initramfs.clear();
-            if (initramfs.isEmpty() && QRegularExpression("^[a-fA-F0-9]{32}$").match(machineId).hasMatch()) {
-                QFile installed(kernelHost);
-                QCryptographicHash installedHash(QCryptographicHash::Sha256);
-                if (installed.open(QIODevice::ReadOnly) && installedHash.addData(&installed)) {
-                    for (const auto &esp : snapshot.espMounts) {
-                        if (!prefix.isEmpty() && !esp.startsWith(prefix + '/')) continue;
-                        const QString directory = esp + '/' + machineId + '/' + package;
-                        const QString deployedKernel = hostPath(root, relativeToRoot(root, directory + "/vmlinuz"));
-                        const QString deployedInitrd = relativeToRoot(root, directory + "/initramfs");
-                        if (!QFileInfo(hostPath(root, deployedInitrd)).isFile()) continue;
-                        QFile deployed(deployedKernel);
-                        QCryptographicHash deployedHash(QCryptographicHash::Sha256);
-                        if (deployed.open(QIODevice::ReadOnly) && deployedHash.addData(&deployed)
-                            && deployedHash.result() == installedHash.result()) {
-                            initramfs = deployedInitrd;
-                            break;
-                        }
-                    }
-                }
-            }
+            if (!QFileInfo(hostPath(root, kernel)).isFile()) continue;
+            QString ignored;
+            const auto packagePath = modules + '/' + version + "/pkgbase";
+            const QString package = QFileInfo::exists(packagePath) ? BootMenus::readText(packagePath, &ignored).trimmed() : version;
+            if (!QRegularExpression("^[A-Za-z0-9_.+-]+$").match(package).hasMatch()) continue;
             seen.insert(identity);
-            snapshot.kernels.append(QJsonObject{{"root", root}, {"name", package}, {"version", version},
-                {"kernel", kernel}, {"initramfs", initramfs}, {"cmdline", cmdline}});
+            snapshot.kernels.append(QJsonObject{{"root", root}, {"name", package}, {"version", version}, {"kernel", kernel}});
         }
     }
 }

@@ -351,53 +351,53 @@
 <context>
     <name>LoaderSelector</name>
     <message>
-        <location filename="../src/widgets/LoaderSelector.cpp" line="22"/>
+        <location filename="../src/widgets/LoaderSelector.cpp" line="23"/>
         <source>No installation detected for this method</source>
         <translation>未检测到此方式的安装实例</translation>
     </message>
     <message>
-        <location filename="../src/widgets/LoaderSelector.cpp" line="98"/>
+        <location filename="../src/widgets/LoaderSelector.cpp" line="99"/>
         <source>Detected manageable installations: %1</source>
         <translation>检测到可管理的安装实例：%1</translation>
     </message>
     <message>
-        <location filename="../src/widgets/LoaderSelector.cpp" line="113"/>
+        <location filename="../src/widgets/LoaderSelector.cpp" line="114"/>
         <source>Current system</source>
         <translation>当前系统</translation>
     </message>
     <message>
-        <location filename="../src/widgets/LoaderSelector.cpp" line="95"/>
+        <location filename="../src/widgets/LoaderSelector.cpp" line="96"/>
         <source>Needs attention</source>
         <translation>需处理</translation>
     </message>
     <message>
-        <location filename="../src/widgets/LoaderSelector.cpp" line="95"/>
-        <location filename="../src/widgets/LoaderSelector.cpp" line="117"/>
+        <location filename="../src/widgets/LoaderSelector.cpp" line="96"/>
+        <location filename="../src/widgets/LoaderSelector.cpp" line="118"/>
         <source>Default entry</source>
         <translation>默认入口</translation>
     </message>
     <message>
-        <location filename="../src/widgets/LoaderSelector.cpp" line="96"/>
+        <location filename="../src/widgets/LoaderSelector.cpp" line="97"/>
         <source>Program detected</source>
         <translation>已发现程序</translation>
     </message>
     <message>
-        <location filename="../src/widgets/LoaderSelector.cpp" line="96"/>
+        <location filename="../src/widgets/LoaderSelector.cpp" line="97"/>
         <source>Configuration only</source>
         <translation>仅配置</translation>
     </message>
     <message>
-        <location filename="../src/widgets/LoaderSelector.cpp" line="96"/>
+        <location filename="../src/widgets/LoaderSelector.cpp" line="97"/>
         <source>Not detected</source>
         <translation>未发现</translation>
     </message>
     <message>
-        <location filename="../src/widgets/LoaderSelector.cpp" line="116"/>
+        <location filename="../src/widgets/LoaderSelector.cpp" line="117"/>
         <source>Current boot</source>
         <translation>本次启动</translation>
     </message>
     <message>
-        <location filename="../src/widgets/LoaderSelector.cpp" line="118"/>
+        <location filename="../src/widgets/LoaderSelector.cpp" line="119"/>
         <source>Next boot only</source>
         <translation>仅下次启动</translation>
     </message>
@@ -1001,8 +1001,8 @@ Pending value: %2</source>
     <message>
         <location filename="../src/services/BootMenus.cpp" line="219"/>
         <location filename="../src/services/BootMenus.cpp" line="222"/>
-        <location filename="../src/services/BootSettings.cpp" line="138"/>
-        <location filename="../src/services/BootSettings.cpp" line="149"/>
+        <location filename="../src/services/BootSettings.cpp" line="133"/>
+        <location filename="../src/services/BootSettings.cpp" line="144"/>
         <source>Unable to read configuration: %1</source>
         <translation>无法读取配置：%1</translation>
     </message>
@@ -1166,56 +1166,56 @@ Pending value: %2</source>
         <translation>无法读取 UEFI 变量，固件启动项管理不可用。</translation>
     </message>
     <message>
-        <location filename="../src/services/BootProbe.cpp" line="209"/>
+        <location filename="../src/services/BootProbe.cpp" line="216"/>
         <source>This system was not booted in UEFI mode.</source>
         <translation>当前系统并非以 UEFI 模式启动。</translation>
     </message>
     <message>
-        <location filename="../src/services/BootProbe.cpp" line="210"/>
+        <location filename="../src/services/BootProbe.cpp" line="217"/>
         <source>No mounted EFI system partition was detected.</source>
         <translation>未检测到已挂载的 EFI 系统分区。</translation>
     </message>
     <message>
         <location filename="../src/services/BootSettings.cpp" line="59"/>
-        <location filename="../src/services/BootSettings.cpp" line="79"/>
-        <location filename="../src/services/BootSettings.cpp" line="88"/>
-        <location filename="../src/services/BootSettings.cpp" line="98"/>
+        <location filename="../src/services/BootSettings.cpp" line="74"/>
+        <location filename="../src/services/BootSettings.cpp" line="83"/>
+        <location filename="../src/services/BootSettings.cpp" line="93"/>
         <source>Default entry</source>
         <translation>默认启动项</translation>
     </message>
     <message>
-        <location filename="../src/services/BootSettings.cpp" line="79"/>
+        <location filename="../src/services/BootSettings.cpp" line="74"/>
         <source>Entry index, ID or saved</source>
         <translation>启动项编号、ID 或 saved</translation>
     </message>
     <message>
         <location filename="../src/services/BootSettings.cpp" line="58"/>
-        <location filename="../src/services/BootSettings.cpp" line="80"/>
-        <location filename="../src/services/BootSettings.cpp" line="89"/>
-        <location filename="../src/services/BootSettings.cpp" line="99"/>
+        <location filename="../src/services/BootSettings.cpp" line="75"/>
+        <location filename="../src/services/BootSettings.cpp" line="84"/>
+        <location filename="../src/services/BootSettings.cpp" line="94"/>
         <source>Menu timeout (seconds)</source>
         <translation>菜单倒计时（秒）</translation>
     </message>
     <message>
-        <location filename="../src/services/BootSettings.cpp" line="80"/>
+        <location filename="../src/services/BootSettings.cpp" line="75"/>
         <source>Time to wait before starting the default entry</source>
         <translation>启动默认项前的等待时间</translation>
     </message>
     <message>
-        <location filename="../src/services/BootSettings.cpp" line="73"/>
-        <location filename="../src/services/BootSettings.cpp" line="81"/>
+        <location filename="../src/services/BootSettings.cpp" line="69"/>
+        <location filename="../src/services/BootSettings.cpp" line="76"/>
         <source>Kernel parameters</source>
         <translation>内核参数</translation>
     </message>
     <message>
-        <location filename="../src/services/BootSettings.cpp" line="81"/>
+        <location filename="../src/services/BootSettings.cpp" line="76"/>
         <source>Linux kernel parameters for normal boot</source>
         <translation>正常启动传递给 Linux 内核的参数</translation>
     </message>
     <message>
         <location filename="../src/services/BootSettings.cpp" line="60"/>
-        <location filename="../src/services/BootSettings.cpp" line="82"/>
-        <location filename="../src/services/BootSettings.cpp" line="95"/>
+        <location filename="../src/services/BootSettings.cpp" line="77"/>
+        <location filename="../src/services/BootSettings.cpp" line="90"/>
         <source>Menu resolution</source>
         <translation>菜单分辨率</translation>
     </message>
@@ -1261,236 +1261,240 @@ Pending value: %2</source>
     </message>
     <message>
         <location filename="../src/services/BootSettings.cpp" line="65"/>
-        <location filename="../src/services/BootSettings.cpp" line="93"/>
+        <location filename="../src/services/BootSettings.cpp" line="88"/>
         <source>Menu background</source>
         <translation>菜单背景</translation>
     </message>
     <message>
         <location filename="../src/services/BootSettings.cpp" line="65"/>
-        <location filename="../src/services/BootSettings.cpp" line="93"/>
+        <location filename="../src/services/BootSettings.cpp" line="88"/>
         <source>Path to the background image</source>
         <translation>背景图片路径</translation>
     </message>
     <message>
-        <location filename="../src/services/BootSettings.cpp" line="68"/>
         <source>Target system</source>
-        <translation>目标系统</translation>
+        <translation type="vanished">目标系统</translation>
     </message>
     <message>
-        <location filename="../src/services/BootSettings.cpp" line="68"/>
         <source>Mounted system path, for example /</source>
-        <translation>已挂载的系统路径，例如 /</translation>
+        <translation type="vanished">已挂载的系统路径，例如 /</translation>
     </message>
     <message>
-        <location filename="../src/services/BootSettings.cpp" line="69"/>
         <source>Image name</source>
-        <translation>镜像名称</translation>
+        <translation type="vanished">镜像名称</translation>
+    </message>
+    <message>
+        <source>Letters, digits, dots, underscores and hyphens</source>
+        <translation type="vanished">可使用字母、数字、点、下划线和连字符</translation>
+    </message>
+    <message>
+        <source>Boot entry name</source>
+        <translation type="vanished">启动项名称</translation>
+    </message>
+    <message>
+        <source>Name displayed at startup</source>
+        <translation type="vanished">启动时显示的名称</translation>
+    </message>
+    <message>
+        <source>Kernel image</source>
+        <translation type="vanished">内核镜像</translation>
+    </message>
+    <message>
+        <source>Path inside the target system</source>
+        <translation type="vanished">目标系统内的路径</translation>
+    </message>
+    <message>
+        <source>Initramfs image</source>
+        <translation type="vanished">Initramfs 镜像</translation>
     </message>
     <message>
         <location filename="../src/services/BootSettings.cpp" line="69"/>
-        <source>Letters, digits, dots, underscores and hyphens</source>
-        <translation>可使用字母、数字、点、下划线和连字符</translation>
-    </message>
-    <message>
-        <location filename="../src/services/BootSettings.cpp" line="70"/>
-        <source>Boot entry name</source>
-        <translation>启动项名称</translation>
-    </message>
-    <message>
-        <location filename="../src/services/BootSettings.cpp" line="70"/>
-        <source>Name displayed at startup</source>
-        <translation>启动时显示的名称</translation>
-    </message>
-    <message>
-        <location filename="../src/services/BootSettings.cpp" line="71"/>
-        <source>Kernel image</source>
-        <translation>内核镜像</translation>
-    </message>
-    <message>
-        <location filename="../src/services/BootSettings.cpp" line="71"/>
-        <location filename="../src/services/BootSettings.cpp" line="72"/>
-        <source>Path inside the target system</source>
-        <translation>目标系统内的路径</translation>
-    </message>
-    <message>
-        <location filename="../src/services/BootSettings.cpp" line="72"/>
-        <source>Initramfs image</source>
-        <translation>Initramfs 镜像</translation>
-    </message>
-    <message>
-        <location filename="../src/services/BootSettings.cpp" line="73"/>
         <source>Linux startup parameters</source>
         <translation>Linux 启动参数</translation>
     </message>
     <message>
-        <location filename="../src/services/BootSettings.cpp" line="74"/>
         <source>Kernel version</source>
-        <translation>内核版本</translation>
+        <translation type="vanished">内核版本</translation>
     </message>
     <message>
-        <location filename="../src/services/BootSettings.cpp" line="74"/>
         <source>Leave empty to detect automatically</source>
-        <translation>留空自动识别</translation>
+        <translation type="vanished">留空自动识别</translation>
     </message>
     <message>
-        <location filename="../src/services/BootSettings.cpp" line="74"/>
         <source>Signing key</source>
-        <translation>签名私钥</translation>
+        <translation type="vanished">签名私钥</translation>
     </message>
     <message>
-        <location filename="../src/services/BootSettings.cpp" line="74"/>
         <source>Optional; select together with the certificate</source>
-        <translation>可选，与证书一起选择</translation>
+        <translation type="vanished">可选，与证书一起选择</translation>
     </message>
     <message>
-        <location filename="../src/services/BootSettings.cpp" line="75"/>
         <source>Signing certificate</source>
-        <translation>签名证书</translation>
+        <translation type="vanished">签名证书</translation>
     </message>
     <message>
-        <location filename="../src/services/BootSettings.cpp" line="75"/>
         <source>Optional; select together with the signing key</source>
-        <translation>可选，与私钥一起选择</translation>
+        <translation type="vanished">可选，与私钥一起选择</translation>
     </message>
     <message>
-        <location filename="../src/services/BootSettings.cpp" line="82"/>
+        <location filename="../src/services/BootSettings.cpp" line="77"/>
         <source>For example: auto or 1920x1080</source>
         <translation>例如 auto 或 1920x1080</translation>
     </message>
     <message>
-        <location filename="../src/services/BootSettings.cpp" line="83"/>
+        <location filename="../src/services/BootSettings.cpp" line="78"/>
         <source>GRUB theme</source>
         <translation>GRUB 主题</translation>
     </message>
     <message>
-        <location filename="../src/services/BootSettings.cpp" line="83"/>
+        <location filename="../src/services/BootSettings.cpp" line="78"/>
         <source>Absolute path to the theme file</source>
         <translation>主题文件的绝对路径</translation>
     </message>
     <message>
-        <location filename="../src/services/BootSettings.cpp" line="84"/>
+        <location filename="../src/services/BootSettings.cpp" line="79"/>
         <source>Disable other OS detection</source>
         <translation>禁用其他系统检测</translation>
     </message>
     <message>
-        <location filename="../src/services/BootSettings.cpp" line="84"/>
-        <location filename="../src/services/BootSettings.cpp" line="86"/>
+        <location filename="../src/services/BootSettings.cpp" line="79"/>
+        <location filename="../src/services/BootSettings.cpp" line="81"/>
         <source>true / false</source>
         <translation>true / false</translation>
     </message>
     <message>
-        <location filename="../src/services/BootSettings.cpp" line="85"/>
+        <location filename="../src/services/BootSettings.cpp" line="80"/>
         <source>Preloaded GRUB modules</source>
         <translation>预加载的 GRUB 模块</translation>
     </message>
     <message>
-        <location filename="../src/services/BootSettings.cpp" line="85"/>
+        <location filename="../src/services/BootSettings.cpp" line="80"/>
         <source>Space-separated module names</source>
         <translation>以空格分隔模块名称</translation>
     </message>
     <message>
-        <location filename="../src/services/BootSettings.cpp" line="86"/>
+        <location filename="../src/services/BootSettings.cpp" line="81"/>
         <source>Disable Linux UUID</source>
         <translation>禁用 Linux UUID</translation>
     </message>
     <message>
-        <location filename="../src/services/BootSettings.cpp" line="89"/>
+        <location filename="../src/services/BootSettings.cpp" line="84"/>
         <source>Seconds or no for manual selection</source>
         <translation>等待秒数；填写 no 则等待手动选择</translation>
     </message>
     <message>
-        <location filename="../src/services/BootSettings.cpp" line="90"/>
+        <location filename="../src/services/BootSettings.cpp" line="85"/>
         <source>Quiet boot</source>
         <translation>安静启动</translation>
     </message>
     <message>
-        <location filename="../src/services/BootSettings.cpp" line="91"/>
+        <location filename="../src/services/BootSettings.cpp" line="86"/>
         <source>Graphical menu</source>
         <translation>图形菜单</translation>
     </message>
     <message>
-        <location filename="../src/services/BootSettings.cpp" line="92"/>
+        <location filename="../src/services/BootSettings.cpp" line="87"/>
         <source>Remember last selection</source>
         <translation>记住上次选择</translation>
     </message>
     <message>
-        <location filename="../src/services/BootSettings.cpp" line="94"/>
+        <location filename="../src/services/BootSettings.cpp" line="89"/>
         <source>Background style</source>
         <translation>背景样式</translation>
     </message>
     <message>
-        <location filename="../src/services/BootSettings.cpp" line="94"/>
+        <location filename="../src/services/BootSettings.cpp" line="89"/>
         <source>centered, stretched or tiled</source>
         <translation>centered 居中、stretched 拉伸、tiled 平铺</translation>
     </message>
     <message>
-        <location filename="../src/services/BootSettings.cpp" line="95"/>
+        <location filename="../src/services/BootSettings.cpp" line="90"/>
         <source>For example: 1920x1080</source>
         <translation>例如：1920x1080</translation>
     </message>
     <message>
-        <location filename="../src/services/BootSettings.cpp" line="96"/>
+        <location filename="../src/services/BootSettings.cpp" line="91"/>
         <source>Menu heading</source>
         <translation>菜单标题</translation>
     </message>
     <message>
-        <location filename="../src/services/BootSettings.cpp" line="96"/>
+        <location filename="../src/services/BootSettings.cpp" line="91"/>
         <source>Text displayed above boot entries</source>
         <translation>启动项上方显示的文字</translation>
     </message>
     <message>
-        <location filename="../src/services/BootSettings.cpp" line="102"/>
+        <location filename="../src/services/BootSettings.cpp" line="97"/>
         <source>Discover automatic entries</source>
         <translation>自动发现启动项</translation>
     </message>
     <message>
-        <location filename="../src/services/BootSettings.cpp" line="103"/>
+        <location filename="../src/services/BootSettings.cpp" line="98"/>
         <source>Show firmware settings</source>
         <translation>显示固件设置入口</translation>
     </message>
     <message>
-        <location filename="../src/services/BootSettings.cpp" line="104"/>
+        <location filename="../src/services/BootSettings.cpp" line="99"/>
         <source>Menu sound</source>
         <translation>菜单提示音</translation>
     </message>
     <message>
-        <location filename="../src/services/BootSettings.cpp" line="90"/>
-        <location filename="../src/services/BootSettings.cpp" line="91"/>
-        <location filename="../src/services/BootSettings.cpp" line="92"/>
-        <location filename="../src/services/BootSettings.cpp" line="101"/>
-        <location filename="../src/services/BootSettings.cpp" line="102"/>
-        <location filename="../src/services/BootSettings.cpp" line="103"/>
-        <location filename="../src/services/BootSettings.cpp" line="104"/>
+        <location filename="../src/services/BootSettings.cpp" line="85"/>
+        <location filename="../src/services/BootSettings.cpp" line="86"/>
+        <location filename="../src/services/BootSettings.cpp" line="87"/>
+        <location filename="../src/services/BootSettings.cpp" line="96"/>
+        <location filename="../src/services/BootSettings.cpp" line="97"/>
+        <location filename="../src/services/BootSettings.cpp" line="98"/>
+        <location filename="../src/services/BootSettings.cpp" line="99"/>
         <source>yes / no</source>
         <translation>yes / no</translation>
     </message>
     <message>
-        <location filename="../src/services/BootSettings.cpp" line="88"/>
+        <location filename="../src/services/BootSettings.cpp" line="68"/>
+        <source>Boot entry name prefix</source>
+        <translation>启动项名称前缀</translation>
+    </message>
+    <message>
+        <location filename="../src/services/BootSettings.cpp" line="68"/>
+        <source>Name displayed before the kernel name</source>
+        <translation>显示在内核名称前的文字</translation>
+    </message>
+    <message>
+        <location filename="../src/services/BootSettings.cpp" line="70"/>
+        <source>Removable boot kernel</source>
+        <translation>回退启动内核</translation>
+    </message>
+    <message>
+        <location filename="../src/services/BootSettings.cpp" line="70"/>
+        <source>Kernel used for the removable boot entry</source>
+        <translation>EFI 回退启动使用的内核</translation>
+    </message>
+    <message>
+        <location filename="../src/services/BootSettings.cpp" line="83"/>
         <source>Boot entry index, starting at 1</source>
         <translation>启动项序号，从 1 开始</translation>
     </message>
     <message>
-        <location filename="../src/services/BootSettings.cpp" line="98"/>
+        <location filename="../src/services/BootSettings.cpp" line="93"/>
         <source>BLS entry ID or matching pattern</source>
         <translation>BLS 启动项 ID 或匹配模式</translation>
     </message>
     <message>
-        <location filename="../src/services/BootSettings.cpp" line="99"/>
+        <location filename="../src/services/BootSettings.cpp" line="94"/>
         <source>Seconds or a bootctl special timeout value</source>
         <translation>秒数或 bootctl 支持的特殊倒计时值</translation>
     </message>
     <message>
-        <location filename="../src/services/BootSettings.cpp" line="100"/>
+        <location filename="../src/services/BootSettings.cpp" line="95"/>
         <source>Console mode</source>
         <translation>控制台模式</translation>
     </message>
     <message>
-        <location filename="../src/services/BootSettings.cpp" line="100"/>
+        <location filename="../src/services/BootSettings.cpp" line="95"/>
         <source>auto, keep, max or a mode number</source>
         <translation>auto、keep、max 或模式编号</translation>
     </message>
     <message>
-        <location filename="../src/services/BootSettings.cpp" line="101"/>
+        <location filename="../src/services/BootSettings.cpp" line="96"/>
         <source>Allow kernel parameter edits</source>
         <translation>允许在启动菜单中编辑内核参数</translation>
     </message>
@@ -1727,12 +1731,17 @@ Pending value: %2</source>
         <translation>启动项已变化，请刷新后重试。</translation>
     </message>
     <message>
-        <location filename="../src/services/BootContent.cpp" line="37"/>
+        <location filename="../src/services/BootContent.cpp" line="52"/>
+        <source>No boot configuration found.</source>
+        <translation>未找到引导配置。</translation>
+    </message>
+    <message>
+        <location filename="../src/services/BootContent.cpp" line="64"/>
         <source>Select an installed Limine menu.</source>
         <translation>请选择已安装的 Limine 菜单。</translation>
     </message>
     <message>
-        <location filename="../src/services/BootContent.cpp" line="64"/>
+        <location filename="../src/services/BootContent.cpp" line="91"/>
         <source>No configuration found for this installation.</source>
         <translation>未找到此安装的配置。</translation>
     </message>
@@ -1763,9 +1772,35 @@ Pending value: %2</source>
         <translation>引导文件无效：%1</translation>
     </message>
     <message>
+        <location filename="../src/services/BootDeploy.cpp" line="103"/>
+        <location filename="../src/services/BootDeploy.cpp" line="273"/>
+        <source>Unable to locate the boot entry&apos;s partition.</source>
+        <translation>无法确定启动项所在分区。</translation>
+    </message>
+    <message>
         <location filename="../src/services/BootDeploy.cpp" line="133"/>
         <source>Unable to locate the EFI partition.</source>
         <translation>无法定位 EFI 分区。</translation>
+    </message>
+    <message>
+        <location filename="../src/services/BootDeploy.cpp" line="246"/>
+        <source>Install the catos-firmware-boot software package in the target system.</source>
+        <translation>请在目标系统中安装 catos-firmware-boot 软件包。</translation>
+    </message>
+    <message>
+        <location filename="../src/services/BootDeploy.cpp" line="269"/>
+        <source>Choose a directory on the partition for this boot entry.</source>
+        <translation>请选择启动项所在分区上的目录。</translation>
+    </message>
+    <message>
+        <location filename="../src/services/BootDeploy.cpp" line="318"/>
+        <source>Invalid boot setting.</source>
+        <translation>引导设置无效。</translation>
+    </message>
+    <message>
+        <location filename="../src/services/BootDeploy.cpp" line="335"/>
+        <source>The boot configuration changed. Refresh and try again.</source>
+        <translation>引导配置已更改，请刷新后重试。</translation>
     </message>
     <message>
         <location filename="../src/services/BootDeploy.cpp" line="119"/>
@@ -1785,93 +1820,99 @@ Pending value: %2</source>
         <translation>固件启动项无效。</translation>
     </message>
     <message>
-        <location filename="../src/services/BootDeploy.cpp" line="187"/>
         <source>Unable to read generation settings.</source>
-        <translation>无法读取镜像生成设置。</translation>
+        <translation type="vanished">无法读取镜像生成设置。</translation>
     </message>
     <message>
-        <location filename="../src/services/BootDeploy.cpp" line="197"/>
-        <location filename="../src/services/BootDeploy.cpp" line="201"/>
         <source>Enter a valid installation name.</source>
-        <translation>请输入有效的安装名称。</translation>
+        <translation type="vanished">请输入有效的安装名称。</translation>
     </message>
     <message>
-        <location filename="../src/services/BootDeploy.cpp" line="213"/>
-        <location filename="../src/services/BootDeploy.cpp" line="215"/>
-        <location filename="../src/services/BootDeploy.cpp" line="256"/>
-        <location filename="../src/services/BootDeploy.cpp" line="283"/>
+        <location filename="../src/services/BootDeploy.cpp" line="285"/>
         <source>Invalid EFI destination.</source>
         <translation>EFI 安装位置无效。</translation>
     </message>
     <message>
-        <location filename="../src/services/BootDeploy.cpp" line="218"/>
-        <location filename="../src/services/BootDeploy.cpp" line="232"/>
-        <location filename="../src/services/BootDeploy.cpp" line="272"/>
+        <location filename="../src/services/BootDeploy.cpp" line="241"/>
+        <location filename="../src/services/BootDeploy.cpp" line="301"/>
         <source>Invalid startup parameters.</source>
         <translation>启动参数无效。</translation>
     </message>
     <message>
-        <location filename="../src/services/BootDeploy.cpp" line="221"/>
+        <location filename="../src/services/BootDeploy.cpp" line="204"/>
+        <location filename="../src/services/BootDeploy.cpp" line="330"/>
+        <location filename="../src/services/BootDeploy.cpp" line="343"/>
+        <source>Select a target system.</source>
+        <translation>请选择目标系统。</translation>
+    </message>
+    <message>
+        <location filename="../src/services/BootDeploy.cpp" line="212"/>
+        <source>Unable to read boot settings.</source>
+        <translation>无法读取引导设置。</translation>
+    </message>
+    <message>
+        <location filename="../src/services/BootDeploy.cpp" line="225"/>
+        <source>Select a boot loader.</source>
+        <translation>请选择引导方式。</translation>
+    </message>
+    <message>
+        <location filename="../src/services/BootDeploy.cpp" line="231"/>
+        <source>Choose an installation directory.</source>
+        <translation>请选择安装目录。</translation>
+    </message>
+    <message>
+        <location filename="../src/services/BootDeploy.cpp" line="235"/>
+        <source>Enter a single-line value.</source>
+        <translation>输入内容不能换行。</translation>
+    </message>
+    <message>
+        <location filename="../src/services/BootDeploy.cpp" line="240"/>
         <source>Install the rEFInd software package in the target system.</source>
         <translation>请在目标系统中安装 rEFInd 软件包。</translation>
     </message>
     <message>
-        <location filename="../src/services/BootDeploy.cpp" line="227"/>
         <source>Select an existing kernel and initramfs in the target system.</source>
-        <translation>请选择目标系统中已有的内核和 initramfs。</translation>
+        <translation type="vanished">请选择目标系统中已有的内核和 initramfs。</translation>
     </message>
     <message>
-        <location filename="../src/services/BootDeploy.cpp" line="234"/>
         <source>Invalid image settings.</source>
-        <translation>镜像设置无效。</translation>
+        <translation type="vanished">镜像设置无效。</translation>
     </message>
     <message>
-        <location filename="../src/services/BootDeploy.cpp" line="239"/>
         <source>Select both the signing key and certificate.</source>
-        <translation>请选择签名私钥和证书。</translation>
+        <translation type="vanished">请选择签名私钥和证书。</translation>
     </message>
     <message>
-        <location filename="../src/services/BootDeploy.cpp" line="206"/>
-        <location filename="../src/services/BootDeploy.cpp" line="250"/>
-        <location filename="../src/services/BootDeploy.cpp" line="331"/>
-        <location filename="../src/services/BootDeploy.cpp" line="398"/>
         <source>Select a mounted EFI partition.</source>
-        <translation>请选择已挂载的 EFI 分区。</translation>
+        <translation type="vanished">请选择已挂载的 EFI 分区。</translation>
     </message>
     <message>
-        <location filename="../src/services/BootDeploy.cpp" line="289"/>
         <source>The output image is already being generated.</source>
-        <translation>目标镜像正在生成中。</translation>
+        <translation type="vanished">目标镜像正在生成中。</translation>
     </message>
     <message>
-        <location filename="../src/services/BootDeploy.cpp" line="298"/>
         <source>Unable to finish writing the UKI image.</source>
-        <translation>无法完成 UKI 镜像写入。</translation>
+        <translation type="vanished">无法完成 UKI 镜像写入。</translation>
     </message>
     <message>
-        <location filename="../src/services/BootDeploy.cpp" line="352"/>
         <source>The selected image changed. Refresh and try again.</source>
-        <translation>所选镜像已更改，请刷新后重试。</translation>
+        <translation type="vanished">所选镜像已更改，请刷新后重试。</translation>
     </message>
     <message>
-        <location filename="../src/services/BootDeploy.cpp" line="364"/>
         <source>Save the generation settings first.</source>
-        <translation>请先保存镜像生成设置。</translation>
+        <translation type="vanished">请先保存镜像生成设置。</translation>
     </message>
     <message>
-        <location filename="../src/services/BootDeploy.cpp" line="384"/>
         <source>Select the target system for this image.</source>
-        <translation>请选择该镜像对应的目标系统。</translation>
+        <translation type="vanished">请选择该镜像对应的目标系统。</translation>
     </message>
     <message>
-        <location filename="../src/services/BootDeploy.cpp" line="388"/>
         <source>Mount the target system and refresh detection.</source>
-        <translation>请挂载目标系统后刷新检测。</translation>
+        <translation type="vanished">请挂载目标系统后刷新检测。</translation>
     </message>
     <message>
-        <location filename="../src/services/BootDeploy.cpp" line="401"/>
         <source>Install ukify in the target system.</source>
-        <translation>请在目标系统中安装 ukify。</translation>
+        <translation type="vanished">请在目标系统中安装 ukify。</translation>
     </message>
     <message>
         <location filename="../src/privileged/BootApplyExecutor.cpp" line="194"/>
@@ -1882,177 +1923,183 @@ Pending value: %2</source>
 <context>
     <name>RepairPage</name>
     <message>
-        <location filename="../src/pages/RepairPage.cpp" line="43"/>
+        <location filename="../src/pages/RepairPage.cpp" line="45"/>
         <source>Btrfs subvolume, e.g. @ (leave empty for top level)</source>
         <translation>Btrfs 子卷，例如 @（留空表示默认顶层）</translation>
     </message>
     <message>
-        <location filename="../src/pages/RepairPage.cpp" line="53"/>
+        <location filename="../src/pages/RepairPage.cpp" line="55"/>
         <source>Target system:</source>
         <translation>目标系统：</translation>
     </message>
     <message>
-        <location filename="../src/pages/RepairPage.cpp" line="54"/>
+        <location filename="../src/pages/RepairPage.cpp" line="56"/>
         <source>Firmware mode:</source>
         <translation>固件模式：</translation>
     </message>
     <message>
-        <location filename="../src/pages/RepairPage.cpp" line="55"/>
         <source>EFI partition:</source>
-        <translation>EFI 分区：</translation>
+        <translation type="vanished">EFI 分区：</translation>
     </message>
     <message>
-        <location filename="../src/pages/RepairPage.cpp" line="56"/>
+        <location filename="../src/pages/RepairPage.cpp" line="58"/>
         <source>BIOS disk:</source>
         <translation>BIOS 安装磁盘：</translation>
     </message>
     <message>
-        <location filename="../src/pages/RepairPage.cpp" line="57"/>
+        <location filename="../src/pages/RepairPage.cpp" line="59"/>
         <source>Btrfs root subvolume:</source>
         <translation>Btrfs 根子卷：</translation>
     </message>
     <message>
-        <location filename="../src/pages/RepairPage.cpp" line="58"/>
+        <location filename="../src/pages/RepairPage.cpp" line="60"/>
         <source>EFI mount in target:</source>
         <translation>目标系统内的 EFI 挂载点：</translation>
     </message>
     <message>
-        <location filename="../src/pages/RepairPage.cpp" line="72"/>
         <source>Image name:</source>
-        <translation>镜像名称：</translation>
+        <translation type="vanished">镜像名称：</translation>
     </message>
     <message>
-        <location filename="../src/pages/RepairPage.cpp" line="73"/>
+        <location filename="../src/pages/RepairPage.cpp" line="67"/>
         <source>Boot entry name:</source>
         <translation>启动项名称：</translation>
     </message>
     <message>
-        <location filename="../src/pages/RepairPage.cpp" line="74"/>
         <source>Installed kernel:</source>
-        <translation>已安装的内核：</translation>
+        <translation type="vanished">已安装的内核：</translation>
     </message>
     <message>
-        <location filename="../src/pages/RepairPage.cpp" line="75"/>
         <source>Kernel image:</source>
-        <translation>内核镜像：</translation>
+        <translation type="vanished">内核镜像：</translation>
     </message>
     <message>
-        <location filename="../src/pages/RepairPage.cpp" line="76"/>
         <source>Initramfs image:</source>
-        <translation>Initramfs 镜像：</translation>
+        <translation type="vanished">Initramfs 镜像：</translation>
     </message>
     <message>
-        <location filename="../src/pages/RepairPage.cpp" line="77"/>
+        <location filename="../src/pages/RepairPage.cpp" line="68"/>
         <source>Kernel parameters:</source>
         <translation>内核参数：</translation>
     </message>
     <message>
-        <location filename="../src/pages/RepairPage.cpp" line="78"/>
         <source>Kernel version:</source>
-        <translation>内核版本：</translation>
+        <translation type="vanished">内核版本：</translation>
     </message>
     <message>
-        <location filename="../src/pages/RepairPage.cpp" line="79"/>
         <source>Signing key:</source>
-        <translation>签名私钥：</translation>
+        <translation type="vanished">签名私钥：</translation>
     </message>
     <message>
-        <location filename="../src/pages/RepairPage.cpp" line="80"/>
         <source>Signing certificate:</source>
-        <translation>签名证书：</translation>
+        <translation type="vanished">签名证书：</translation>
     </message>
     <message>
-        <location filename="../src/pages/RepairPage.cpp" line="87"/>
+        <location filename="../src/pages/RepairPage.cpp" line="57"/>
+        <source>Installation directory:</source>
+        <translation>安装目录：</translation>
+    </message>
+    <message>
+        <location filename="../src/pages/RepairPage.cpp" line="69"/>
+        <source>Installed kernels:</source>
+        <translation>已安装的内核：</translation>
+    </message>
+    <message>
+        <location filename="../src/pages/RepairPage.cpp" line="76"/>
         <source>Register a UEFI firmware entry</source>
         <translation>注册 UEFI 固件启动项</translation>
     </message>
     <message>
-        <location filename="../src/pages/RepairPage.cpp" line="90"/>
+        <location filename="../src/pages/RepairPage.cpp" line="79"/>
         <source>Replace the removable EFI fallback loader (advanced)</source>
         <translation>覆盖可移动设备的 EFI 回退引导器（高级）</translation>
     </message>
     <message>
-        <location filename="../src/pages/RepairPage.cpp" line="94"/>
+        <location filename="../src/pages/RepairPage.cpp" line="83"/>
         <source>Deploy boot loader</source>
         <translation>部署引导器</translation>
     </message>
     <message>
-        <location filename="../src/pages/RepairPage.cpp" line="96"/>
+        <location filename="../src/pages/RepairPage.cpp" line="85"/>
         <source>Repair boot loader</source>
         <translation>修复引导器</translation>
     </message>
     <message>
-        <location filename="../src/pages/RepairPage.cpp" line="100"/>
+        <location filename="../src/pages/RepairPage.cpp" line="89"/>
         <source>Update boot loader</source>
         <translation>更新引导程序</translation>
     </message>
     <message>
-        <location filename="../src/pages/RepairPage.cpp" line="103"/>
+        <location filename="../src/pages/RepairPage.cpp" line="92"/>
         <source>Add boot entry</source>
         <translation>添加启动项</translation>
     </message>
     <message>
-        <location filename="../src/pages/RepairPage.cpp" line="183"/>
+        <location filename="../src/pages/RepairPage.cpp" line="174"/>
         <source>Current system EFI partition</source>
         <translation>当前系统的 EFI 分区</translation>
     </message>
     <message>
-        <location filename="../src/pages/RepairPage.cpp" line="296"/>
+        <location filename="../src/pages/RepairPage.cpp" line="274"/>
         <source>Repair %1 (%2) in %3, destination: %4%5%6</source>
         <translation>修复 %3 中的 %1（%2），目标：%4%5%6</translation>
     </message>
     <message>
-        <location filename="../src/pages/RepairPage.cpp" line="296"/>
+        <location filename="../src/pages/RepairPage.cpp" line="274"/>
         <source>Deploy %1 (%2) in %3, destination: %4%5%6</source>
         <translation>部署 %1（%2）到 %3，目标：%4%5%6</translation>
     </message>
     <message>
-        <location filename="../src/pages/RepairPage.cpp" line="313"/>
-        <source>Choose a kernel</source>
-        <translation>选择内核</translation>
+        <location filename="../src/pages/RepairPage.cpp" line="294"/>
+        <source>No installed kernel found</source>
+        <translation>未找到已安装的内核</translation>
     </message>
     <message>
-        <location filename="../src/pages/RepairPage.cpp" line="140"/>
+        <source>Choose a kernel</source>
+        <translation type="vanished">选择内核</translation>
+    </message>
+    <message>
+        <location filename="../src/pages/RepairPage.cpp" line="122"/>
         <source>Current system (/)</source>
         <translation>当前系统（/）</translation>
     </message>
     <message>
-        <location filename="../src/pages/RepairPage.cpp" line="145"/>
+        <location filename="../src/pages/RepairPage.cpp" line="127"/>
         <source>Mount for repair: %1</source>
         <translation>挂载后修复：%1</translation>
     </message>
     <message>
-        <location filename="../src/pages/RepairPage.cpp" line="177"/>
+        <location filename="../src/pages/RepairPage.cpp" line="164"/>
         <source>Select a target EFI system partition</source>
         <translation>请选择目标 EFI 系统分区</translation>
     </message>
     <message>
-        <location filename="../src/pages/RepairPage.cpp" line="185"/>
+        <location filename="../src/pages/RepairPage.cpp" line="176"/>
         <source>Select a mounted EFI partition</source>
         <translation>请选择已挂载的 EFI 分区</translation>
     </message>
     <message>
-        <location filename="../src/pages/RepairPage.cpp" line="198"/>
+        <location filename="../src/pages/RepairPage.cpp" line="190"/>
         <source>Select a whole physical disk</source>
         <translation>请选择整块物理磁盘</translation>
     </message>
     <message>
-        <location filename="../src/pages/RepairPage.cpp" line="295"/>
+        <location filename="../src/pages/RepairPage.cpp" line="273"/>
         <source>configured ESP</source>
         <translation>已配置的 EFI 分区</translation>
     </message>
     <message>
-        <location filename="../src/pages/RepairPage.cpp" line="296"/>
+        <location filename="../src/pages/RepairPage.cpp" line="274"/>
         <source>Update %1 (%2) in %3, destination: %4%5%6</source>
         <translation>在 %3 中更新 %1（%2），目标：%4%5%6</translation>
     </message>
     <message>
-        <location filename="../src/pages/RepairPage.cpp" line="298"/>
+        <location filename="../src/pages/RepairPage.cpp" line="276"/>
         <source> · register UEFI entry</source>
         <translation> · 注册 UEFI 启动项</translation>
     </message>
     <message>
-        <location filename="../src/pages/RepairPage.cpp" line="299"/>
+        <location filename="../src/pages/RepairPage.cpp" line="277"/>
         <source> · overwrite EFI fallback</source>
         <translation> · 覆盖 EFI 回退引导器</translation>
     </message>
@@ -2172,41 +2219,46 @@ State: %2
     </message>
     <message>
         <location filename="../src/pages/SettingsPage.cpp" line="125"/>
+        <source>Choose a kernel</source>
+        <translation>请选择内核</translation>
+    </message>
+    <message>
+        <location filename="../src/pages/SettingsPage.cpp" line="145"/>
         <source>Default</source>
         <translation>默认</translation>
     </message>
     <message>
-        <location filename="../src/pages/SettingsPage.cpp" line="127"/>
+        <location filename="../src/pages/SettingsPage.cpp" line="147"/>
         <source>Enabled</source>
         <translation>开启</translation>
     </message>
     <message>
-        <location filename="../src/pages/SettingsPage.cpp" line="128"/>
+        <location filename="../src/pages/SettingsPage.cpp" line="148"/>
         <source>Disabled</source>
         <translation>关闭</translation>
     </message>
     <message>
-        <location filename="../src/pages/SettingsPage.cpp" line="130"/>
+        <location filename="../src/pages/SettingsPage.cpp" line="150"/>
         <source>Centered</source>
         <translation>居中</translation>
     </message>
     <message>
-        <location filename="../src/pages/SettingsPage.cpp" line="131"/>
+        <location filename="../src/pages/SettingsPage.cpp" line="151"/>
         <source>Stretched</source>
         <translation>拉伸</translation>
     </message>
     <message>
-        <location filename="../src/pages/SettingsPage.cpp" line="132"/>
+        <location filename="../src/pages/SettingsPage.cpp" line="152"/>
         <source>Tiled</source>
         <translation>平铺</translation>
     </message>
     <message>
-        <location filename="../src/pages/SettingsPage.cpp" line="207"/>
+        <location filename="../src/pages/SettingsPage.cpp" line="227"/>
         <source>Invalid setting</source>
         <translation>配置值无效</translation>
     </message>
     <message>
-        <location filename="../src/pages/SettingsPage.cpp" line="208"/>
+        <location filename="../src/pages/SettingsPage.cpp" line="228"/>
         <source>Invalid value for %1. Check the field description.</source>
         <translation>%1 的值不合法，请查看输入框说明。</translation>
     </message>

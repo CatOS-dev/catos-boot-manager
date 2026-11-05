@@ -109,7 +109,7 @@ bool preflight(const QList<BootOperation> &operations, const BootSnapshot &snaps
     bool rebuildGrub = false;
     bool rebuildLimine = false;
     QMap<QString, QMap<QString, QString>> imageChanges;
-    QSet<QString> imageRebuilds;
+    QMap<QString, QSet<LoaderKind>> imageRebuilds;
     for (const auto &op : operations) {
         if (used.contains(op.key())) { *error = QStringLiteral("Duplicate operation"); return false; }
         used.insert(op.key());
@@ -146,7 +146,7 @@ bool preflight(const QList<BootOperation> &operations, const BootSnapshot &snaps
             rebuildGrub |= bound->kind == LoaderKind::Grub;
             if (BootDeploy::directImage(bound->kind)) {
                 imageChanges[bound->config].insert(key, op.value);
-                imageRebuilds.insert(bound->config);
+                imageRebuilds[bound->config].insert(bound->kind);
             }
         } else if (op.kind == QLatin1String("firmware-order")) {
             if (!snapshot.uefi || snapshot.bootOrder.join(QLatin1Char(',')) != op.expected) {
@@ -197,10 +197,10 @@ bool preflight(const QList<BootOperation> &operations, const BootSnapshot &snaps
         } else if (op.kind == QLatin1String("rebuild-image")) {
             bool bound = false;
             for (const auto &loader : snapshot.installations)
-                if (BootDeploy::directImage(loader.kind) && loader.config == op.target && loader.settingsEditable
+                if (BootDeploy::directImage(loader.kind) && BootDeploy::loaderId(loader.kind) == op.value && loader.config == op.target && loader.settingsEditable
                     && QJsonDocument::fromJson(loader.menuContent.toUtf8()).object().value("fingerprint").toString() == op.expected) bound = true;
             if (!bound) { *error = QStringLiteral("The selected image settings changed"); return false; }
-            imageRebuilds.insert(op.target);
+            imageRebuilds[op.target].insert(op.value == QLatin1String("uki") ? LoaderKind::Uki : LoaderKind::EfiStub);
         }
         else if (BootRepair::supports(op.kind)) {
             if (!BootRepair::validate(op, error)) return false;
@@ -220,8 +220,9 @@ bool preflight(const QList<BootOperation> &operations, const BootSnapshot &snaps
             *error = QStringLiteral("efibootmgr is unavailable"); return false;
         }
     }
-    for (const auto &path : imageRebuilds)
-        if (!BootDeploy::validateRebuild(path, imageChanges.value(path), snapshot, error)) return false;
+    for (auto it = imageRebuilds.begin(); it != imageRebuilds.end(); ++it)
+        for (const auto kind : it.value())
+            if (!BootDeploy::validateRebuild(kind, it.key(), imageChanges.value(it.key()), snapshot, error)) return false;
     // Do not leave a configured default pointing to a removed entry.
     for (const auto &loader : snapshot.installations) {
         if (loader.kind != LoaderKind::SystemdBoot) continue;
@@ -242,7 +243,7 @@ bool apply(const QList<BootOperation> &operations, BootBackup &backup, const Boo
     if (!packageError.isEmpty()) return false;
     if (!packages.isEmpty() && !run(backup, QStringLiteral("pacman"), packages)) return false;
     bool grubEdited = false;
-    QSet<QString> images;
+    QMap<QString, QSet<LoaderKind>> images;
     bool rebuildGrub = false;
     bool rebuildLimine = false;
     for (const auto &op : operations) {
@@ -263,20 +264,22 @@ bool apply(const QList<BootOperation> &operations, BootBackup &backup, const Boo
         const bool written = BootSettings::write(bound->kind, location, key, op.value, &error);
         if (!recordResult(backup, op.kind + ':' + op.target, written)) { QTextStream(stderr) << error << Qt::endl; return false; }
         grubEdited |= bound->kind == LoaderKind::Grub;
-        if (BootDeploy::directImage(bound->kind)) images.insert(bound->config);
+        if (BootDeploy::directImage(bound->kind)) images[bound->config].insert(bound->kind);
     }
     for (const auto &op : operations) {
-        if (op.kind == QLatin1String("rebuild-image")) images.insert(op.target);
+        if (op.kind == QLatin1String("rebuild-image")) images[op.target].insert(op.value == QLatin1String("uki") ? LoaderKind::Uki : LoaderKind::EfiStub);
         rebuildGrub |= op.kind == QLatin1String("rebuild-grub");
         rebuildLimine |= op.kind == QLatin1String("rebuild-limine");
     }
     if ((grubEdited || rebuildGrub)
         && !run(backup, QStringLiteral("grub-mkconfig"), {QStringLiteral("-o"), QStringLiteral("/boot/grub/grub.cfg")})) return false;
     if (rebuildLimine && !run(backup, QStringLiteral("limine-mkinitcpio"), {})) return false;
-    for (const auto &path : images) {
-        QString error;
-        const bool success = BootDeploy::rebuild(path, &error);
-        if (!recordResult(backup, "rebuild-image:" + path, success)) { QTextStream(stderr) << error << Qt::endl; return false; }
+    for (auto it = images.begin(); it != images.end(); ++it) {
+        for (const auto kind : it.value()) {
+            QString error;
+            const bool success = BootDeploy::rebuild(kind, it.key(), &error);
+            if (!recordResult(backup, "rebuild-image:" + it.key(), success)) { QTextStream(stderr) << error << Qt::endl; return false; }
+        }
     }
     // Firmware operations are deliberately last; they can be partially applied
     // by UEFI firmware even when another later operation fails.

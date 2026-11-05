@@ -35,6 +35,8 @@ RepairPage::RepairPage(LoaderKind kind, QWidget *parent) : QWidget(parent), kind
     BootUi::enableCopy(firmwareMode_);
     espTarget_ = new QComboBox(content);
     BootUi::enableCopy(espTarget_);
+    espTarget_->setObjectName("installationDirectory");
+    espTarget_->setEditable(true);
     diskTarget_ = new QComboBox(content);
     BootUi::enableCopy(diskTarget_);
     espMountPoint_ = new QComboBox(content);
@@ -52,32 +54,19 @@ RepairPage::RepairPage(LoaderKind kind, QWidget *parent) : QWidget(parent), kind
     if (kind == LoaderKind::Grub) firmwareMode_->addItem(QStringLiteral("BIOS / Legacy"), QStringLiteral("bios"));
     form->addRow(tr("Target system:"), rootTarget_);
     form->addRow(tr("Firmware mode:"), firmwareMode_);
-    form->addRow(tr("EFI partition:"), espTarget_);
+    form->addRow(tr("Installation directory:"), espTarget_);
     form->addRow(tr("BIOS disk:"), diskTarget_);
     form->addRow(tr("Btrfs root subvolume:"), rootSubvolume_);
     form->addRow(tr("EFI mount in target:"), espMountPoint_);
-    imageId_ = new QLineEdit(QStringLiteral("catos"), content);
-    imageId_->setObjectName("deploymentName");
     imageLabel_ = new QLineEdit(loaderName(kind), content);
     imageLabel_->setObjectName("deploymentLabel");
-    kernelChoice_ = new QComboBox(content);
-    kernelChoice_->setObjectName("deploymentKernelChoice");
-    BootUi::enableCopy(kernelChoice_);
-    kernel_ = new QLineEdit(content); kernel_->setObjectName("deploymentKernel");
-    initramfs_ = new QLineEdit(content); initramfs_->setObjectName("deploymentInitramfs");
-    version_ = new QLineEdit(content); version_->setObjectName("deploymentVersion");
     cmdline_ = new QLineEdit(content); cmdline_->setObjectName("deploymentParameters");
-    signingKey_ = new QLineEdit(content); signingKey_->setObjectName("deploymentSigningKey");
-    certificate_ = new QLineEdit(content); certificate_->setObjectName("deploymentCertificate");
-    form->addRow(tr("Image name:"), imageId_);
+    installedKernels_ = BootUi::muted({}, content);
+    installedKernels_->setObjectName("deploymentInstalledKernels");
+    installedKernels_->setTextFormat(Qt::PlainText);
     form->addRow(tr("Boot entry name:"), imageLabel_);
-    form->addRow(tr("Installed kernel:"), kernelChoice_);
-    form->addRow(tr("Kernel image:"), kernel_);
-    form->addRow(tr("Initramfs image:"), initramfs_);
     form->addRow(tr("Kernel parameters:"), cmdline_);
-    form->addRow(tr("Kernel version:"), version_);
-    form->addRow(tr("Signing key:"), signingKey_);
-    form->addRow(tr("Signing certificate:"), certificate_);
+    form->addRow(tr("Installed kernels:"), installedKernels_);
     layout->addLayout(form);
     for (int row = 0; row < form->rowCount(); ++row) {
         auto *label = qobject_cast<QLabel *>(form->itemAt(row, QFormLayout::LabelRole)->widget());
@@ -108,20 +97,13 @@ RepairPage::RepairPage(LoaderKind kind, QWidget *parent) : QWidget(parent), kind
     connect(deploy_, &QPushButton::clicked, this, [this] { install(QStringLiteral("install")); });
     connect(repair_, &QPushButton::clicked, this, [this] { install(QStringLiteral("repair")); });
     connect(update_, &QPushButton::clicked, this, [this] { install(QStringLiteral("update")); });
-    connect(kernelChoice_, &QComboBox::currentIndexChanged, this, [this] {
-        const auto data = kernelChoice_->currentData().toJsonObject();
-        if (data.isEmpty()) return;
-        kernel_->setText(data.value("kernel").toString());
-        initramfs_->setText(data.value("initramfs").toString());
-        cmdline_->setText(data.value("cmdline").toString());
-        version_->setText(data.value("version").toString());
-    });
     connect(rootTarget_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
             &RepairPage::updateRepairChoices);
     connect(firmwareMode_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
             &RepairPage::updateRepairChoices);
     connect(espTarget_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
             &RepairPage::updateRepairAvailability);
+    connect(espTarget_, &QComboBox::editTextChanged, this, &RepairPage::updateRepairAvailability);
     connect(diskTarget_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
             &RepairPage::updateRepairAvailability);
 }
@@ -161,6 +143,7 @@ void RepairPage::selectDestination(const QString &esp)
 {
     const int destination = espTarget_->findData(esp);
     if (destination >= 0) espTarget_->setCurrentIndex(destination);
+    else if (!esp.isEmpty()) espTarget_->setEditText(esp);
 }
 
 void RepairPage::updateRepairChoices()
@@ -170,15 +153,23 @@ void RepairPage::updateRepairChoices()
     const QString loader = loader_;
     const bool bios = firmwareMode_->currentData() == QLatin1String("bios");
     const bool limine = loader == QLatin1String("limine");
-    const QString previousEsp = espTarget_->currentData().toString();
+    if (!destinationRoot_.isEmpty()) destinations_.insert(destinationRoot_, espTarget_->currentText());
+    const QString previousEsp = destinations_.value(root);
+    destinationRoot_ = root;
     espTarget_->blockSignals(true);
     espTarget_->clear();
+    const bool directory = BootDeploy::directImage(kind_) || kind_ == LoaderKind::Refind;
+    espTarget_->setEditable(directory && !autoRoot);
     if (!bios && autoRoot) {
         espTarget_->addItem(tr("Select a target EFI system partition"), QString());
         for (const auto &device : devices_) {
-            if (device.type == QLatin1String("part") && device.filesystem == QLatin1String("vfat"))
+            if (device.type == QLatin1String("part"))
                 espTarget_->addItem(device.label(), device.path);
         }
+    } else if (directory && !bios) {
+        espTarget_->addItem(root == QLatin1String("/") ? QStringLiteral("/boot/efi") : root + QStringLiteral("/boot/efi"));
+        for (const auto &mount : espMounts_)
+            if ((root == QLatin1String("/") || mount.startsWith(root + '/')) && espTarget_->findText(mount) < 0) espTarget_->addItem(mount);
     } else if (limine && !bios) {
         espTarget_->addItem(tr("Current system EFI partition"), QString());
     } else if (!limine && !bios) {
@@ -188,8 +179,9 @@ void RepairPage::updateRepairChoices()
             espTarget_->addItem(esp, esp);
         }
     }
-    const int espIndex = espTarget_->findData(previousEsp);
+    const int espIndex = espTarget_->findText(previousEsp);
     espTarget_->setCurrentIndex(espIndex >= 0 ? espIndex : 0);
+    if (directory && !autoRoot && previousEsp.startsWith(root == QLatin1String("/") ? QStringLiteral("/") : root + '/')) espTarget_->setEditText(previousEsp);
     espTarget_->blockSignals(false);
 
     const QString previousDisk = diskTarget_->currentData().toString();
@@ -224,14 +216,9 @@ void RepairPage::updateRepairChoices()
     if (!installFallback_->isEnabled()) installFallback_->setChecked(false);
     const bool image = BootDeploy::directImage(kind_);
     const bool refind = kind_ == LoaderKind::Refind;
-    form_->setRowVisible(imageId_, image);
-    form_->setRowVisible(imageLabel_, image || refind);
-    for (auto *field : {kernel_, initramfs_}) form_->setRowVisible(field, image);
-    form_->setRowVisible(kernelChoice_, image);
-    form_->setRowVisible(cmdline_, image || refind);
-    form_->setRowVisible(version_, kind_ == LoaderKind::Uki);
-    form_->setRowVisible(signingKey_, kind_ == LoaderKind::Uki);
-    form_->setRowVisible(certificate_, kind_ == LoaderKind::Uki);
+    form_->setRowVisible(imageLabel_, refind);
+    form_->setRowVisible(cmdline_, refind);
+    form_->setRowVisible(installedKernels_, image && !autoRoot);
     if (kind_ == LoaderKind::EfiStub) { installFallback_->hide(); installFallback_->setChecked(false); }
     updateKernels();
     updateRepairAvailability();
@@ -245,7 +232,7 @@ void RepairPage::updateRepairAvailability()
     const bool automatic = root.startsWith(QLatin1String("auto:"));
     const bool supported = !bios || loader_ == QLatin1String("grub");
     const bool chosen = bios ? !diskTarget_->currentData().toString().isEmpty()
-        : (limine && !automatic) || !espTarget_->currentData().toString().isEmpty();
+        : (limine && !automatic) || (espTarget_->isEditable() ? espTarget_->currentText().startsWith('/') : !espTarget_->currentData().toString().isEmpty());
     const bool ready = !root.isEmpty() && supported && chosen && (root != QLatin1String("/") || packagesReady_);
     deploy_->setEnabled(ready);
     repair_->setEnabled(ready);
@@ -259,7 +246,7 @@ void RepairPage::install(const QString &action)
     const QString loader = loader_;
     const QString mode = firmwareMode_->currentData().toString();
     const bool bios = mode == QLatin1String("bios");
-    const QString selectedEsp = bios ? QString() : espTarget_->currentData().toString();
+    const QString selectedEsp = bios ? QString() : (espTarget_->isEditable() ? espTarget_->currentText().trimmed() : espTarget_->currentData().toString());
     const QString esp = autoRoot ? QString() : selectedEsp;
     const QString rootDevice = autoRoot ? root.mid(5) : QString();
     const QString espDevice = autoRoot ? selectedEsp : QString();
@@ -278,18 +265,9 @@ void RepairPage::install(const QString &action)
         {QStringLiteral("rootSource"), autoRoot ? QString() : mountSources_.value(root)},
         {QStringLiteral("espSource"), mountSources_.value(esp)}};
     data.insert("action", action);
-    if (BootDeploy::directImage(kind_) || kind_ == LoaderKind::Refind) {
-        data.insert("id", imageId_->text().trimmed());
+    if (kind_ == LoaderKind::Refind) {
         data.insert("label", imageLabel_->text().trimmed());
-        data.insert("kernel", kernel_->text().trimmed());
-        data.insert("initramfs", initramfs_->text().trimmed());
         data.insert("cmdline", cmdline_->text().trimmed());
-        if (kind_ == LoaderKind::Uki) {
-            data.insert("version", version_->text().trimmed());
-            data.insert("private-key", signingKey_->text().trimmed());
-            data.insert("certificate", certificate_->text().trimmed());
-        }
-        if (action != QLatin1String("install") && !binary_.isEmpty() && binary_.startsWith(esp + '/')) data.insert("binary", binary_);
     }
     const QString target = bios ? disk : (autoRoot ? espDevice + QStringLiteral(" → ")
         + espMountPoint_->currentText() : (esp.isEmpty() ? tr("configured ESP") : esp));
@@ -306,46 +284,29 @@ void RepairPage::install(const QString &action)
 
 void RepairPage::updateKernels()
 {
-    const auto previous = kernelChoice_->currentData().toJsonObject();
-    const QString root = rootTarget_->currentData().toString();
-    const QSignalBlocker blocker(kernelChoice_);
-    kernelChoice_->clear();
-    kernelChoice_->addItem(tr("Choose a kernel"), QJsonObject());
-    int selected = 0;
+    QStringList kernels;
+    const auto root = rootTarget_->currentData().toString();
     for (const auto &value : kernels_) {
         const auto kernel = value.toObject();
-        if (kernel.value("root").toString() != root) continue;
-        kernelChoice_->addItem(kernel.value("name").toString() + " · " + kernel.value("version").toString(), kernel);
-        if (previous.value("root").toString() == root && previous.value("kernel") == kernel.value("kernel")) selected = kernelChoice_->count() - 1;
+        if (kernel.value("root").toString() == root)
+            kernels.append(kernel.value("name").toString() + " · " + kernel.value("version").toString());
     }
-    kernelChoice_->setCurrentIndex(selected);
-    if (!kernelRoot_.isEmpty() && kernelRoot_ != root) {
-        kernel_->clear(); initramfs_->clear(); cmdline_->clear(); version_->clear();
-    }
-    kernelRoot_ = root;
+    installedKernels_->setText(kernels.isEmpty() ? tr("No installed kernel found") : kernels.join('\n'));
 }
 
 void RepairPage::selectInstallation(const BootInstallation *installation)
 {
+    const auto id = installation ? installation->id : QString();
+    const bool changed = id != installationId_;
+    installationId_ = id;
     binary_ = installation ? installation->binary : QString();
+    if (installation && changed) {
+        const auto root = installation->settingValues.value("root");
+        const int index = rootTarget_->findData(root);
+        if (index >= 0 && index != rootTarget_->currentIndex()) rootTarget_->setCurrentIndex(index);
+        selectDestination(installation->esp);
+    }
     updateRepairAvailability();
-    if (!installation) return;
-    selectDestination(installation->esp);
-    if (!BootDeploy::directImage(kind_)) return;
-    const auto &values = installation->settingValues;
-    const int root = rootTarget_->findData(values.value("root"));
-    if (!values.value("root").isEmpty() && root != rootTarget_->currentIndex()) rootTarget_->setCurrentIndex(root);
-    for (const auto &pair : {qMakePair(QStringLiteral("id"), imageId_), qMakePair(QStringLiteral("label"), imageLabel_),
-        qMakePair(QStringLiteral("kernel"), kernel_), qMakePair(QStringLiteral("initramfs"), initramfs_),
-        qMakePair(QStringLiteral("cmdline"), cmdline_), qMakePair(QStringLiteral("private-key"), signingKey_),
-        qMakePair(QStringLiteral("certificate"), certificate_), qMakePair(QStringLiteral("version"), version_)})
-        pair.second->setText(values.value(pair.first, pair.first == QLatin1String("id") ? QFileInfo(installation->binary).baseName()
-            : pair.first == QLatin1String("label") ? loaderName(kind_) : QString()));
-    const QSignalBlocker blocker(kernelChoice_);
-    kernelChoice_->setCurrentIndex(0);
-    for (int i = 1; i < kernelChoice_->count(); ++i)
-        if (kernelChoice_->itemData(i).toJsonObject().value("kernel").toString() == values.value("kernel")) { kernelChoice_->setCurrentIndex(i); break; }
-    selectDestination(installation->esp);
 }
 
 void RepairPage::addImageBootEntry()

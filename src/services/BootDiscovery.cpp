@@ -44,19 +44,20 @@ void BootDiscovery::populate(BootSnapshot &snapshot, const QList<Esp> &partition
         const QString uuid = partition.partitionUuid.toLower();
         auto append = [&](LoaderKind kind, const QString &binary, const QString &config,
                           const QString &evidence, const Image &image) {
-            const QString relative = QDir(esp).relativeFilePath(binary.isEmpty() ? config : binary);
+            const QString relative = QDir::cleanPath(partition.firmwareDirectory.isEmpty() ? QDir(esp).relativeFilePath(binary.isEmpty() ? config : binary)
+                : partition.firmwareDirectory + '/' + QDir(esp).relativeFilePath(binary.isEmpty() ? config : binary));
             const QString id = loaderName(kind) + QLatin1Char(':') + uuid
                 + QLatin1Char(':') + (binary.isEmpty() ? QStringLiteral("config:") : QString())
                 + normalized(relative);
             for (const auto &existing : snapshot.installations)
-                if (existing.id == id && existing.esp == esp) return;
+                if ((!binary.isEmpty() && existing.binary == binary) || (existing.id == id && existing.esp == esp)) return;
             BootInstallation installation;
             installation.kind = kind;
             installation.id = uuid.isEmpty() ? id + QLatin1Char(':') + esp : id;
             installation.esp = esp;
             installation.espPartuuid = uuid;
             installation.binary = binary;
-            installation.config = BootDeploy::directImage(kind) ? BootDeploy::profilePath(binary) : config;
+            installation.config = config;
             installation.binaryPresent = !binary.isEmpty() && QFileInfo(binary).isFile();
             installation.configPresent = !installation.config.isEmpty() && QFileInfo(installation.config).isFile();
             installation.evidence = evidence;
@@ -113,7 +114,12 @@ void BootDiscovery::populate(BootSnapshot &snapshot, const QList<Esp> &partition
         }
         for (const auto &entry : snapshot.firmware) {
             if (uuid.isEmpty() || entry.partitionUuid.toLower() != uuid) continue;
-            const QString relative = normalized(entry.path);
+            QString relative = normalized(entry.path);
+            const auto prefix = normalized('/' + partition.firmwareDirectory);
+            if (prefix != QLatin1String("/")) {
+                if (!relative.startsWith(prefix + '/')) continue;
+                relative.remove(0, prefix.size());
+            }
             if (!relative.startsWith(QLatin1String("/efi/"))) continue;
             const auto kind = namedLoader(relative);
             if (kind) append(*kind, esp + relative, {}, QObject::tr("Firmware entry points to this EFI program"), {});

@@ -178,7 +178,14 @@ BootSnapshot BootProbe::inspect()
     if (state.uefi && efidata.isEmpty())
         state.messages.append(QObject::tr("Could not read UEFI variables; firmware management is unavailable."));
 
-    const QStringList mounts = espMounts();
+    QStringList mounts = espMounts();
+    for (const auto &root : BootRepair::mountedTargets()) {
+        if (!QFileInfo::exists(BootDeploy::configurationPath(root))) continue;
+        QString error;
+        const auto configuration = BootDeploy::profile(BootDeploy::configurationPath(root), &error);
+        const auto destination = configuration.value("esp").toString();
+        if (error.isEmpty() && QDir(destination).exists() && !mounts.contains(destination)) mounts.append(destination);
+    }
     state.espMounts = mounts;
     state.devices = BootDevices::discover();
     state.repairRoots = BootRepair::mountedTargets();
@@ -191,10 +198,12 @@ BootSnapshot BootProbe::inspect()
     QList<BootDiscovery::Esp> partitions;
     for (const auto &esp : mounts) {
         const QString source = runReadOnly(QStringLiteral("findmnt"),
-            {QStringLiteral("-rn"), QStringLiteral("-M"), esp, QStringLiteral("-o"), QStringLiteral("SOURCE")}).trimmed();
+            {QStringLiteral("-rn"), QStringLiteral("--nofsroot"), QStringLiteral("-T"), esp, QStringLiteral("-o"), QStringLiteral("SOURCE")}).trimmed();
         const QString uuid = runReadOnly(QStringLiteral("lsblk"),
             {QStringLiteral("-dn"), QStringLiteral("-o"), QStringLiteral("PARTUUID"), source}).trimmed();
-        partitions.append({esp, uuid});
+        const auto mount = runReadOnly("findmnt", {"-rn", "-T", esp, "-o", "TARGET"}).trimmed();
+        const auto directory = mount.isEmpty() ? QString() : QDir(mount).relativeFilePath(esp);
+        partitions.append({esp, uuid, directory == QLatin1String(".") ? QString() : directory});
     }
     BootDiscovery::populate(state, partitions, QStringLiteral("/"), [](const QString &path) {
         const auto details = BootSecurity::readCommand(QStringLiteral("objdump"), {QStringLiteral("-f"), path});

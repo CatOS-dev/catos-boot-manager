@@ -149,28 +149,31 @@ void BootInstallTest::createBlsAndSelectItInOneTransaction()
 void BootInstallTest::validateProjectedImageSettingsBeforeWriting()
 {
     QTemporaryDir directory; QVERIFY(directory.isValid());
-    const auto esp = directory.path() + "/esp";
-    const auto binary = esp + "/EFI/CatOS/linux/vmlinuz.efi";
-    const auto kernel = directory.path() + "/kernel";
-    const auto initrd = directory.path() + "/initrd";
+    const auto root = directory.path() + "/root";
+    const auto esp = root + "/ordinary-output";
+    const auto path = BootDeploy::configurationPath(root);
+    const auto binary = esp + "/EFI/CatOS/linux/hash/vmlinuz.efi";
     QVERIFY(writeMenuFixture(binary, "existing kernel"));
-    QVERIFY(writeMenuFixture(kernel, "source kernel")); QVERIFY(writeMenuFixture(initrd, "source initramfs"));
-    const auto path = BootDeploy::profilePath(binary);
-    QJsonObject data{{"loader", "efistub"}, {"esp", esp}, {"binary", binary}, {"id", "linux"}, {"label", "Linux"},
-        {"root", "/"}, {"kernel", kernel}, {"initramfs", initrd}, {"cmdline", "old"}};
-    QVERIFY(writeMenuFixture(path, QJsonDocument(data).toJson()));
+    QVERIFY(writeMenuFixture(path, "[boot]\nmethod=efistub\n"));
+    QVERIFY(writeMenuFixture(root + "/usr/bin/catos-firmware-boot-update", "#!/bin/sh\nexit 0\n"));
+    QVERIFY(QFile::setPermissions(root + "/usr/bin/catos-firmware-boot-update", QFileDevice::ReadOwner | QFileDevice::ExeOwner));
+    QVERIFY(writeMenuFixture(directory.path() + "/arch-chroot", "#!/bin/sh\nprintf '%s' '{\"loader\":\"efistub\",\"esp\":\"/ordinary-output\",\"cmdline\":\"old\",\"default_kernel\":\"linux\",\"label_prefix\":\"CatOS\"}'\n"));
+    QVERIFY(QFile::setPermissions(directory.path() + "/arch-chroot", QFileDevice::ReadOwner | QFileDevice::ExeOwner));
+    const auto oldPath = qgetenv("PATH");
+    const auto restore = qScopeGuard([&] { qputenv("PATH", oldPath); });
+    qputenv("PATH", directory.path().toUtf8());
     BootSnapshot snapshot;
-    snapshot.espMounts = {esp}; snapshot.repairRoots = {"/"};
+    snapshot.repairRoots = {root};
     snapshot.installations = {{LoaderKind::EfiStub, "image", esp, {}, binary, path, true}};
     BootContent::populate(snapshot);
     QString error;
     QVERIFY2(preflight({{"efistub-setting", path + "|cmdline", "new", "old"}}, snapshot, &error), qPrintable(error));
     const auto before = BootMenus::readText(path, &error); QVERIFY(error.isEmpty());
-    QVERIFY(!preflight({{"efistub-setting", path + "|kernel", "/missing/kernel", kernel}}, snapshot, &error)); QVERIFY(!error.isEmpty());
+    QVERIFY(!preflight({{"efistub-setting", path + "|initramfs", "/missing/initramfs", ""}}, snapshot, &error)); QVERIFY(!error.isEmpty());
     QCOMPARE(BootMenus::readText(path, &error), before); QVERIFY(error.isEmpty());
     const auto hash = QJsonDocument::fromJson(snapshot.installations[0].menuContent.toUtf8()).object().value("fingerprint").toString();
-    QVERIFY2(preflight({{"rebuild-image", path, {}, hash}}, snapshot, &error), qPrintable(error));
-    QVERIFY(!preflight({{"rebuild-image", path, {}, "stale"}}, snapshot, &error)); QVERIFY(!error.isEmpty());
+    QVERIFY2(preflight({{"rebuild-image", path, "efistub", hash}}, snapshot, &error), qPrintable(error));
+    QVERIFY(!preflight({{"rebuild-image", path, "efistub", "stale"}}, snapshot, &error)); QVERIFY(!error.isEmpty());
 }
 
 QTEST_GUILESS_MAIN(BootInstallTest)

@@ -34,17 +34,13 @@ private:
     void updateKernels();
     LoaderKind kind_;
     QJsonArray kernels_;
-    QString kernelRoot_;
     QString binary_;
-    QComboBox *kernelChoice_ = nullptr;
-    QLineEdit *imageId_ = nullptr;
+    QString installationId_;
+    QString destinationRoot_;
+    QMap<QString, QString> destinations_;
+    QLabel *installedKernels_ = nullptr;
     QLineEdit *imageLabel_ = nullptr;
-    QLineEdit *kernel_ = nullptr;
-    QLineEdit *initramfs_ = nullptr;
-    QLineEdit *version_ = nullptr;
     QLineEdit *cmdline_ = nullptr;
-    QLineEdit *signingKey_ = nullptr;
-    QLineEdit *certificate_ = nullptr;
     QPushButton *update_ = nullptr;
 
     QList<BootDevice> devices_;

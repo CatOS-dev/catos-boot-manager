@@ -201,7 +201,7 @@ QString BootMenus::limineGeneratorPath(QString *error)
 bool BootMenus::safePath(const QString &path, const QString &base)
 {
     if (!QDir::isAbsolutePath(path) || QDir::cleanPath(path) != path || !QDir::isAbsolutePath(base)
-        || !path.startsWith(QDir::cleanPath(base) + '/')) return false;
+        || !path.startsWith(base == QLatin1String("/") ? QStringLiteral("/") : QDir::cleanPath(base) + '/')) return false;
     QString current = path;
     while (current != base) {
         if (QFileInfo(current).isSymLink()) return false;
