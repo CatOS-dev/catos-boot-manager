@@ -7,7 +7,7 @@ QJsonObject BootOperation::json() const
 {
     return {{QStringLiteral("kind"), kind}, {QStringLiteral("target"), target},
             {QStringLiteral("value"), value}, {QStringLiteral("expected"), expected},
-            {QStringLiteral("description"), description}};
+            {QStringLiteral("description"), description}, {QStringLiteral("expectedEntry"), expectedEntry}};
 }
 
 BootOperation BootOperation::fromJson(const QJsonObject &object)
@@ -16,7 +16,8 @@ BootOperation BootOperation::fromJson(const QJsonObject &object)
             object.value(QStringLiteral("target")).toString(),
             object.value(QStringLiteral("value")).toString(),
             object.value(QStringLiteral("expected")).toString(),
-            object.value(QStringLiteral("description")).toString()};
+            object.value(QStringLiteral("description")).toString(),
+            object.value(QStringLiteral("expectedEntry")).toString()};
 }
 
 void BootTransaction::stage(const BootOperation &operation)
@@ -56,7 +57,7 @@ QByteArray BootTransaction::encoded() const
 {
     QJsonArray array;
     for (const auto &item : operations_) array.append(item.json());
-    return QJsonDocument(QJsonObject{{QStringLiteral("version"), 1},
+    return QJsonDocument(QJsonObject{{QStringLiteral("version"), 2},
                                      {QStringLiteral("operations"), array}})
         .toJson(QJsonDocument::Compact).toBase64();
 }
@@ -66,7 +67,7 @@ QList<BootOperation> BootTransaction::decode(const QByteArray &data, QString *er
     const auto document = QJsonDocument::fromJson(QByteArray::fromBase64(data));
     const auto root = document.object();
     const auto array = root.value(QStringLiteral("operations")).toArray();
-    if (!document.isObject() || root.value(QStringLiteral("version")).toInt() != 1
+    if (!document.isObject() || root.value(QStringLiteral("version")).toInt() != 2
         || array.isEmpty() || array.size() > 64) {
         if (error) *error = QStringLiteral("Invalid transaction payload");
         return {};
@@ -77,7 +78,9 @@ QList<BootOperation> BootTransaction::decode(const QByteArray &data, QString *er
         const auto operation = BootOperation::fromJson(value.toObject());
         if (operation.kind.isEmpty() || operation.kind.size() > 64
             || operation.target.size() > 1024 || operation.value.size() > 4096
-            || operation.expected.size() > 4096 || operation.description.size() > 512) {
+            || operation.expected.size() > 4096 || operation.description.size() > 512
+            || !value.toObject().value(QStringLiteral("expectedEntry")).isString()
+            || operation.expectedEntry.size() > 4096) {
             if (error) *error = QStringLiteral("Invalid operation fields");
             return {};
         }

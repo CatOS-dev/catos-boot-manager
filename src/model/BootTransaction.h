@@ -10,6 +10,7 @@ struct BootOperation {
     QString value;
     QString expected;
     QString description;
+    QString expectedEntry;
 
     QString key() const
     {

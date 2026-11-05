@@ -7,6 +7,7 @@
 #include <array>
 
 enum class LoaderKind { Grub, Limine, Refind, SystemdBoot, Uki, EfiStub };
+enum class SecureBootState { Unknown, Disabled, Enabled, Unsupported };
 
 inline constexpr std::array<LoaderKind, 6> loaderKinds{
     LoaderKind::Grub, LoaderKind::Limine, LoaderKind::Refind,
@@ -57,6 +58,7 @@ struct BootInstallation {
     bool defaultEntry = false;
     bool nextEntry = false;
     QString evidence;
+    QString imageType;
 };
 
 struct BootSnapshot {
@@ -69,6 +71,7 @@ struct BootSnapshot {
     QString currentLoader;
     QString currentEvidence;
     QStringList messages;
+    SecureBootState secureBoot = SecureBootState::Unknown;
 
     QList<BootInstallation> manageableInstallations() const
     {

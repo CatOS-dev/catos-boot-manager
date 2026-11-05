@@ -44,6 +44,11 @@ entry. All commands are invoked through an argument vector, not shell strings.
   selected entry, select the default and change menu timeout.
 - Manage UEFI BootOrder, BootNext, entry creation/removal, enable/disable and
   entry labels via `efibootmgr`.
+- Select an existing registered instance on the Boot methods page for default
+  or one-time boot. The plan binds the selected firmware identity and rechecks
+  its discovered program before execution. This workflow currently requires
+  Secure Boot to be confirmed disabled; signature-policy verification is not
+  yet integrated. It preserves other instances and does not install packages.
 - Rebuild existing GRUB and Limine configuration, and update systemd-boot.
 - Install or repair GRUB in BIOS/UEFI mode, and install/rebuild Limine or
   systemd-boot in UEFI mode, with a *user-chosen* destination and optional

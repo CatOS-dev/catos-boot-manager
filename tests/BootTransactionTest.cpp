@@ -181,6 +181,9 @@ void BootTransactionTest::validateRemainingOrder()
 {
     BootSnapshot snapshot;
     snapshot.bootOrder = {"0001", "0002", "0003"};
+    snapshot.firmware = {{"0001", "First", "", "", true, true},
+                         {"0002", "Second", "", "", true, false},
+                         {"0003", "Third", "", "", true, false}};
     BootTransaction transaction;
     transaction.stage({"firmware-remove", "0002", "", "", "Remove"});
     transaction.stage({"firmware-order", "BootOrder", "0003,0002,0001", "0001,0002,0003", "Order"});

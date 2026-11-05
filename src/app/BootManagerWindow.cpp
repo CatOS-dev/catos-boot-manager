@@ -4,6 +4,7 @@
 #include "pages/FirmwarePage.h"
 #include "pages/MenuPage.h"
 #include "pages/OverviewPage.h"
+#include "pages/MethodsPage.h"
 #include "pages/PendingPage.h"
 #include "pages/RepairPage.h"
 #include "pages/SettingsPage.h"
@@ -55,7 +56,7 @@ BootManagerWindow::BootManagerWindow(QWidget *parent) : QMainWindow(parent)
     sideLayout->addWidget(brand);
     navigation_ = new QListWidget(sidebar);
     navigation_->setObjectName(QStringLiteral("navigation"));
-    navigation_->addItems({tr("Overview"), tr("Boot menu"), tr("Loader settings"),
+    navigation_->addItems({tr("Overview"), tr("Boot methods"), tr("Boot menu"), tr("Loader settings"),
                            tr("UEFI entries"), tr("Rebuild & update"), tr("Pending changes")});
     navigation_->setFrameShape(QFrame::NoFrame);
     navigation_->setSpacing(7);
@@ -75,12 +76,13 @@ BootManagerWindow::BootManagerWindow(QWidget *parent) : QMainWindow(parent)
     rightLayout->setSpacing(0);
     pages_ = new QStackedWidget(right);
     overview_ = new OverviewPage(pages_);
+    methods_ = new MethodsPage(pages_);
     menu_ = new MenuPage(pages_);
     settings_ = new SettingsPage(pages_);
     firmware_ = new FirmwarePage(pages_);
     repair_ = new RepairPage(pages_);
     pendingPage_ = new PendingPage(pages_);
-    for (QWidget *page : {static_cast<QWidget *>(overview_), static_cast<QWidget *>(menu_),
+    for (QWidget *page : {static_cast<QWidget *>(overview_), static_cast<QWidget *>(methods_), static_cast<QWidget *>(menu_),
                           static_cast<QWidget *>(settings_), static_cast<QWidget *>(firmware_),
                           static_cast<QWidget *>(repair_), static_cast<QWidget *>(pendingPage_)})
         pages_->addWidget(page);
@@ -110,6 +112,11 @@ BootManagerWindow::BootManagerWindow(QWidget *parent) : QMainWindow(parent)
     connect(menu_, &MenuPage::operationRequested, this, &BootManagerWindow::queue);
     connect(menu_, &MenuPage::methodChanged, settings_, &SettingsPage::selectMethod);
     connect(settings_, &SettingsPage::methodChanged, menu_, &MenuPage::selectMethod);
+    connect(menu_, &MenuPage::methodChanged, methods_, &MethodsPage::selectMethod);
+    connect(settings_, &SettingsPage::methodChanged, methods_, &MethodsPage::selectMethod);
+    connect(methods_, &MethodsPage::methodChanged, menu_, &MenuPage::selectMethod);
+    connect(methods_, &MethodsPage::methodChanged, settings_, &SettingsPage::selectMethod);
+    connect(methods_, &MethodsPage::operationRequested, this, &BootManagerWindow::queue);
     connect(settings_, &SettingsPage::operationRequested, this, &BootManagerWindow::queue);
     connect(firmware_, &FirmwarePage::operationRequested, this, &BootManagerWindow::queue);
     connect(repair_, &RepairPage::operationRequested, this, &BootManagerWindow::queue);
@@ -125,6 +132,7 @@ BootManagerWindow::BootManagerWindow(QWidget *parent) : QMainWindow(parent)
     connect(scan_, &BootScan::completed, this, [this](const BootSnapshot &snapshot) {
         snapshot_ = snapshot;
         overview_->updateSnapshot(snapshot_);
+        methods_->updateSnapshot(snapshot_);
         menu_->updateSnapshot(snapshot_);
         settings_->updateSnapshot(snapshot_);
         firmware_->updateSnapshot(snapshot_);
@@ -162,6 +170,7 @@ void BootManagerWindow::updateFooter()
     const QString conflict = BootPlan::firmwareConflict(transaction_.operations(), snapshot_);
     pendingPage_->updateTransaction(transaction_, snapshot_);
     firmware_->updateTransaction(transaction_);
+    methods_->updateTransaction(transaction_);
     pending_->setText(scan_->isRunning() ? tr("Detecting boot state…")
         : count ? tr("%1 pending change(s)").arg(count) : tr("No pending changes"));
     apply_->setEnabled(!scan_->isRunning() && count > 0 && conflict.isEmpty());

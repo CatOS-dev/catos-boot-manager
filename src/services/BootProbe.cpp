@@ -119,6 +119,15 @@ BootSnapshot BootProbe::inspect()
 {
     BootSnapshot state;
     state.uefi = QDir(QStringLiteral("/sys/firmware/efi")).exists();
+    state.secureBoot = state.uefi ? SecureBootState::Unknown : SecureBootState::Unsupported;
+    if (state.uefi) {
+        QFile secureBoot(QStringLiteral("/sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c"));
+        if (secureBoot.open(QIODevice::ReadOnly)) {
+            const QByteArray value = secureBoot.readAll();
+            if (value.size() == 5 && value[4] == 0) state.secureBoot = SecureBootState::Disabled;
+            if (value.size() == 5 && value[4] == 1) state.secureBoot = SecureBootState::Enabled;
+        }
+    }
     const QString efidata = state.uefi
         ? runReadOnly(QStringLiteral("efibootmgr"), {QStringLiteral("-v")}) : QString();
     static const QRegularExpression currentPattern(QStringLiteral("^BootCurrent:\\s*([0-9A-Fa-f]{4})$"));

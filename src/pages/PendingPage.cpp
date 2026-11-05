@@ -54,6 +54,7 @@ void PendingPage::updateTransaction(const BootTransaction &transaction, const Bo
         auto *item = new QListWidgetItem(op.description, items_);
         item->setData(Qt::UserRole, op.key());
         QString details = tr("Target: %1").arg(op.target);
+        if (!op.expectedEntry.isEmpty()) details += tr("\nSelected firmware identity: %1").arg(op.expectedEntry);
         if (op.kind.endsWith(QLatin1String("-setting"))
             || op.kind == QLatin1String("firmware-next")
             || op.kind == QLatin1String("firmware-order"))
