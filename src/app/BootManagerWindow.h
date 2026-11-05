@@ -16,6 +16,7 @@ class SettingsPage;
 class FirmwarePage;
 class RepairPage;
 class PendingPage;
+class BootScan;
 
 class BootManagerWindow : public QMainWindow {
     Q_OBJECT
@@ -29,6 +30,8 @@ private:
     void applyTransaction();
 
     BootSnapshot snapshot_;
+    BootScan *scan_ = nullptr;
+    QPushButton *refreshButton_ = nullptr;
     BootTransaction transaction_;
     QListWidget *navigation_ = nullptr;
     QStackedWidget *pages_ = nullptr;

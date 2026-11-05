@@ -8,6 +8,7 @@
 #include "pages/RepairPage.h"
 #include "pages/SettingsPage.h"
 #include "services/BootProbe.h"
+#include "services/BootScan.h"
 
 #include <QApplication>
 #include <QFrame>
@@ -63,9 +64,9 @@ BootManagerWindow::BootManagerWindow(QWidget *parent) : QMainWindow(parent)
         "QListWidget::item { padding: 10px 12px; border-radius: 8px; }"
         "QListWidget::item:selected { background: palette(highlight); color: palette(highlighted-text); }"));
     sideLayout->addWidget(navigation_);
-    auto *refreshButton = new QPushButton(tr("Refresh detection"), sidebar);
-    refreshButton->setFlat(true);
-    sideLayout->addWidget(refreshButton);
+    refreshButton_ = new QPushButton(tr("Refresh detection"), sidebar);
+    refreshButton_->setFlat(true);
+    sideLayout->addWidget(refreshButton_);
     horizontal->addWidget(sidebar);
 
     auto *right = new QWidget(root);
@@ -99,7 +100,7 @@ BootManagerWindow::BootManagerWindow(QWidget *parent) : QMainWindow(parent)
     setCentralWidget(root);
 
     connect(navigation_, &QListWidget::currentRowChanged, pages_, &QStackedWidget::setCurrentIndex);
-    connect(refreshButton, &QPushButton::clicked, this, &BootManagerWindow::refresh);
+    connect(refreshButton_, &QPushButton::clicked, this, &BootManagerWindow::refresh);
     connect(discard_, &QPushButton::clicked, this, [this] {
         transaction_.clear();
         settings_->updateSnapshot(snapshot_);
@@ -116,7 +117,20 @@ BootManagerWindow::BootManagerWindow(QWidget *parent) : QMainWindow(parent)
         transaction_.remove(key);
         updateFooter();
     });
-    new QShortcut(QKeySequence::Refresh, this, SLOT(refresh()));
+    auto *refreshShortcut = new QShortcut(QKeySequence::Refresh, this);
+    connect(refreshShortcut, &QShortcut::activated, this, &BootManagerWindow::refresh);
+    scan_ = new BootScan(this);
+    connect(scan_, &BootScan::completed, this, [this](const BootSnapshot &snapshot) {
+        snapshot_ = snapshot;
+        overview_->updateSnapshot(snapshot_);
+        menu_->updateSnapshot(snapshot_);
+        settings_->updateSnapshot(snapshot_);
+        firmware_->updateSnapshot(snapshot_);
+        repair_->updateSnapshot(snapshot_);
+        pages_->setEnabled(true);
+        refreshButton_->setEnabled(true);
+        updateFooter();
+    });
     navigation_->setCurrentRow(0);
     updateFooter();
     QTimer::singleShot(0, this, &BootManagerWindow::refresh);
@@ -124,15 +138,13 @@ BootManagerWindow::BootManagerWindow(QWidget *parent) : QMainWindow(parent)
 
 void BootManagerWindow::refresh()
 {
+    if (scan_->isRunning()) return;
     if (transaction_.count() && QMessageBox::question(this, tr("Refresh detection"),
         tr("Refreshing will discard your pending changes. Continue?")) != QMessageBox::Yes) return;
     transaction_.clear();
-    snapshot_ = BootProbe::inspect();
-    overview_->updateSnapshot(snapshot_);
-    menu_->updateSnapshot(snapshot_);
-    settings_->updateSnapshot(snapshot_);
-    firmware_->updateSnapshot(snapshot_);
-    repair_->updateSnapshot(snapshot_);
+    pages_->setEnabled(false);
+    refreshButton_->setEnabled(false);
+    scan_->start();
     updateFooter();
 }
 
@@ -148,26 +160,21 @@ void BootManagerWindow::updateFooter()
     const QString conflict = BootPlan::firmwareConflict(transaction_.operations(), snapshot_);
     pendingPage_->updateTransaction(transaction_, snapshot_);
     firmware_->updateTransaction(transaction_);
-    pending_->setText(count ? tr("%1 pending change(s)").arg(count) : tr("No pending changes"));
-    apply_->setEnabled(count > 0 && conflict.isEmpty());
+    pending_->setText(scan_->isRunning() ? tr("Detecting boot state…")
+        : count ? tr("%1 pending change(s)").arg(count) : tr("No pending changes"));
+    apply_->setEnabled(!scan_->isRunning() && count > 0 && conflict.isEmpty());
     apply_->setToolTip(conflict);
-    discard_->setEnabled(count > 0);
+    discard_->setEnabled(!scan_->isRunning() && count > 0);
 }
 
 void BootManagerWindow::applyTransaction()
 {
-    if (!BootPlan::firmwareConflict(transaction_.operations(), snapshot_).isEmpty()) return;
+    if (scan_->isRunning() || !BootPlan::firmwareConflict(transaction_.operations(), snapshot_).isEmpty()) return;
     const auto result = ApplyDialog::execute(this, transaction_);
     if (result == ApplyResult::Cancelled) return;
     transaction_.clear();
-    snapshot_ = BootProbe::inspect();
-    overview_->updateSnapshot(snapshot_);
-    menu_->updateSnapshot(snapshot_);
-    settings_->updateSnapshot(snapshot_);
-    firmware_->updateSnapshot(snapshot_);
-    repair_->updateSnapshot(snapshot_);
-    updateFooter();
+    refresh();
     if (result == ApplyResult::Failed)
         QMessageBox::warning(this, tr("Boot changes incomplete"),
-            tr("The operation did not finish. System state has been reloaded; review the log before making another change."));
+            tr("The operation did not finish. System state is being reloaded; review the log before making another change."));
 }

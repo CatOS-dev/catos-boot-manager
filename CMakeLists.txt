@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Widgets LinguistTools)
+find_package(Qt6 REQUIRED COMPONENTS Core Widgets Concurrent LinguistTools)
 
 add_library(catos-boot-core STATIC
     src/model/BootTypes.h
@@ -15,6 +15,8 @@ add_library(catos-boot-core STATIC
     src/model/BootPlan.cpp
     src/services/BootProbe.h
     src/services/BootProbe.cpp
+    src/services/BootScan.h
+    src/services/BootScan.cpp
     src/services/BootSettings.h
     src/services/BootSettings.cpp
     src/services/BootDevices.h
@@ -23,7 +25,7 @@ add_library(catos-boot-core STATIC
     src/services/BootRepair.cpp
 )
 target_include_directories(catos-boot-core PUBLIC src)
-target_link_libraries(catos-boot-core PUBLIC Qt6::Core)
+target_link_libraries(catos-boot-core PUBLIC Qt6::Core Qt6::Concurrent)
 
 qt_add_executable(catos-boot-manager
     src/app/Main.cpp
@@ -71,6 +73,9 @@ if(BUILD_TESTING)
     target_link_libraries(boot-settings-draft-test PRIVATE catos-boot-core Qt6::Widgets Qt6::Test)
     add_test(NAME boot-settings-draft COMMAND boot-settings-draft-test)
     set_tests_properties(boot-settings-draft PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    qt_add_executable(boot-scan-test tests/BootScanTest.cpp)
+    target_link_libraries(boot-scan-test PRIVATE catos-boot-core Qt6::Test)
+    add_test(NAME boot-scan COMMAND boot-scan-test)
 endif()
 
 qt_add_lrelease(catos-boot-manager

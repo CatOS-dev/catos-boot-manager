@@ -72,8 +72,8 @@
         </message>
         <message>
             <location filename="../src/app/BootManagerWindow.cpp" line="154" />
-            <source>The operation did not finish. System state has been reloaded; review the log before making another change.</source>
-            <translation>操作未完成。已重新读取系统状态，请检查记录后再进行修改。</translation>
+            <source>The operation did not finish. System state is being reloaded; review the log before making another change.</source>
+            <translation>操作未完成。正在重新读取系统状态，请检查记录后再进行修改。</translation>
         </message>
 
         <message><source>Pending changes</source><translation>待应用更改</translation></message>
@@ -638,6 +638,7 @@
             <source>Remove Limine menu path: %1</source>
             <translation type="vanished">删除 Limine 菜单路径：%1</translation>
         </message>
+        <message><source>Detecting boot state…</source><translation>正在检测引导状态…</translation></message>
     </context>
     <context>
         <name>OverviewPage</name>
