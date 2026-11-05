@@ -23,6 +23,7 @@ void MethodsPageTest::stageInstanceSelectionAndRejectChangedTarget()
     program.close();
     BootSnapshot snapshot;
     snapshot.uefi = true;
+    snapshot.efiArchitecture = "x64";
     snapshot.secureBoot = SecureBootState::Disabled;
     snapshot.bootOrder = {"0001", "0002"};
     snapshot.firmware = {{"0001", "Old", "\\EFI\\old.efi", "uuid", true, true},
@@ -36,6 +37,7 @@ void MethodsPageTest::stageInstanceSelectionAndRejectChangedTarget()
     installation.binaryPresent = true;
     installation.firmwareEntries = {"0002"};
     installation.imageType = "pe";
+    installation.architecture = "x64";
     snapshot.installations = {installation};
     BootTransaction transaction;
     MethodsPage page;
@@ -65,6 +67,11 @@ void MethodsPageTest::stageInstanceSelectionAndRejectChangedTarget()
     QVERIFY(BootPlan::firmwareConflict(decoded, snapshot).isEmpty());
     BootSnapshot changed = snapshot;
     changed.firmware[1].partitionUuid = "another-esp";
+    QVERIFY(!BootPlan::firmwareConflict(decoded, changed).isEmpty());
+    changed = snapshot;
+    changed.installations[0].architecture = "aa64";
+    QVERIFY(!BootPlan::firmwareConflict(decoded, changed).isEmpty());
+    changed.installations[0].architecture.clear();
     QVERIFY(!BootPlan::firmwareConflict(decoded, changed).isEmpty());
     changed = snapshot;
     changed.installations[0].imageType = "unknown";

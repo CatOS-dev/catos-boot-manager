@@ -1,5 +1,6 @@
 #include "services/BootDiscovery.h"
 #include "services/BootProbe.h"
+#include "services/BootSecurity.h"
 
 #include <QDir>
 #include <QFile>
@@ -29,6 +30,7 @@ private slots:
     void preserveInstancesAndBindFirmwareByPartitionAndPath();
     void identifyRealUkiWithBootctl();
     void retainMissingRegisteredProgram();
+    void distinguishEfiArchitectures();
 };
 
 void BootDiscoveryTest::preserveInstancesAndBindFirmwareByPartitionAndPath()
@@ -64,7 +66,7 @@ void BootDiscoveryTest::preserveInstancesAndBindFirmwareByPartitionAndPath()
         {"0003", "Same label", "\\EFI\\a\\grubaa64.efi", "second-uuid", true, false}
     };
     const auto identify = [uki, stub](const QString &path) {
-        return path == uki ? QString("uki") : path == stub ? QString("pe") : QString("unknown");
+        return BootDiscovery::Image{path == uki ? QString("uki") : path == stub ? QString("pe") : QString("unknown"), QString("x64")};
     };
     BootDiscovery::populate(snapshot, {{first, "first-uuid"}, {second, "second-uuid"}}, root, identify);
     QCOMPARE(snapshot.installations.size(), 9);
@@ -90,7 +92,7 @@ void BootDiscoveryTest::preserveInstancesAndBindFirmwareByPartitionAndPath()
     const QString moved = directory.path() + "/remounted";
     QVERIFY(QDir().rename(first, moved));
     BootDiscovery::populate(snapshot, {{moved, "first-uuid"}, {second, "second-uuid"}}, root,
-        [](const QString &) { return QString("unknown"); });
+        [](const QString &) { return BootDiscovery::Image{}; });
     const auto remounted = byBinary(snapshot, moved + "/EFI/a/grubx64.efi");
     QCOMPARE(remounted.id, firstGrub.id);
     QVERIFY(remounted.current);
@@ -113,12 +115,18 @@ void BootDiscoveryTest::identifyRealUkiWithBootctl()
     QVERIFY(objcopy.waitForFinished());
     QCOMPARE(objcopy.exitCode(), 0);
     QCOMPARE(BootProbe::runReadOnly("bootctl", {"kernel-identify", uki}).trimmed(), QString("uki"));
+    const auto object = BootSecurity::readCommand("objdump", {"-f", uki});
+    QVERIFY2(object.completed, qPrintable(object.error));
+    QCOMPARE(object.exitCode, 0);
+    QCOMPARE(BootDiscovery::architectureFromObjdump(object.output), QString("x64"));
     BootSnapshot snapshot;
     BootDiscovery::populate(snapshot, {{esp, "test-uuid"}}, directory.path(), [](const QString &path) {
-        return BootProbe::runReadOnly("bootctl", {"kernel-identify", path});
+        return BootDiscovery::Image{BootProbe::runReadOnly("bootctl", {"kernel-identify", path}).trimmed(),
+            BootDiscovery::architectureFromObjdump(BootSecurity::readCommand("objdump", {"-f", path}).output)};
     });
     QCOMPARE(snapshot.installations.size(), 1);
     QCOMPARE(snapshot.installations.first().kind, LoaderKind::Uki);
+    QCOMPARE(snapshot.installations.first().architecture, QString("x64"));
     QVERIFY(!snapshot.installations.first().firmwareRegistered);
 }
 
@@ -130,11 +138,19 @@ void BootDiscoveryTest::retainMissingRegisteredProgram()
     snapshot.firmware = {{"0002", "GRUB", "\\EFI\\missing\\grubx64.efi", "esp-uuid", true, false},
                          {"0003", "GRUB", "\\EFI\\other\\unknown.efi", "esp-uuid", true, false}};
     BootDiscovery::populate(snapshot, {{directory.path(), "esp-uuid"}}, directory.path(),
-        [](const QString &) { return QString("unknown"); });
+        [](const QString &) { return BootDiscovery::Image{}; });
     QCOMPARE(snapshot.installations.size(), 1);
     QVERIFY(!snapshot.installations.first().binaryPresent);
     QVERIFY(snapshot.installations.first().firmwareRegistered);
     QCOMPARE(snapshot.installations.first().kind, LoaderKind::Grub);
+}
+
+void BootDiscoveryTest::distinguishEfiArchitectures()
+{
+    QCOMPARE(BootDiscovery::architectureFromObjdump("image: file format pei-aarch64-little\narchitecture: aarch64, flags 0x103:\n"), QString("aa64"));
+    QCOMPARE(BootDiscovery::architectureFromObjdump("image: file format pei-i386\narchitecture: i386, flags 0x103:\n"), QString("ia32"));
+    QVERIFY(BootDiscovery::architectureFromObjdump("not an executable").isEmpty());
+    QVERIFY(BootDiscovery::architectureFromObjdump("architecture: unknown, flags 0x103:\n").isEmpty());
 }
 
 QTEST_GUILESS_MAIN(BootDiscoveryTest)

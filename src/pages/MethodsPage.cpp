@@ -111,9 +111,9 @@ void MethodsPage::showInstance()
         details_->setText(tr("No installation detected for this method."));
     } else {
         const auto &installation = installations[index];
-        details_->setText(tr("ESP: %1\nPartition UUID: %2\nProgram: %3\nConfiguration: %4\nEvidence: %5")
+        details_->setText(tr("ESP: %1\nPartition UUID: %2\nProgram: %3\nConfiguration: %4\nEvidence: %5\nProgram architecture: %6 · Firmware architecture: %7")
             .arg(installation.esp, installation.espPartuuid, installation.binary,
-                 installation.config, installation.evidence));
+                 installation.config, installation.evidence, installation.architecture, snapshot_.efiArchitecture));
         for (const auto &number : installation.firmwareEntries) {
             const auto *entry = snapshot_.entry(number);
             if (entry) entries_->addItem(QStringLiteral("Boot") + number + QStringLiteral(" · ") + entry->label, number);

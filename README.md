@@ -97,7 +97,9 @@ installed in `/usr/lib/catos/` and is invoked through `pkexec` only on apply.
 
 Dependencies: Qt 6 Widgets, Qt LinguistTools, CMake and a C++17 compiler.
 Runtime tools vary by installed loader: `efibootmgr`, `grub-mkconfig`,
-`limine-tool` and `bootctl`.
+`limine-tool` and `bootctl`. Instance selection uses `objdump` from binutils to
+check the EFI program architecture against the firmware architecture reported
+by `bootctl`; missing or unrecognized architecture evidence disables selection.
 
 Run regression checks with `ctest --test-dir build --output-on-failure`.
 Tests use Qt Test; the UKI discovery contract test also requires `bootctl`,

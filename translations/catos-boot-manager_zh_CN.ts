@@ -1035,7 +1035,7 @@
         <message><source>Configuration found without a matching EFI program</source><translation>发现配置文件，但未找到匹配的 EFI 程序</translation></message>
 
         <message><source>The selected firmware entry changed. Refresh detection and review the target again.</source><translation>所选固件启动项已变化，请重新检测并审阅目标。</translation></message>
-        <message><source>The selected EFI program is missing, unrecognized or ambiguous. Refresh detection.</source><translation>所选 EFI 程序缺失、无法识别或存在歧义，请重新检测。</translation></message>
+        <message><source>The selected EFI program is missing, has an unknown or incompatible architecture, or is ambiguous. Refresh detection.</source><translation>所选 EFI 程序缺失、架构未知或不兼容，或实例存在歧义，请重新检测。</translation></message>
         <message><source>Changing this instance requires a verified Secure Boot policy. Secure Boot is enabled or its state is unknown.</source><translation>切换此实例需要验证安全启动策略。当前安全启动已启用或状态未知。</translation></message>
         <message><source>The selected firmware entry does not match the requested boot selection.</source><translation>所选固件启动项与请求的启动选择不匹配。</translation></message>
         <message><source>The selected boot instance is also queued for removal or disabling.</source><translation>所选启动实例同时被暂存删除或禁用。</translation></message>
@@ -1416,11 +1416,13 @@ Selected firmware identity: %1</source><translation>
 Partition UUID: %2
 Program: %3
 Configuration: %4
-Evidence: %5</source><translation>ESP：%1
+Evidence: %5
+Program architecture: %6 · Firmware architecture: %7</source><translation>ESP：%1
 分区 UUID：%2
 程序：%3
 配置：%4
-发现依据：%5</translation></message>
+发现依据：%5
+程序架构：%6 · 固件架构：%7</translation></message>
         <message><source>This instance has no associated firmware entry. File discovery alone does not enable direct boot.</source><translation>此实例没有关联的固件启动项。仅发现文件不代表已启用直接启动。</translation></message>
         <message><source>Cancel pending changes to this firmware entry before selecting it.</source><translation>请先取消对此固件启动项的待应用修改，再选择它。</translation></message>
         <message><source>An enabled UEFI entry is required.</source><translation>需要已启用的 UEFI 启动项。</translation></message>

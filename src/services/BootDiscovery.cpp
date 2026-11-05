@@ -30,7 +30,7 @@ std::optional<LoaderKind> namedLoader(const QString &path)
 
 void BootDiscovery::populate(BootSnapshot &snapshot, const QList<Esp> &partitions,
                              const QString &systemRoot,
-                             const std::function<QString(const QString &)> &identifyKernel)
+                             const std::function<Image(const QString &)> &identifyKernel)
 {
     snapshot.installations.clear();
     QString defaultNumber;
@@ -42,7 +42,7 @@ void BootDiscovery::populate(BootSnapshot &snapshot, const QList<Esp> &partition
         const QString esp = QDir::cleanPath(partition.mount);
         const QString uuid = partition.partitionUuid.toLower();
         auto append = [&](LoaderKind kind, const QString &binary, const QString &config,
-                          const QString &evidence, const QString &imageType) {
+                          const QString &evidence, const Image &image) {
             const QString relative = QDir(esp).relativeFilePath(binary.isEmpty() ? config : binary);
             const QString id = loaderName(kind) + QLatin1Char(':') + uuid
                 + QLatin1Char(':') + (binary.isEmpty() ? QStringLiteral("config:") : QString())
@@ -59,7 +59,8 @@ void BootDiscovery::populate(BootSnapshot &snapshot, const QList<Esp> &partition
             installation.binaryPresent = !binary.isEmpty() && QFileInfo(binary).isFile();
             installation.configPresent = !config.isEmpty() && QFileInfo(config).isFile();
             installation.evidence = evidence;
-            installation.imageType = imageType;
+            installation.imageType = image.type;
+            installation.architecture = image.architecture;
             for (const auto &entry : snapshot.firmware) {
                 if (binary.isEmpty() || uuid.isEmpty() || entry.partitionUuid.toLower() != uuid
                     || normalized(entry.path) != normalized(QLatin1Char('/') + relative)) continue;
@@ -76,9 +77,9 @@ void BootDiscovery::populate(BootSnapshot &snapshot, const QList<Esp> &partition
             const QString path = iterator.next();
             if (!path.endsWith(QLatin1String(".efi"), Qt::CaseInsensitive)) continue;
             const QString parent = QFileInfo(path).absolutePath();
-            const QString type = identifyKernel(path).trimmed();
-            if (type == QLatin1String("uki")) {
-                append(LoaderKind::Uki, path, {}, QObject::tr("UKI identified by bootctl; firmware registration is separate"), type);
+            const Image image = identifyKernel(path);
+            if (image.type == QLatin1String("uki")) {
+                append(LoaderKind::Uki, path, {}, QObject::tr("UKI identified by bootctl; firmware registration is separate"), image);
                 continue;
             }
             const auto named = namedLoader(path);
@@ -90,14 +91,14 @@ void BootDiscovery::populate(BootSnapshot &snapshot, const QList<Esp> &partition
                     const QString local = parent + QStringLiteral("/limine.conf");
                     config = QFileInfo(local).isFile() ? local : esp + QStringLiteral("/limine.conf");
                 }
-                append(*named, path, config, QObject::tr("Named EFI program; bootability has not been verified"), type);
+                append(*named, path, config, QObject::tr("Named EFI program; bootability has not been verified"), image);
                 continue;
             }
-            if (type == QLatin1String("pe")
+            if (image.type == QLatin1String("pe")
                        && QFileInfo(path).fileName().compare(QLatin1String("vmlinuz.efi"), Qt::CaseInsensitive) == 0
                        && normalized(QDir(esp).relativeFilePath(path)).startsWith(QLatin1String("efi/catos/"))
                        && QFileInfo(parent + QStringLiteral("/initramfs.img")).isFile()) {
-                append(LoaderKind::EfiStub, path, {}, QObject::tr("CatOS EFI Stub deployment layout with PE image and initramfs; bootability is unverified"), type);
+                append(LoaderKind::EfiStub, path, {}, QObject::tr("CatOS EFI Stub deployment layout with PE image and initramfs; bootability is unverified"), image);
             }
         }
         for (const auto kind : {LoaderKind::SystemdBoot, LoaderKind::Limine}) {
@@ -130,4 +131,15 @@ void BootDiscovery::populate(BootSnapshot &snapshot, const QList<Esp> &partition
         installation.evidence = QObject::tr("System generator configuration; EFI deployment is listed separately");
         snapshot.installations.append(installation);
     }
+}
+
+QString BootDiscovery::architectureFromObjdump(const QString &output)
+{
+    const auto match = QRegularExpression(QStringLiteral("(?:^|\n)architecture: ([^,]+),")).match(output);
+    if (!match.hasMatch()) return {};
+    const QString architecture = match.captured(1).trimmed();
+    if (architecture == QLatin1String("i386:x86-64")) return QStringLiteral("x64");
+    if (architecture == QLatin1String("aarch64")) return QStringLiteral("aa64");
+    if (architecture == QLatin1String("i386")) return QStringLiteral("ia32");
+    return {};
 }

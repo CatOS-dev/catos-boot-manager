@@ -25,10 +25,12 @@ QString BootPlan::firmwareConflict(const QList<BootOperation> &operations, const
             for (const auto &installation : snapshot.installations)
                 if (installation.firmwareEntries.contains(number) && installation.binaryPresent
                     && !installation.espPartuuid.isEmpty()
+                    && !snapshot.efiArchitecture.isEmpty()
+                    && installation.architecture == snapshot.efiArchitecture
                     && (installation.imageType == QLatin1String("pe") || installation.imageType == QLatin1String("uki"))
                     && QFileInfo(installation.binary).size() > 0) ++matches;
             if (matches != 1)
-                return QObject::tr("The selected EFI program is missing, unrecognized or ambiguous. Refresh detection.");
+                return QObject::tr("The selected EFI program is missing, has an unknown or incompatible architecture, or is ambiguous. Refresh detection.");
             if (snapshot.secureBoot != SecureBootState::Disabled)
                 return QObject::tr("Changing this instance requires a verified Secure Boot policy. Secure Boot is enabled or its state is unknown.");
         }

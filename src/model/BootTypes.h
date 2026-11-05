@@ -61,6 +61,7 @@ struct BootInstallation {
     bool nextEntry = false;
     QString evidence;
     QString imageType;
+    QString architecture;
     SignatureState signature = SignatureState::Unknown;
     QString signatureDetails;
     QMap<QString, QString> settingValues;
@@ -72,6 +73,7 @@ struct BootInstallation {
 
 struct BootSnapshot {
     bool uefi = false;
+    QString efiArchitecture;
     QString bootCurrent;
     QString bootNext;
     QStringList bootOrder;

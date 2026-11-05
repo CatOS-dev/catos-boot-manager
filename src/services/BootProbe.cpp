@@ -123,6 +123,7 @@ BootSnapshot BootProbe::inspect()
     BootSnapshot state;
     BootPackages::inspect(state);
     state.uefi = QDir(QStringLiteral("/sys/firmware/efi")).exists();
+    state.efiArchitecture = runReadOnly(QStringLiteral("bootctl"), {QStringLiteral("--print-efi-architecture")}).trimmed();
     const QString efidata = state.uefi
         ? runReadOnly(QStringLiteral("efibootmgr"), {QStringLiteral("-v")}) : QString();
     static const QRegularExpression currentPattern(QStringLiteral("^BootCurrent:\\s*([0-9A-Fa-f]{4})$"));
@@ -183,7 +184,10 @@ BootSnapshot BootProbe::inspect()
         partitions.append({esp, uuid});
     }
     BootDiscovery::populate(state, partitions, QStringLiteral("/"), [](const QString &path) {
-        return runReadOnly(QStringLiteral("bootctl"), {QStringLiteral("kernel-identify"), path});
+        const auto details = BootSecurity::readCommand(QStringLiteral("objdump"), {QStringLiteral("-f"), path});
+        return BootDiscovery::Image{
+            runReadOnly(QStringLiteral("bootctl"), {QStringLiteral("kernel-identify"), path}).trimmed(),
+            details.completed && details.exitCode == 0 ? BootDiscovery::architectureFromObjdump(details.output) : QString()};
     });
     BootSecurity::inspect(state);
     BootContent::populate(state);
