@@ -63,6 +63,14 @@ if(BUILD_TESTING)
     target_link_libraries(boot-transaction-test PRIVATE catos-boot-core Qt6::Widgets Qt6::Test)
     add_test(NAME boot-transaction COMMAND boot-transaction-test)
     set_tests_properties(boot-transaction PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    qt_add_executable(boot-settings-draft-test
+        tests/SettingsDraftTest.cpp
+        src/pages/SettingsPage.cpp
+        src/widgets/BootUi.cpp
+    )
+    target_link_libraries(boot-settings-draft-test PRIVATE catos-boot-core Qt6::Widgets Qt6::Test)
+    add_test(NAME boot-settings-draft COMMAND boot-settings-draft-test)
+    set_tests_properties(boot-settings-draft PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 endif()
 
 qt_add_lrelease(catos-boot-manager

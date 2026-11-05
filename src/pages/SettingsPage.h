@@ -4,6 +4,7 @@
 #include "model/BootTypes.h"
 
 #include <QWidget>
+#include <QHash>
 
 class QComboBox;
 class QFormLayout;
@@ -17,6 +18,7 @@ class SettingsPage : public QWidget {
 public:
     explicit SettingsPage(QWidget *parent = nullptr);
     void updateSnapshot(const BootSnapshot &snapshot);
+    void discardOperation(const BootOperation &operation);
 
 signals:
     void operationRequested(const BootOperation &operation);
@@ -33,5 +35,10 @@ private:
     QFormLayout *fields_ = nullptr;
     QList<QLineEdit *> edits_;
     QStringList baseline_;
+    struct Draft {
+        QStringList baseline;
+        QStringList values;
+    };
+    QHash<QString, Draft> drafts_;
     QVBoxLayout *layout_ = nullptr;
 };

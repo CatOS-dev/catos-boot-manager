@@ -100,13 +100,19 @@ BootManagerWindow::BootManagerWindow(QWidget *parent) : QMainWindow(parent)
 
     connect(navigation_, &QListWidget::currentRowChanged, pages_, &QStackedWidget::setCurrentIndex);
     connect(refreshButton, &QPushButton::clicked, this, &BootManagerWindow::refresh);
-    connect(discard_, &QPushButton::clicked, this, [this] { transaction_.clear(); updateFooter(); });
+    connect(discard_, &QPushButton::clicked, this, [this] {
+        transaction_.clear();
+        settings_->updateSnapshot(snapshot_);
+        updateFooter();
+    });
     connect(apply_, &QPushButton::clicked, this, &BootManagerWindow::applyTransaction);
     connect(menu_, &MenuPage::operationRequested, this, &BootManagerWindow::queue);
     connect(settings_, &SettingsPage::operationRequested, this, &BootManagerWindow::queue);
     connect(firmware_, &FirmwarePage::operationRequested, this, &BootManagerWindow::queue);
     connect(repair_, &RepairPage::operationRequested, this, &BootManagerWindow::queue);
     connect(pendingPage_, &PendingPage::removalRequested, this, [this](const QString &key) {
+        for (const auto &operation : transaction_.operations())
+            if (operation.key() == key) settings_->discardOperation(operation);
         transaction_.remove(key);
         updateFooter();
     });
