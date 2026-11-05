@@ -27,12 +27,12 @@ void LoaderSelectorTest::preserveMethodAndInstanceAcrossPages()
     QVERIFY(tabs);
     QVERIFY(instances);
     QCOMPARE(tabs->count(), 6);
-    QCOMPARE(tabs->tabText(0), QString("GRUB"));
-    QCOMPARE(tabs->tabText(1), QString("Limine"));
-    QCOMPARE(tabs->tabText(2), QString("rEFInd"));
-    QCOMPARE(tabs->tabText(3), QString("systemd-boot"));
-    QCOMPARE(tabs->tabText(4), QString("UKI"));
-    QCOMPARE(tabs->tabText(5), QString("EFI Stub"));
+    QCOMPARE(tabs->tabText(0), QString("GRUB · Configuration only"));
+    QCOMPARE(tabs->tabText(1), QString("Limine · Not detected"));
+    QCOMPARE(tabs->tabText(2), QString("rEFInd · Not detected"));
+    QCOMPARE(tabs->tabText(3), QString("systemd-boot · Configuration only"));
+    QCOMPARE(tabs->tabText(4), QString("UKI · Not detected"));
+    QCOMPARE(tabs->tabText(5), QString("EFI Stub · Not detected"));
     menu.selectMethod(LoaderKind::SystemdBoot);
     QCOMPARE(settings.method(), LoaderKind::SystemdBoot);
     QCOMPARE(instances->count(), 2);

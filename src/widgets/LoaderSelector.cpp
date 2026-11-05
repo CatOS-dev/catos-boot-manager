@@ -53,8 +53,19 @@ void LoaderSelector::updateSnapshot(const BootSnapshot &snapshot)
     }
     for (int i = 0; i < static_cast<int>(loaderKinds.size()); ++i) {
         int count = 0;
-        for (const auto &loader : installations_) if (loader.kind == loaderKinds[i]) ++count;
-        tabs_->setTabText(i, loaderName(loaderKinds[i]));
+        bool program = false;
+        bool issue = false;
+        bool defaultEntry = false;
+        for (const auto &loader : installations_) {
+            if (loader.kind != loaderKinds[i]) continue;
+            ++count;
+            program |= loader.binaryPresent;
+            issue |= !loader.issues.isEmpty();
+            defaultEntry |= loader.defaultEntry;
+        }
+        const QString status = issue ? tr("Needs attention") : defaultEntry ? tr("Default entry")
+            : program ? tr("Program detected") : count ? tr("Configuration only") : tr("Not detected");
+        tabs_->setTabText(i, loaderName(loaderKinds[i]) + QStringLiteral(" · ") + status);
         tabs_->setTabToolTip(i, tr("Detected manageable installations: %1").arg(count));
     }
     tabs_->blockSignals(false);
@@ -71,8 +82,12 @@ void LoaderSelector::rebuild()
         if (loader.kind != method()) continue;
         filtered_.append(loader);
         const QString location = loader.esp.isEmpty() ? tr("Current system") : loader.esp;
-        instances_->addItem(location + QStringLiteral(" · ")
-            + (loader.binary.isEmpty() ? loader.config : QDir(loader.esp).relativeFilePath(loader.binary)), loader.id);
+        QString label = location + QStringLiteral(" · ")
+            + (loader.binary.isEmpty() ? loader.config : QDir(loader.esp).relativeFilePath(loader.binary));
+        if (loader.current) label += QStringLiteral(" · ") + tr("Current boot");
+        if (loader.defaultEntry) label += QStringLiteral(" · ") + tr("Default entry");
+        if (loader.nextEntry) label += QStringLiteral(" · ") + tr("Next boot only");
+        instances_->addItem(label, loader.id);
     }
     int index = instances_->findData(previous);
     if (index < 0 && !filtered_.isEmpty()) index = 0;

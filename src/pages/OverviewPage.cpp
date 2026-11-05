@@ -58,6 +58,9 @@ void OverviewPage::updateSnapshot(const BootSnapshot &snapshot)
         if (loader.nextEntry) details << tr("Selected for next boot only");
         if (!loader.firmwareEntries.isEmpty()) details << tr("Firmware entries: %1").arg(loader.firmwareEntries.join(QStringLiteral(", ")));
         if (!loader.evidence.isEmpty()) details << loader.evidence;
+        if (loader.espBytesAvailable >= 0)
+            details << tr("ESP available space: %1 MiB").arg(loader.espBytesAvailable / (1024 * 1024));
+        for (const auto &issue : loader.issues) details << tr("Needs attention: %1").arg(issue);
         BootUi::line(layout_, content, loaderName(loader.kind), details.join(QStringLiteral(" · ")),
                      QStringLiteral("drive-harddisk"));
     }

@@ -69,6 +69,8 @@ struct BootInstallation {
     QString settingsMessage;
     QString menuContent;
     QString menuMessage;
+    QStringList issues;
+    qint64 espBytesAvailable = -1;
 };
 
 struct BootSnapshot {

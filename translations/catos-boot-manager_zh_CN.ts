@@ -77,6 +77,10 @@
         </message>
 
         <message><source>Pending changes</source><translation>待应用更改</translation></message>
+
+        <message><source>Boot methods</source><translation>引导方式</translation></message>
+        <message><source>Secure Boot</source><translation>安全启动</translation></message>
+        <message><source>Detecting boot state…</source><translation>正在检测引导状态…</translation></message>
 </context>
     <context>
         <name>FirmwarePage</name>
@@ -767,6 +771,9 @@ Reported default: %5</source><translation>条目 ID：%1
         <message><source>EFI program is missing</source><translation>EFI 程序缺失</translation></message>
         <message><source>Selected for next boot only</source><translation>仅选为下次启动项</translation></message>
         <message><source>Firmware entries: %1</source><translation>固件启动项：%1</translation></message>
+
+        <message><source>ESP available space: %1 MiB</source><translation>ESP 可用空间：%1 MiB</translation></message>
+        <message><source>Needs attention: %1</source><translation>需处理：%1</translation></message>
     </context>
     <context>
         <name>QObject</name>
@@ -1086,7 +1093,24 @@ Reported default: %5</source><translation>条目 ID：%1
         <message><source>bootctl did not return a structured entry list. Check the selected ESP and refresh detection.</source><translation>bootctl 未返回结构化条目列表，请检查选定 ESP 后重新检测。</translation></message>
         <message><source>The structured entry list contains an invalid or duplicate identity.</source><translation>结构化条目列表含有无效或重复的身份标识。</translation></message>
         <message><source>systemd-boot has a firmware default override. Changing loader.conf would not reliably change the effective default.</source><translation>systemd-boot 存在固件默认项覆盖值，仅修改 loader.conf 无法可靠改变实际默认项。</translation></message>
-    </context>
+
+        <message><source>The registered or discovered EFI program is missing.</source><translation>固件注册或发现的 EFI 程序缺失。</translation></message>
+        <message><source>The EFI program file is empty.</source><translation>EFI 程序文件为空。</translation></message>
+        <message><source>The EFI program type could not be verified.</source><translation>无法验证 EFI 程序类型。</translation></message>
+        <message><source>The program or firmware architecture is unknown.</source><translation>程序或固件架构未知。</translation></message>
+        <message><source>The program architecture does not match the running firmware.</source><translation>程序架构与当前固件不匹配。</translation></message>
+        <message><source>Secure Boot is enabled but this EFI program has no signature table.</source><translation>安全启动已启用，但此 EFI 程序没有签名表。</translation></message>
+        <message><source>The expected configuration file is missing.</source><translation>预期配置文件缺失。</translation></message>
+        <message><source>The ESP filesystem is read-only.</source><translation>ESP 文件系统为只读。</translation></message>
+        <message><source>No writable space remains on the ESP.</source><translation>ESP 已无可写空间。</translation></message>
+        <message><source>The ESP filesystem information could not be read.</source><translation>无法读取 ESP 文件系统信息。</translation></message>
+        <message><source>BootNext refers to a missing or disabled firmware entry.</source><translation>BootNext 指向缺失或已禁用的固件启动项。</translation></message>
+        <message><source>BootOrder references missing firmware entry Boot%1.</source><translation>BootOrder 引用了缺失的固件启动项 Boot%1。</translation></message>
+
+        <message><source>Enabled</source><translation>已启用</translation></message>
+        <message><source>Disabled</source><translation>已禁用</translation></message>
+        <message><source>Present; value could not be read</source><translation>覆盖值存在；无法读取其内容</translation></message>
+</context>
     <context>
         <name>RepairPage</name>
         <message>
@@ -1426,6 +1450,14 @@ Selected firmware identity: %1</source><translation>
         <message><source>No installation detected for this method</source><translation>未检测到此方式的安装实例</translation></message>
         <message><source>Detected manageable installations: %1</source><translation>检测到可管理的安装实例：%1</translation></message>
         <message><source>Current system</source><translation>当前系统</translation></message>
+
+        <message><source>Needs attention</source><translation>需处理</translation></message>
+        <message><source>Default entry</source><translation>默认入口</translation></message>
+        <message><source>Program detected</source><translation>已发现程序</translation></message>
+        <message><source>Configuration only</source><translation>仅配置</translation></message>
+        <message><source>Not detected</source><translation>未发现</translation></message>
+        <message><source>Current boot</source><translation>本次启动</translation></message>
+        <message><source>Next boot only</source><translation>仅下次启动</translation></message>
     </context>
     <context>
         <name>MethodsPage</name>
