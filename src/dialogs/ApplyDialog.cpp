@@ -2,6 +2,7 @@
 #include "widgets/BootUi.h"
 #include "services/BootSession.h"
 
+#include <QCheckBox>
 #include <QCloseEvent>
 #include <QEventLoop>
 #include <QFontDatabase>
@@ -64,6 +65,25 @@ QString renderChanges(const QJsonArray &files)
         lines << QString();
     }
     return lines.isEmpty() ? QObject::tr("No file contents change.") : lines.join(QLatin1Char('\n'));
+}
+
+// Writes that can make other systems unbootable get an explicit confirmation.
+QStringList risks(const BootTransaction &transaction)
+{
+    QStringList result;
+    for (const auto &op : transaction.operations()) {
+        if (op.kind != QLatin1String("repair-install")) continue;
+        const auto data = QJsonDocument::fromJson(op.value.toUtf8()).object();
+        const QString target = data.value("targetLabel").toString(data.value("disk").toString());
+        if (data.value("mode").toString() == QLatin1String("bios"))
+            result << QObject::tr("GRUB will be written to the start of the whole disk %1. Any boot loader already installed there for "
+                                  "BIOS booting, including one used by another operating system, is replaced.").arg(target);
+        if (data.value("fallback").toBool())
+            result << QObject::tr("The removable fallback loader EFI/BOOT on %1 will be replaced. Systems or USB tools that start through "
+                                  "it, and firmware that boots it when no entry works, will start this boot loader instead.")
+                          .arg(target.isEmpty() ? data.value("esp").toString() : target);
+    }
+    return result;
 }
 
 bool hasFileChanges(const BootTransaction &transaction)
@@ -158,6 +178,22 @@ ApplyResult ApplyDialog::execute(QWidget *parent, BootSession &session, const Bo
     layout->addLayout(controls);
     QObject::connect(cancel, &QPushButton::clicked, &preview, &QDialog::reject);
     QObject::connect(confirm, &QPushButton::clicked, &preview, &QDialog::accept);
+    const QStringList warnings = risks(transaction);
+    if (!warnings.isEmpty()) {
+        auto *warning = new QLabel(warnings.join(QStringLiteral("\n\n")), &preview);
+        warning->setObjectName("riskWarning");
+        warning->setWordWrap(true);
+        warning->setTextFormat(Qt::PlainText);
+        auto palette = warning->palette();
+        palette.setColor(QPalette::WindowText, QColor(0xc6, 0x28, 0x28));
+        warning->setPalette(palette);
+        auto *understood = new QCheckBox(QObject::tr("I understand what will be replaced"), &preview);
+        understood->setObjectName("confirmRisk");
+        layout->insertWidget(layout->count() - 1, warning);
+        layout->insertWidget(layout->count() - 1, understood);
+        confirm->setEnabled(false);
+        QObject::connect(understood, &QCheckBox::toggled, confirm, &QPushButton::setEnabled);
+    }
     if (diffable) {
         // Applying waits for the preview: the session handles one request at a time.
         confirm->setEnabled(false);

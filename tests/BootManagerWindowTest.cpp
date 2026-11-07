@@ -21,6 +21,7 @@
 #include <QPushButton>
 #include <QTemporaryDir>
 #include <QTimer>
+#include <QCheckBox>
 #include <QFrame>
 #include <QPlainTextEdit>
 #include <QTreeWidget>
@@ -42,6 +43,7 @@ private slots:
     void readOnlyModeUntilAuthorized();
     void explainDisabledActions();
     void showMokCertificates();
+    void confirmHighRiskWrites();
 };
 
 static BootSnapshot settingsSnapshot()
@@ -351,6 +353,36 @@ void BootManagerWindowTest::showMokCertificates()
     snapshot.pendingMok.clear();
     emit session.snapshotReady(snapshot);
     QVERIFY(!revoke->isEnabled());
+}
+
+void BootManagerWindowTest::confirmHighRiskWrites()
+{
+    BootSession session;
+    BootTransaction transaction;
+    transaction.stage({"repair-install", "grub:bios:/", R"({"action":"repair","root":"/","mode":"bios","disk":"/dev/sda","targetLabel":"/dev/sda · 1T · Samsung","register":false,"fallback":false})", "", "Repair GRUB on /dev/sda"});
+    bool checked = false;
+    QTimer::singleShot(0, [&checked] {
+        auto *dialog = qobject_cast<QDialog *>(QApplication::activeModalWidget()); QVERIFY(dialog);
+        auto *warning = dialog->findChild<QLabel *>("riskWarning"); QVERIFY(warning);
+        QVERIFY(warning->text().contains("/dev/sda · 1T · Samsung"));
+        auto *confirm = dialog->findChild<QPushButton *>("confirmExecution"); QVERIFY(confirm);
+        auto *understood = dialog->findChild<QCheckBox *>("confirmRisk"); QVERIFY(understood);
+        QVERIFY(!confirm->isEnabled());
+        understood->setChecked(true);
+        checked = confirm->isEnabled();
+        dialog->reject();
+    });
+    QCOMPARE(ApplyDialog::execute(nullptr, session, transaction, true), ApplyResult::Cancelled);
+    QVERIFY(checked);
+    BootTransaction safe;
+    safe.stage({"repair-install", "grub:uefi:/", R"({"action":"repair","root":"/","mode":"uefi","esp":"/efi","register":true,"fallback":false})", "", "Repair GRUB"});
+    QTimer::singleShot(0, [] {
+        auto *dialog = qobject_cast<QDialog *>(QApplication::activeModalWidget()); QVERIFY(dialog);
+        QVERIFY(!dialog->findChild<QCheckBox *>("confirmRisk"));
+        QVERIFY(dialog->findChild<QPushButton *>("confirmExecution")->isEnabled());
+        dialog->reject();
+    });
+    QCOMPARE(ApplyDialog::execute(nullptr, session, safe, true), ApplyResult::Cancelled);
 }
 
 int main(int argc, char **argv)

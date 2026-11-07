@@ -314,6 +314,10 @@ void RepairPage::install(const QString &action)
         {QStringLiteral("rootSource"), autoRoot ? QString() : mountSources_.value(root)},
         {QStringLiteral("espSource"), mountSources_.value(esp)}};
     data.insert("action", action);
+    // Human-readable description of the device a high-risk write affects.
+    const QString device = bios ? disk : autoRoot ? espDevice : mountSources_.value(esp);
+    if (const auto *known = BootDevices::byPath(devices_, device)) data.insert("targetLabel", known->label());
+    else if (!device.isEmpty()) data.insert("targetLabel", device);
     if (kind_ == LoaderKind::Refind) {
         data.insert("label", imageLabel_->text().trimmed());
         data.insert("cmdline", cmdline_->text().trimmed());

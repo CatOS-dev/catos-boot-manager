@@ -2663,6 +2663,18 @@ They are checked again before applying.</source>
         <source>Read-only command timed out</source>
         <translation>只读命令超时</translation>
     </message>
+    <message>
+        <source>GRUB will be written to the start of the whole disk %1. Any boot loader already installed there for BIOS booting, including one used by another operating system, is replaced.</source>
+        <translation>GRUB 将写入整块磁盘 %1 的起始位置。该磁盘上已有的 BIOS 引导程序（包括其他操作系统使用的）都会被替换。</translation>
+    </message>
+    <message>
+        <source>The removable fallback loader EFI/BOOT on %1 will be replaced. Systems or USB tools that start through it, and firmware that boots it when no entry works, will start this boot loader instead.</source>
+        <translation>%1 上的可移动后备引导程序 EFI/BOOT 将被替换。通过它启动的系统或 USB 工具，以及在没有可用启动项时启动它的固件，都将改为启动此引导器。</translation>
+    </message>
+    <message>
+        <source>I understand what will be replaced</source>
+        <translation>我了解哪些内容会被替换</translation>
+    </message>
 </context>
 <context>
     <name>RepairPage</name>
