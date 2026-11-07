@@ -25,6 +25,8 @@ struct Command {
     QStringList arguments;
 };
 
+QString grubTarget(const QString &architecture);
+
 QString mountSource(const QString &path)
 {
     return BootProbe::runReadOnly(QStringLiteral("findmnt"),
@@ -241,6 +243,8 @@ bool validateAuto(const BootOperation &operation, const QJsonObject &data, QStri
     const QString espDevice = data.value(QStringLiteral("espDevice")).toString();
     const bool registerEfi = data.value(QStringLiteral("register")).toBool();
     const bool fallback = data.value(QStringLiteral("fallback")).toBool();
+    const QString architecture = data.value(QStringLiteral("architecture")).toString();
+    const QString bootloaderId = data.value(QStringLiteral("bootloaderId")).toString();
     const auto devices = BootDevices::discover();
     const auto *system = BootDevices::byPath(devices, rootDevice);
     if (system && (system->type == QLatin1String("crypt") || system->type == QLatin1String("lvm"))) {
@@ -352,6 +356,8 @@ bool BootRepair::validate(const BootOperation &operation, QString *error)
     const QString disk = data.value(QStringLiteral("disk")).toString();
     const bool registerEfi = data.value(QStringLiteral("register")).toBool();
     const bool fallback = data.value(QStringLiteral("fallback")).toBool();
+    const QString architecture = data.value(QStringLiteral("architecture")).toString();
+    const QString bootloaderId = data.value(QStringLiteral("bootloaderId")).toString();
     if (autoRoot(root)) return validateAuto(operation, data, error);
     if (!QStringList{QStringLiteral("grub"), QStringLiteral("systemd-boot"), QStringLiteral("limine"), QStringLiteral("refind"), QStringLiteral("uki"), QStringLiteral("efistub")}.contains(loader)
         || !QStringList{QStringLiteral("bios"), QStringLiteral("uefi")}.contains(mode)) {
