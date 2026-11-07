@@ -148,6 +148,21 @@ public:
             *error = QObject::tr("Selected root/subvolume is not a Linux system");
             return false;
         }
+        if (data.value(QStringLiteral("mode")).toString() == QLatin1String("uefi")
+            && data.value(QStringLiteral("espRelative")).toString() != QLatin1String("/boot")) {
+            QFile fstab(dir_->path() + QStringLiteral("/etc/fstab"));
+            if (fstab.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                while (!fstab.atEnd()) {
+                    const QString line = QString::fromUtf8(fstab.readLine()).trimmed();
+                    if (line.isEmpty() || line.startsWith('#')) continue;
+                    const auto fields = line.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
+                    if (fields.size() >= 2 && fields.at(1) == QLatin1String("/boot")) {
+                        *error = QObject::tr("The target has a separate /boot filesystem; mount it before repair.");
+                        return false;
+                    }
+                }
+            }
+        }
         if (data.value(QStringLiteral("mode")).toString() == QLatin1String("uefi")) {
             const QString relative = data.value(QStringLiteral("espRelative")).toString();
             const QString target = dir_->path() + relative;
