@@ -13,7 +13,7 @@ CatOS 的 Qt 6 引导管理器，提供按引导方式独立组织的安装和�
 - **EFI Stub**：使用 catos-firmware-boot 按内核版本生成 initramfs，成对部署内核和 initramfs，并管理对应固件启动参数。
 - **固件**：管理 BootOrder、BootNext、启动项增删和启用状态。
 
-UKI 和 EFI Stub 统一使用目标系统的 `/etc/catos/firmware-boot.conf` 和 `/etc/kernel/cmdline`；主程序通过包提供的接口读取和修改配置，安装成功后保存目录和固件注册选项，供后续软件包更新使用。安装目录可以是普通目录，不检查分区类型或文件系统。安装支持当前系统、已挂载系统，以及临时挂载的 Linux 根分区。
+UKI 和 EFI Stub 统一使用目标系统的 `/etc/catos/firmware-boot.conf` 和 `/etc/kernel/cmdline`；当前系统的配置通过包提供的接口读取；已挂载的其他系统只按数据解析其配置文件，检测时不执行其中的任何程序。修改配置统一通过包接口，安装成功后保存目录和固件注册选项，供后续软件包更新使用。安装目录可以是普通目录，不检查分区类型或文件系统。安装支持当前系统、已挂载系统，以及临时挂载的 Linux 根分区。
 
 ## 执行结构
 

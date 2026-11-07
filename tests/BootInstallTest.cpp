@@ -187,11 +187,10 @@ void BootInstallTest::validateProjectedImageSettingsBeforeWriting()
     const auto path = BootDeploy::configurationPath(root);
     const auto binary = esp + "/EFI/CatOS/linux/hash/vmlinuz.efi";
     QVERIFY(writeMenuFixture(binary, "existing kernel"));
-    QVERIFY(writeMenuFixture(path, "[boot]\nmethod=efistub\n"));
+    QVERIFY(writeMenuFixture(path, "[boot]\nmethod=efistub\nesp_path=/ordinary-output\n"));
+    QVERIFY(writeMenuFixture(root + "/etc/kernel/cmdline", "old\n"));
     QVERIFY(writeMenuFixture(root + "/usr/bin/catos-firmware-boot-update", "#!/bin/sh\nexit 0\n"));
     QVERIFY(QFile::setPermissions(root + "/usr/bin/catos-firmware-boot-update", QFileDevice::ReadOwner | QFileDevice::ExeOwner));
-    QVERIFY(writeMenuFixture(directory.path() + "/arch-chroot", "#!/bin/sh\nprintf '%s' '{\"loader\":\"efistub\",\"esp\":\"/ordinary-output\",\"cmdline\":\"old\",\"default_kernel\":\"linux\",\"label_prefix\":\"CatOS\"}'\n"));
-    QVERIFY(QFile::setPermissions(directory.path() + "/arch-chroot", QFileDevice::ReadOwner | QFileDevice::ExeOwner));
     const auto oldPath = qgetenv("PATH");
     const auto restore = qScopeGuard([&] { qputenv("PATH", oldPath); });
     qputenv("PATH", directory.path().toUtf8());

@@ -38,6 +38,7 @@ private slots:
     void delegateGenerationAndSettingsToProvider();
     void rejectFailedProviderWithoutTouchingExistingFiles();
     void preserveFirmwareDevicePathAndAttributes();
+    void readMountedProfileWithoutExecutingTarget();
 };
 
 void BootDeployTest::detectInstalledKernelsWithoutInitramfs()
@@ -107,10 +108,16 @@ void BootDeployTest::delegateGenerationAndSettingsToProvider()
     QVERIFY(read(dir.path() + "/arguments").contains("--efi-disk\n/dev/mock\n--efi-partition\n2\n--firmware-directory\n/nested/output\n"));
     QVERIFY(!read(dir.path() + "/arguments").contains("--no-variables"));
     const auto path = BootDeploy::configurationPath(root);
-    QVERIFY(fixture(path, "[boot]\nmethod=" + loader.toUtf8() + "\n"));
+    QVERIFY(fixture(path, "[boot]\nmethod=" + loader.toUtf8() + "\nesp_path = /arbitrary output/new directory\n"));
+    QVERIFY(fixture(root + "/etc/kernel/cmdline", "root=UUID=test ro\n"));
+    QFile::remove(dir.path() + "/arguments");
     auto configuration = BootDeploy::profile(path, &error); QVERIFY2(error.isEmpty(), qPrintable(error));
+    QVERIFY(!QFileInfo::exists(dir.path() + "/arguments"));
     QCOMPARE(configuration.value("esp").toString(), esp);
     QCOMPARE(configuration.value("root").toString(), root);
+    QCOMPARE(configuration.value("loader").toString(), loader);
+    QCOMPARE(configuration.value("cmdline").toString(), QString("root=UUID=test ro"));
+    QCOMPARE(configuration.value("label_prefix").toString(), QString("CatOS"));
     const auto kind = loader == QLatin1String("uki") ? LoaderKind::Uki : LoaderKind::EfiStub;
     QVERIFY2(BootDeploy::writeSetting(kind, path, "cmdline", "root=UUID=test quiet", &error), qPrintable(error));
     QVERIFY(read(dir.path() + "/arguments").contains("--configure-only\n--cmdline=root=UUID=test quiet\n"));
@@ -181,6 +188,60 @@ void BootDeployTest::deployRefindPreservesConfiguration()
     data.insert("cmdline", "invalid\nparameters");
     QVERIFY(!BootDeploy::deploy(data, root, &error)); QVERIFY(!error.isEmpty());
     QCOMPARE(read(esp + "/EFI/refind/refind_x64.efi"), QByteArray("unchanged"));
+}
+
+void BootDeployTest::readMountedProfileWithoutExecutingTarget()
+{
+    QTemporaryDir dir; QVERIFY(dir.isValid());
+    const auto root = dir.path() + "/media/drive";
+    const auto marker = dir.path() + "/executed";
+    for (const auto &program : {QStringLiteral("arch-chroot"), QStringLiteral("catos-firmware-boot-update")}) {
+        QVERIFY(fixture(dir.path() + "/bin/" + program, "#!/bin/sh\ntouch '" + marker.toUtf8() + "'\n"));
+        QVERIFY(QFile::setPermissions(dir.path() + "/bin/" + program, QFileDevice::ReadOwner | QFileDevice::ExeOwner));
+    }
+    QVERIFY(fixture(root + "/usr/bin/catos-firmware-boot-update", "#!/bin/sh\ntouch '" + marker.toUtf8() + "'\n"));
+    const auto oldPath = qgetenv("PATH");
+    const auto restore = qScopeGuard([&] { qputenv("PATH", oldPath); });
+    qputenv("PATH", (dir.path() + "/bin").toUtf8());
+    const auto path = BootDeploy::configurationPath(root);
+    QString error;
+
+    QVERIFY(fixture(path, "# comment\n[boot]\nMethod = UKI\nesp_path: /efi\nefi_disk = /dev/sda\nefi_partition = 1\n"
+        "install_fallback = yes\nlabel_prefix =\nfirmware_directory = /EFI/out\n"));
+    auto configuration = BootDeploy::profile(path, &error);
+    QVERIFY2(error.isEmpty(), qPrintable(error));
+    QCOMPARE(configuration.value("loader").toString(), QString("uki"));
+    QCOMPARE(configuration.value("esp").toString(), root + "/efi");
+    QCOMPARE(configuration.value("efi_partition").toInt(), 1);
+    QCOMPARE(configuration.value("fallback").toBool(), true);
+    QCOMPARE(configuration.value("label_prefix").toString(), QString("CatOS"));
+    QCOMPARE(configuration.value("default_kernel").toString(), QString("linux"));
+    QCOMPARE(configuration.value("cmdline").toString(), QString());
+
+    BootSnapshot snapshot; snapshot.repairRoots = {root};
+    BootContent::populate(snapshot);
+    QCOMPARE(snapshot.installations.size(), 2);
+    QVERIFY(!QFileInfo::exists(marker));
+
+    for (const QByteArray &content : {QByteArray("[boot]\nmethod = grub\n"), QByteArray("[boot]\nefi_partition = one\n"),
+             QByteArray("[boot]\nefi_disk = /dev/sda\n"), QByteArray("[boot]\ninstall_fallback = maybe\n"),
+             QByteArray("[boot]\nmethod = uki\nmethod = efistub\n"), QByteArray("[other]\nmethod = uki\n"),
+             QByteArray("[boot]\nfirmware_directory = /a/../b\n"), QByteArray("[boot]\nmethod = uki\n  continued\n")}) {
+        QVERIFY(QFile::remove(path) && fixture(path, content));
+        QVERIFY(BootDeploy::profile(path, &error).isEmpty());
+        QVERIFY(!error.isEmpty());
+    }
+
+    QVERIFY(QFile::remove(path) && fixture(dir.path() + "/elsewhere.conf", "[boot]\nmethod = uki\n"));
+    QVERIFY(QFile::link(dir.path() + "/elsewhere.conf", path));
+    QVERIFY(BootDeploy::profile(path, &error).isEmpty());
+    QVERIFY(!error.isEmpty());
+    QVERIFY(QFile::remove(path) && fixture(path, "[boot]\nmethod = uki\n"));
+    QVERIFY(QFile::link(dir.path() + "/elsewhere.conf", root + "/etc/kernel/cmdline") || (QDir().mkpath(root + "/etc/kernel")
+        && QFile::link(dir.path() + "/elsewhere.conf", root + "/etc/kernel/cmdline")));
+    QVERIFY(BootDeploy::profile(path, &error).isEmpty());
+    QVERIFY(!error.isEmpty());
+    QVERIFY(!QFileInfo::exists(marker));
 }
 
 void BootDeployTest::preserveFirmwareDevicePathAndAttributes()

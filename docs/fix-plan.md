@@ -6,7 +6,7 @@
 
 ## P0 安全与数据风险
 
-- [ ] **P0-1 扫描时以 root 执行外部挂载系统中的程序**
+- [x] **P0-1 扫描时以 root 执行外部挂载系统中的程序**
   `BootRepair::mountedTargets()` 把 `/mnt`、`/run/media` 下的系统列为目标，扫描时对含 `/etc/catos/firmware-boot.conf` 的目标执行 `arch-chroot <目标> catos-firmware-boot-update --describe`。插入自动挂载的 U 盘后打开程序，即会以 root 运行其中的程序。
   验收：只读探测不执行任何目标系统中的程序；挂载目标的配置以数据方式读取，并拒绝符号链接越界。
 - [ ] **P0-2 只读命令超时以 SIGKILL 结束，可能残留挂载和子进程**

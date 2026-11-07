@@ -199,21 +199,97 @@ QStringList configurationArguments(const QString &root)
 }
 }
 
+namespace {
+bool singleLine(const QString &value)
+{
+    for (const auto ch : value) if (ch.unicode() < 32 || ch.unicode() == 127) return false;
+    return true;
+}
+
+// Reads a mounted system's configuration as data, mirroring the provider's
+// --describe output. Programs inside another system are never executed while
+// inspecting it: the system may be an untrusted, automatically mounted drive.
+QJsonObject mountedProfile(const QString &root, QString *error)
+{
+    const auto invalid = [error] { *error = QObject::tr("Unable to read boot settings."); return QJsonObject(); };
+    const QString path = BootDeploy::configurationPath(root);
+    if (!BootMenus::safePath(path, root) || !QFileInfo(path).isFile()) return invalid();
+    const QString text = BootMenus::readText(path, error);
+    if (!error->isEmpty()) return invalid();
+    QMap<QString, QMap<QString, QString>> sections;
+    QString section;
+    for (const auto &line : text.split(QLatin1Char('\n'))) {
+        const QString clean = line.trimmed();
+        if (clean.isEmpty() || clean.startsWith(QLatin1Char('#')) || clean.startsWith(QLatin1Char(';'))) continue;
+        if (line.front().isSpace()) return invalid();
+        if (clean.startsWith(QLatin1Char('['))) {
+            if (!clean.endsWith(QLatin1Char(']'))) return invalid();
+            section = clean.mid(1, clean.size() - 2);
+            if (sections.contains(section)) return invalid();
+            sections.insert(section, {});
+            continue;
+        }
+        int separator = -1;
+        for (const QChar delimiter : {QLatin1Char('='), QLatin1Char(':')}) {
+            const int position = clean.indexOf(delimiter);
+            if (position > 0 && (separator < 0 || position < separator)) separator = position;
+        }
+        if (section.isEmpty() || separator < 0) return invalid();
+        const QString key = clean.left(separator).trimmed().toLower();
+        if (key.isEmpty() || sections[section].contains(key)) return invalid();
+        sections[section].insert(key, clean.mid(separator + 1).trimmed());
+    }
+    if (!sections.contains(QStringLiteral("boot"))) return invalid();
+    const auto values = sections.value(QStringLiteral("boot"));
+    const QString method = values.value("method", "disabled").toLower();
+    bool partitionValid = true;
+    const int partition = values.contains("efi_partition") ? values.value("efi_partition").toInt(&partitionValid) : 0;
+    const QString fallbackText = values.value("install_fallback", "no").toLower();
+    const bool fallback = QStringList{"1", "yes", "true", "on"}.contains(fallbackText);
+    const QString esp = values.value("esp_path", "/boot/efi");
+    const QString disk = values.value("efi_disk");
+    const QString directory = values.value("firmware_directory", "/");
+    const QString label = values.value("label_prefix").isEmpty() ? QStringLiteral("CatOS") : values.value("label_prefix");
+    const QString kernel = values.value("default_kernel").isEmpty() ? QStringLiteral("linux") : values.value("default_kernel");
+    if (!QStringList{"disabled", "uki", "efistub"}.contains(method) || !partitionValid || partition < 0
+        || (!fallback && !QStringList{"0", "no", "false", "off"}.contains(fallbackText))
+        || !QDir::isAbsolutePath(esp) || disk.isEmpty() != (partition == 0)
+        || !directory.startsWith(QLatin1Char('/')) || directory.contains(QLatin1Char('\\'))
+        || directory.split(QLatin1Char('/')).contains(QStringLiteral(".."))) return invalid();
+    for (const auto &value : {esp, disk, directory, label, kernel}) if (!singleLine(value)) return invalid();
+    QString cmdline;
+    const QString cmdlinePath = (root == QLatin1String("/") ? QString() : root) + QStringLiteral("/etc/kernel/cmdline");
+    if (QFileInfo(cmdlinePath).isSymLink()) return invalid();
+    if (QFileInfo(cmdlinePath).isFile()) {
+        if (!BootMenus::safePath(cmdlinePath, root)) return invalid();
+        cmdline = BootMenus::readText(cmdlinePath, error).trimmed();
+        if (!error->isEmpty()) return invalid();
+    }
+    return {{"loader", method}, {"esp", esp}, {"efi_disk", disk}, {"efi_partition", partition},
+        {"label_prefix", label}, {"default_kernel", kernel}, {"fallback", fallback},
+        {"firmware_directory", directory}, {"cmdline", cmdline}};
+}
+}
+
 QJsonObject BootDeploy::profile(const QString &path, QString *error)
 {
     error->clear();
     const auto root = configurationRoot(path);
     if (root.isEmpty()) { *error = QObject::tr("Select a target system."); return {}; }
-    const auto args = configurationArguments(root) + QStringList{"--describe"};
-    const auto output = root == QLatin1String("/")
-        ? BootProbe::runReadOnly("catos-firmware-boot-update", args)
-        : BootProbe::runReadOnly("arch-chroot", QStringList{root, "catos-firmware-boot-update"} + args);
-    QJsonParseError parseError;
-    const auto document = QJsonDocument::fromJson(output.toUtf8(), &parseError);
-    if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
-        *error = QObject::tr("Unable to read boot settings."); return {};
+    QJsonObject document;
+    if (root == QLatin1String("/")) {
+        const auto output = BootProbe::runReadOnly("catos-firmware-boot-update", configurationArguments(root) + QStringList{"--describe"});
+        QJsonParseError parseError;
+        const auto parsed = QJsonDocument::fromJson(output.toUtf8(), &parseError);
+        if (parseError.error != QJsonParseError::NoError || !parsed.isObject()) {
+            *error = QObject::tr("Unable to read boot settings."); return {};
+        }
+        document = parsed.object();
+    } else {
+        document = mountedProfile(root, error);
+        if (!error->isEmpty()) return {};
     }
-    auto data = document.object();
+    auto data = document;
     data.insert("root", root);
     if (root != QLatin1String("/")) data.insert("esp", root + data.value("esp").toString());
     return data;
