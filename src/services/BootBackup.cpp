@@ -26,12 +26,12 @@ bool BootBackup::prepare(const QList<BootOperation> &operations, const BootSnaps
     manifest_ = {};
     if (QFileInfo(root).isSymLink() || !QDir().mkpath(root)
         || !QFile::setPermissions(root, privateDirectory)) {
-        *error = QStringLiteral("Cannot create a private backup root");
+        *error = QObject::tr("Cannot create a private backup root");
         return false;
     }
     directory_ = QDir(root).filePath(QUuid::createUuid().toString(QUuid::WithoutBraces));
     if (!QDir().mkdir(directory_) || !QFile::setPermissions(directory_, privateDirectory)) {
-        *error = QStringLiteral("Cannot create a private transaction backup");
+        *error = QObject::tr("Cannot create a private transaction backup");
         return false;
     }
     QSet<QString> paths;
@@ -64,7 +64,7 @@ bool BootBackup::prepare(const QList<BootOperation> &operations, const BootSnaps
     for (const auto &path : ordered) {
         const QFileInfo info(path);
         if (!info.isAbsolute() || info.isSymLink() || (info.exists() && !info.isFile())) {
-            *error = QStringLiteral("Unsafe configuration backup source: ") + path;
+            *error = QObject::tr("Unsafe configuration backup source: %1").arg(path);
             return false;
         }
         QJsonObject entry{{QStringLiteral("path"), path}, {QStringLiteral("existed"), info.exists()}};
@@ -114,7 +114,7 @@ bool BootBackup::save(QString *error)
 {
     QSaveFile file(QDir(directory_).filePath(QStringLiteral("manifest.json")));
     if (directory_.isEmpty() || !file.open(QIODevice::WriteOnly) || !file.setPermissions(privateFile)) {
-        *error = QStringLiteral("Cannot write transaction manifest");
+        *error = QObject::tr("Cannot write transaction manifest");
         return false;
     }
     const QByteArray contents = QJsonDocument(manifest_).toJson();

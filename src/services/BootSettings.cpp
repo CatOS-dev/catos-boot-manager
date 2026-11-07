@@ -215,7 +215,7 @@ QString BootSettings::apply(LoaderKind loader, const QString &text, const QStrin
 bool BootSettings::write(LoaderKind loader, const QString &esp, const QString &key,
                          const QString &value, QString *error)
 {
-    if (!allowed(loader, key, value)) { if (error) *error = QStringLiteral("Unsupported setting or value"); return false; }
+    if (!allowed(loader, key, value)) { if (error) *error = QObject::tr("Unsupported setting or value"); return false; }
     if (BootDeploy::directImage(loader)) return BootDeploy::writeSetting(loader, esp, key, value, error);
     const QString path = configPath(loader, esp);
     if (loader == LoaderKind::Limine || loader == LoaderKind::Refind) {
@@ -227,7 +227,7 @@ bool BootSettings::write(LoaderKind loader, const QString &esp, const QString &k
     }
     const QFileInfo info(path);
     if (path.isEmpty() || info.isSymLink() || !info.dir().exists()) {
-        if (error) *error = QStringLiteral("Configuration path is unavailable");
+        if (error) *error = QObject::tr("Configuration path is unavailable");
         return false;
     }
     QString text;

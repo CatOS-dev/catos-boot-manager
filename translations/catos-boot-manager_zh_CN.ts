@@ -2403,6 +2403,266 @@ They are checked again before applying.</source>
         <source>mokutil did not complete the request.</source>
         <translation>mokutil 未能完成请求。</translation>
     </message>
+    <message>
+        <source>Cannot record execution result: %1</source>
+        <translation>无法记录执行结果：%1</translation>
+    </message>
+    <message>
+        <source>EFI file or name is not valid</source>
+        <translation>EFI 文件或名称无效</translation>
+    </message>
+    <message>
+        <source>EFI binary is not inside the EFI directory</source>
+        <translation>EFI 程序不在 EFI 目录中</translation>
+    </message>
+    <message>
+        <source>Cannot locate physical EFI partition</source>
+        <translation>无法定位 EFI 所在的物理分区</translation>
+    </message>
+    <message>
+        <source>EFI disk is unavailable</source>
+        <translation>EFI 所在磁盘不可用</translation>
+    </message>
+    <message>
+        <source>Duplicate operation</source>
+        <translation>存在重复操作</translation>
+    </message>
+    <message>
+        <source>The selected systemd-boot menu changed or its target entry disappeared</source>
+        <translation>所选 systemd-boot 菜单已变化，或目标启动项已不存在</translation>
+    </message>
+    <message>
+        <source>Boot settings changed since they were loaded</source>
+        <translation>引导设置在读取后已被修改</translation>
+    </message>
+    <message>
+        <source>Firmware boot order changed</source>
+        <translation>固件启动顺序已变化</translation>
+    </message>
+    <message>
+        <source>Boot order cannot be empty</source>
+        <translation>启动顺序不能为空</translation>
+    </message>
+    <message>
+        <source>Next boot entry is not available</source>
+        <translation>下次启动项不可用</translation>
+    </message>
+    <message>
+        <source>Firmware entry changed</source>
+        <translation>固件启动项已变化</translation>
+    </message>
+    <message>
+        <source>Firmware entry changed or label is invalid</source>
+        <translation>固件启动项已变化，或名称无效</translation>
+    </message>
+    <message>
+        <source>Firmware entry changed or is currently in use</source>
+        <translation>固件启动项已变化，或正在使用中</translation>
+    </message>
+    <message>
+        <source>Select the Limine installation for this system</source>
+        <translation>请选择本系统的 Limine 安装</translation>
+    </message>
+    <message>
+        <source>The selected image settings changed</source>
+        <translation>所选镜像设置已变化</translation>
+    </message>
+    <message>
+        <source>Unknown operation type</source>
+        <translation>未知的操作类型</translation>
+    </message>
+    <message>
+        <source>GRUB generator or destination missing</source>
+        <translation>缺少 GRUB 生成工具或输出目录</translation>
+    </message>
+    <message>
+        <source>limine-mkinitcpio is unavailable</source>
+        <translation>limine-mkinitcpio 不可用</translation>
+    </message>
+    <message>
+        <source>efibootmgr is unavailable</source>
+        <translation>efibootmgr 不可用</translation>
+    </message>
+    <message>
+        <source>Choose another default before removing this boot entry</source>
+        <translation>删除此启动项前，请先选择其他默认项</translation>
+    </message>
+    <message>
+        <source>Boot repair failed: %1</source>
+        <translation>引导修复失败：%1</translation>
+    </message>
+    <message>
+        <source>Transaction payload is too large</source>
+        <translation>操作数据过大</translation>
+    </message>
+    <message>
+        <source>Transaction rejected: %1</source>
+        <translation>操作被拒绝：%1</translation>
+    </message>
+    <message>
+        <source>Backup failed before applying changes: %1</source>
+        <translation>应用修改前备份失败：%1</translation>
+    </message>
+    <message>
+        <source>Configuration backup and execution report: %1</source>
+        <translation>配置备份与执行记录：%1</translation>
+    </message>
+    <message>
+        <source>Execution report could not be finalized: %1</source>
+        <translation>无法完成执行记录：%1</translation>
+    </message>
+    <message>
+        <source>Transaction completed</source>
+        <translation>操作已完成</translation>
+    </message>
+    <message>
+        <source>Cannot create a private repair mount directory</source>
+        <translation>无法创建私有修复挂载目录</translation>
+    </message>
+    <message>
+        <source>Could not mount the selected Linux filesystem</source>
+        <translation>无法挂载所选 Linux 文件系统</translation>
+    </message>
+    <message>
+        <source>Selected root/subvolume is not a Linux system</source>
+        <translation>所选根分区或子卷不是 Linux 系统</translation>
+    </message>
+    <message>
+        <source>Invalid target EFI mount path</source>
+        <translation>目标 EFI 挂载路径无效</translation>
+    </message>
+    <message>
+        <source>Could not mount selected EFI system partition</source>
+        <translation>无法挂载所选 EFI 系统分区</translation>
+    </message>
+    <message>
+        <source>Repair mount remains at %1</source>
+        <translation>修复挂载仍保留在 %1</translation>
+    </message>
+    <message>
+        <source>Repair directory remains at %1</source>
+        <translation>修复目录仍保留在 %1</translation>
+    </message>
+    <message>
+        <source>A temporary repair mount could not be unmounted</source>
+        <translation>无法卸载临时修复挂载</translation>
+    </message>
+    <message>
+        <source>Invalid Linux partition or Btrfs subvolume</source>
+        <translation>Linux 分区或 Btrfs 子卷无效</translation>
+    </message>
+    <message>
+        <source>Unsupported loader or firmware mode</source>
+        <translation>不支持的引导器或固件模式</translation>
+    </message>
+    <message>
+        <source>Choose GRUB and a whole disk for BIOS repair</source>
+        <translation>BIOS 修复请选择 GRUB 和整块磁盘</translation>
+    </message>
+    <message>
+        <source>Invalid UEFI partition or target mount point</source>
+        <translation>UEFI 分区或目标挂载点无效</translation>
+    </message>
+    <message>
+        <source>Firmware registration requires UEFI boot mode</source>
+        <translation>注册固件启动项需要以 UEFI 模式启动</translation>
+    </message>
+    <message>
+        <source>Disk inventory changed before repair was applied</source>
+        <translation>执行修复前磁盘列表已变化</translation>
+    </message>
+    <message>
+        <source>Mount and arch-chroot tools are required</source>
+        <translation>需要 mount 和 arch-chroot 工具</translation>
+    </message>
+    <message>
+        <source>Unsupported repair action</source>
+        <translation>不支持的修复操作</translation>
+    </message>
+    <message>
+        <source>Unsupported boot loader or firmware mode</source>
+        <translation>不支持的引导器或固件模式</translation>
+    </message>
+    <message>
+        <source>Target operating system is not mounted or cannot be identified</source>
+        <translation>目标系统未挂载或无法识别</translation>
+    </message>
+    <message>
+        <source>The target root mount changed or is not available</source>
+        <translation>目标根分区挂载已变化或不可用</translation>
+    </message>
+    <message>
+        <source>Only GRUB supports BIOS disk installation here</source>
+        <translation>此处只有 GRUB 支持安装到 BIOS 磁盘</translation>
+    </message>
+    <message>
+        <source>Select a whole physical disk for BIOS GRUB installation</source>
+        <translation>BIOS 安装 GRUB 请选择整块物理磁盘</translation>
+    </message>
+    <message>
+        <source>Unsupported UEFI installation options</source>
+        <translation>不支持的 UEFI 安装选项</translation>
+    </message>
+    <message>
+        <source>The selected destination is not mounted inside the target OS</source>
+        <translation>所选位置未挂载在目标系统内</translation>
+    </message>
+    <message>
+        <source>Choose an installation directory</source>
+        <translation>请选择安装目录</translation>
+    </message>
+    <message>
+        <source>UEFI firmware registration is not possible in this environment</source>
+        <translation>当前环境无法注册 UEFI 固件启动项</translation>
+    </message>
+    <message>
+        <source>Disk or partition inventory changed after the repair was queued</source>
+        <translation>加入修复后磁盘或分区列表已变化</translation>
+    </message>
+    <message>
+        <source>Install efibootmgr</source>
+        <translation>请安装 efibootmgr</translation>
+    </message>
+    <message>
+        <source>The target system is missing %1</source>
+        <translation>目标系统缺少 %1</translation>
+    </message>
+    <message>
+        <source>arch-chroot is required to repair mounted systems</source>
+        <translation>修复已挂载系统需要 arch-chroot</translation>
+    </message>
+    <message>
+        <source>Failed: %1</source>
+        <translation>失败：%1</translation>
+    </message>
+    <message>
+        <source>Cannot create a private backup root</source>
+        <translation>无法创建私有备份根目录</translation>
+    </message>
+    <message>
+        <source>Cannot create a private transaction backup</source>
+        <translation>无法创建本次操作的私有备份</translation>
+    </message>
+    <message>
+        <source>Unsafe configuration backup source: %1</source>
+        <translation>不安全的配置备份来源：%1</translation>
+    </message>
+    <message>
+        <source>Cannot write transaction manifest</source>
+        <translation>无法写入操作清单</translation>
+    </message>
+    <message>
+        <source>Unsupported setting or value</source>
+        <translation>不支持的设置项或值</translation>
+    </message>
+    <message>
+        <source>Configuration path is unavailable</source>
+        <translation>配置路径不可用</translation>
+    </message>
+    <message>
+        <source>Read-only command timed out</source>
+        <translation>只读命令超时</translation>
+    </message>
 </context>
 <context>
     <name>RepairPage</name>

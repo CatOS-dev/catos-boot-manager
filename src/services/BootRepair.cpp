@@ -4,6 +4,7 @@
 #include "BootDeploy.h"
 #include "BootProbe.h"
 
+#include <QObject>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -114,7 +115,7 @@ public:
     {
         dir_ = std::make_unique<QTemporaryDir>(QStringLiteral("/run/catos-boot-repair-XXXXXX"));
         if (!dir_->isValid()) {
-            *error = QStringLiteral("Cannot create a private repair mount directory");
+            *error = QObject::tr("Cannot create a private repair mount directory");
             return false;
         }
         // A failed unmount must never cause recursive deletion of a mounted OS.
@@ -126,13 +127,13 @@ public:
             << QStringLiteral("rw,subvol=") + subvolume;
         mountArguments << rootDevice << dir_->path();
         if (!run(QStringLiteral("mount"), mountArguments)) {
-            *error = QStringLiteral("Could not mount the selected Linux filesystem");
+            *error = QObject::tr("Could not mount the selected Linux filesystem");
             return false;
         }
         mounted_.append(dir_->path());
         if (!QFileInfo::exists(dir_->path() + QStringLiteral("/etc/os-release"))
             || !QFileInfo::exists(dir_->path() + QStringLiteral("/usr/bin/sh"))) {
-            *error = QStringLiteral("Selected root/subvolume is not a Linux system");
+            *error = QObject::tr("Selected root/subvolume is not a Linux system");
             return false;
         }
         if (data.value(QStringLiteral("mode")).toString() == QLatin1String("uefi")) {
@@ -144,7 +145,7 @@ public:
                 || QFileInfo(target).isSymLink()
                 || !QDir().mkpath(target)
                 || !QFileInfo(target).canonicalFilePath().startsWith(dir_->path() + QLatin1Char('/'))) {
-                *error = QStringLiteral("Invalid target EFI mount path");
+                *error = QObject::tr("Invalid target EFI mount path");
                 return false;
             }
             const QString espDevice = data.value(QStringLiteral("espDevice")).toString();
@@ -156,7 +157,7 @@ public:
                 ? QStringList{QStringLiteral("--bind"), currentMount, target}
                 : QStringList{espDevice, target};
             if (!run(QStringLiteral("mount"), arguments)) {
-                *error = QStringLiteral("Could not mount selected EFI system partition");
+                *error = QObject::tr("Could not mount selected EFI system partition");
                 return false;
             }
             mounted_.append(target);
@@ -172,7 +173,7 @@ public:
         QStringList remaining;
         for (auto it = mounted_.crbegin(); it != mounted_.crend(); ++it) {
             if (!run(QStringLiteral("umount"), {*it})) {
-                QTextStream(stderr) << "Repair mount remains at " << *it << Qt::endl;
+                QTextStream(stderr) << QObject::tr("Repair mount remains at %1").arg(*it) << Qt::endl;
                 success = false;
                 remaining.prepend(*it);
             }
@@ -185,10 +186,10 @@ public:
             } else {
                 // Mountpoint directories on the target root may have been
                 // created; leave this empty temporary directory untouched.
-                QTextStream(stderr) << "Repair directory remains at " << root << Qt::endl;
+                QTextStream(stderr) << QObject::tr("Repair directory remains at %1").arg(root) << Qt::endl;
             }
         } else if (error && !success) {
-            *error = QStringLiteral("A temporary repair mount could not be unmounted");
+            *error = QObject::tr("A temporary repair mount could not be unmounted");
         }
         return success;
     }
@@ -221,13 +222,13 @@ bool validateAuto(const BootOperation &operation, const QJsonObject &data, QStri
                         QStringLiteral("xfs"), QStringLiteral("f2fs")}.contains(system->filesystem)
         || !validSubvolume(subvolume)
         || (system->filesystem != QLatin1String("btrfs") && !subvolume.isEmpty())) {
-        *error = QStringLiteral("Invalid Linux partition or Btrfs subvolume");
+        *error = QObject::tr("Invalid Linux partition or Btrfs subvolume");
         return false;
     }
     if (!QStringList{QStringLiteral("grub"), QStringLiteral("limine"),
                      QStringLiteral("systemd-boot"), QStringLiteral("refind"), QStringLiteral("uki"), QStringLiteral("efistub")}.contains(loader)
         || !QStringList{QStringLiteral("uefi"), QStringLiteral("bios")}.contains(mode)) {
-        *error = QStringLiteral("Unsupported loader or firmware mode");
+        *error = QObject::tr("Unsupported loader or firmware mode");
         return false;
     }
     if (mode == QLatin1String("bios")) {
@@ -238,7 +239,7 @@ bool validateAuto(const BootOperation &operation, const QJsonObject &data, QStri
             || !espDevice.isEmpty() || !device || device->type != QLatin1String("disk")
             || disk.startsWith(QLatin1String("/dev/zram"))
             || disk.startsWith(QLatin1String("/dev/loop"))) {
-            *error = QStringLiteral("Choose GRUB and a whole disk for BIOS repair");
+            *error = QObject::tr("Choose GRUB and a whole disk for BIOS repair");
             return false;
         }
     } else {
@@ -249,22 +250,22 @@ bool validateAuto(const BootOperation &operation, const QJsonObject &data, QStri
             || !data.value(QStringLiteral("esp")).toString().isEmpty()
             || !data.value(QStringLiteral("disk")).toString().isEmpty()
             || (fallback && loader == QLatin1String("systemd-boot"))) {
-            *error = QStringLiteral("Invalid UEFI partition or target mount point");
+            *error = QObject::tr("Invalid UEFI partition or target mount point");
             return false;
         }
         if (registerEfi && !QDir(QStringLiteral("/sys/firmware/efi")).exists()) {
-            *error = QStringLiteral("Firmware registration requires UEFI boot mode");
+            *error = QObject::tr("Firmware registration requires UEFI boot mode");
             return false;
         }
     }
     if (BootDevices::fingerprint(devices) != operation.expected) {
-        *error = QStringLiteral("Disk inventory changed before repair was applied");
+        *error = QObject::tr("Disk inventory changed before repair was applied");
         return false;
     }
     if (QStandardPaths::findExecutable(QStringLiteral("arch-chroot")).isEmpty()
         || QStandardPaths::findExecutable(QStringLiteral("mount")).isEmpty()
         || QStandardPaths::findExecutable(QStringLiteral("umount")).isEmpty()) {
-        *error = QStringLiteral("Mount and arch-chroot tools are required");
+        *error = QObject::tr("Mount and arch-chroot tools are required");
         return false;
     }
     return true;
@@ -301,7 +302,7 @@ QStringList BootRepair::mountedTargets()
 bool BootRepair::validate(const BootOperation &operation, QString *error)
 {
     if (!supports(operation.kind)) {
-        *error = QStringLiteral("Unsupported repair action");
+        *error = QObject::tr("Unsupported repair action");
         return false;
     }
     const QJsonObject data = arguments(operation);
@@ -315,31 +316,31 @@ bool BootRepair::validate(const BootOperation &operation, QString *error)
     if (autoRoot(root)) return validateAuto(operation, data, error);
     if (!QStringList{QStringLiteral("grub"), QStringLiteral("systemd-boot"), QStringLiteral("limine"), QStringLiteral("refind"), QStringLiteral("uki"), QStringLiteral("efistub")}.contains(loader)
         || !QStringList{QStringLiteral("bios"), QStringLiteral("uefi")}.contains(mode)) {
-        *error = QStringLiteral("Unsupported boot loader or firmware mode"); return false;
+        *error = QObject::tr("Unsupported boot loader or firmware mode"); return false;
     }
     if (root.isEmpty() || !mountedTargets().contains(root)
         || !QFileInfo::exists(root + QStringLiteral("/usr/bin/sh"))) {
-        *error = QStringLiteral("Target operating system is not mounted or cannot be identified"); return false;
+        *error = QObject::tr("Target operating system is not mounted or cannot be identified"); return false;
     }
     if (mountSource(root).isEmpty()
         || mountSource(root) != data.value(QStringLiteral("rootSource")).toString()) {
-        *error = QStringLiteral("The target root mount changed or is not available"); return false;
+        *error = QObject::tr("The target root mount changed or is not available"); return false;
     }
     if (mode == QLatin1String("bios")) {
         if (loader != QLatin1String("grub") || registerEfi || fallback || !esp.isEmpty()) {
-            *error = QStringLiteral("Only GRUB supports BIOS disk installation here"); return false;
+            *error = QObject::tr("Only GRUB supports BIOS disk installation here"); return false;
         }
         const auto devices = BootDevices::discover();
         const auto *device = BootDevices::byPath(devices, disk);
         if (!device || device->type != QLatin1String("disk")
             || disk.startsWith(QLatin1String("/dev/zram"))
             || disk.startsWith(QLatin1String("/dev/loop"))) {
-            *error = QStringLiteral("Select a whole physical disk for BIOS GRUB installation");
+            *error = QObject::tr("Select a whole physical disk for BIOS GRUB installation");
             return false;
         }
     } else {
         if (!disk.isEmpty() || (fallback && loader == QLatin1String("systemd-boot"))) {
-            *error = QStringLiteral("Unsupported UEFI installation options"); return false;
+            *error = QObject::tr("Unsupported UEFI installation options"); return false;
         }
         const bool directory = QStringList{"refind", "uki", "efistub"}.contains(loader);
         if (directory) {
@@ -348,37 +349,37 @@ bool BootRepair::validate(const BootOperation &operation, QString *error)
             const QStringList mounts = BootProbe::espMounts();
             if (!esp.isEmpty() && (!mounts.contains(esp) || targetPath(root, esp).isEmpty()
                 || mountSource(esp).isEmpty() || mountSource(esp) != data.value(QStringLiteral("espSource")).toString())) {
-                *error = QStringLiteral("The selected destination is not mounted inside the target OS"); return false;
+                *error = QObject::tr("The selected destination is not mounted inside the target OS"); return false;
             }
             if (loader != QLatin1String("limine") && esp.isEmpty()) {
-                *error = QStringLiteral("Choose an installation directory"); return false;
+                *error = QObject::tr("Choose an installation directory"); return false;
             }
         }
         if (registerEfi && !QDir(QStringLiteral("/sys/firmware/efi")).exists()) {
-            *error = QStringLiteral("UEFI firmware registration is not possible in this environment");
+            *error = QObject::tr("UEFI firmware registration is not possible in this environment");
             return false;
         }
     }
     const QString fingerprint = BootDevices::fingerprint(BootDevices::discover());
     if (operation.expected != fingerprint) {
-        *error = QStringLiteral("Disk or partition inventory changed after the repair was queued");
+        *error = QObject::tr("Disk or partition inventory changed after the repair was queued");
         return false;
     }
     if (QStringList{"refind", "uki", "efistub"}.contains(loader)) {
         if (!BootDeploy::validateInputs(data, root, error)) return false;
-        if (registerEfi && QStandardPaths::findExecutable("efibootmgr").isEmpty()) { *error = QStringLiteral("Install efibootmgr"); return false; }
+        if (registerEfi && QStandardPaths::findExecutable("efibootmgr").isEmpty()) { *error = QObject::tr("Install efibootmgr"); return false; }
     }
     for (const Command &command : commands(data)) {
         const QString executable = root == QLatin1String("/")
             ? QStandardPaths::findExecutable(command.executable)
             : root + QStringLiteral("/usr/bin/") + command.executable;
         if (executable.isEmpty() || !QFileInfo::exists(executable)) {
-            *error = QStringLiteral("The target system is missing %1").arg(command.executable);
+            *error = QObject::tr("The target system is missing %1").arg(command.executable);
             return false;
         }
     }
     if (root != QLatin1String("/") && QStandardPaths::findExecutable(QStringLiteral("arch-chroot")).isEmpty()) {
-        *error = QStringLiteral("arch-chroot is required to repair mounted systems");
+        *error = QObject::tr("arch-chroot is required to repair mounted systems");
         return false;
     }
     return true;
@@ -446,7 +447,7 @@ bool BootRepair::execute(const BootOperation &operation, QString *error)
             ? QStandardPaths::findExecutable(command.executable)
             : root + QStringLiteral("/usr/bin/") + command.executable;
         if (executablePath.isEmpty() || !QFileInfo::exists(executablePath)) {
-            *error = QStringLiteral("The target system is missing %1").arg(command.executable);
+            *error = QObject::tr("The target system is missing %1").arg(command.executable);
             success = false;
             break;
         }
@@ -458,7 +459,7 @@ bool BootRepair::execute(const BootOperation &operation, QString *error)
             executable = QStringLiteral("arch-chroot");
         }
         if (!run(executable, arguments)) {
-            *error = QStringLiteral("Failed: %1").arg(command.executable);
+            *error = QObject::tr("Failed: %1").arg(command.executable);
             success = false;
             break;
         }
