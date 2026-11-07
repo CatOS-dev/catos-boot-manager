@@ -126,6 +126,9 @@ void BootSession::receive()
             }
             state_ = State::Ready;
             emit snapshotReady(snapshot);
+        } else if (document.isObject() && type == QLatin1String("progress") && state_ == State::Scanning
+                   && response.value(QStringLiteral("stage")).isString()) {
+            emit scanProgress(response.value(QStringLiteral("stage")).toString().left(200));
         } else if (document.isObject() && type == QLatin1String("preview") && state_ == State::Previewing
                    && response.value(QStringLiteral("files")).isArray() && response.value(QStringLiteral("error")).isString()) {
             state_ = State::Ready;

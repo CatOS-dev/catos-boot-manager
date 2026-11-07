@@ -3,7 +3,7 @@
 
 #include <QtConcurrentRun>
 
-BootScan::BootScan(QObject *parent) : BootScan(BootProbe::inspect, parent) {}
+BootScan::BootScan(QObject *parent) : BootScan([] { return BootProbe::inspect(); }, parent) {}
 
 BootScan::BootScan(std::function<BootSnapshot()> inspect, QObject *parent)
     : QObject(parent), inspect_(std::move(inspect))

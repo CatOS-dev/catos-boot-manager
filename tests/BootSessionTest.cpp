@@ -60,6 +60,7 @@ int fixtureSession()
             loader.signature = SignatureState::Present;
             loader.espBytesAvailable = 404 * 1024 * 1024;
             snapshot.installations = {loader};
+            if (!writeResponse(output, {{"type", "progress"}, {"stage", "Reading UEFI boot entries"}})) return 2;
             const auto data = mode == "invalid-snapshot" ? QByteArray("broken") : BootSnapshotCodec::encode(snapshot);
             if (!writeResponse(output, {{"type", "snapshot"}, {"data", QString::fromLatin1(data)}})) return 2;
         } else if (action == "apply") {
@@ -81,7 +82,7 @@ private slots:
     void cleanup();
     void oneAuthorizationForReadsAndOperations();
     void cancelledAuthorization();
-    void cancelledStartupExitsApplication();
+    void cancelledStartupOpensReadOnly();
     void failedAuthorization();
     void rejectUnprivilegedSession();
     void failedReadDoesNotPublishEmptySnapshot();
@@ -134,6 +135,7 @@ void BootSessionTest::oneAuthorizationForReadsAndOperations()
     QSignalSpy failed(&session, &BootSession::failed);
     QSignalSpy results(&session, &BootSession::operationFinished);
     QSignalSpy logs(&session, &BootSession::output);
+    QSignalSpy progress(&session, &BootSession::scanProgress);
     QList<BootSnapshot> snapshots;
     connect(&session, &BootSession::snapshotReady, this, [&](const BootSnapshot &snapshot) { snapshots.append(snapshot); });
     QVERIFY(!session.scan());
@@ -147,6 +149,8 @@ void BootSessionTest::oneAuthorizationForReadsAndOperations()
     QVERIFY(!session.scan());
     QTRY_COMPARE(snapshots.size(), 1);
     QVERIFY(!session.isBusy());
+    QCOMPARE(progress.count(), 1);
+    QCOMPARE(progress.first().first().toString(), QString("Reading UEFI boot entries"));
     const auto snapshot = snapshots.first();
     QCOMPARE(snapshot.bootCurrent, QString("0002"));
     QCOMPARE(snapshot.firmware.first().label, QString("GRUB"));
@@ -215,7 +219,7 @@ void BootSessionTest::failedAuthorization()
     QVERIFY(!session.scan());
 }
 
-void BootSessionTest::cancelledStartupExitsApplication()
+void BootSessionTest::cancelledStartupOpensReadOnly()
 {
     qputenv("CATOS_SESSION_TEST_MODE", "cancel");
     QProcess manager;
@@ -224,10 +228,12 @@ void BootSessionTest::cancelledStartupExitsApplication()
     manager.setProcessEnvironment(environment);
     manager.start(QCoreApplication::applicationDirPath() + "/catos-boot-manager", {});
     QVERIFY(manager.waitForStarted());
-    QTRY_COMPARE(manager.state(), QProcess::NotRunning);
-    QCOMPARE(manager.exitStatus(), QProcess::NormalExit);
-    QCOMPARE(manager.exitCode(), 0);
+    // The application stays open in read-only mode instead of quitting.
+    QTest::qWait(1500);
+    QCOMPARE(manager.state(), QProcess::Running);
     QVERIFY(!QFile::exists(directory_->filePath("lifecycle")));
+    manager.terminate();
+    QVERIFY(manager.waitForFinished(10000));
 }
 
 void BootSessionTest::rejectUnprivilegedSession()

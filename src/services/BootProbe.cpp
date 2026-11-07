@@ -122,10 +122,13 @@ bool BootProbe::isOnEsp(const QString &path, const QStringList &mounts)
     return false;
 }
 
-BootSnapshot BootProbe::inspect()
+BootSnapshot BootProbe::inspect(const std::function<void(const QString &)> &progress)
 {
+    const auto stage = [&progress](const QString &text) { if (progress) progress(text); };
     BootSnapshot state;
+    stage(QObject::tr("Reading installed software packages"));
     BootPackages::inspect(state);
+    stage(QObject::tr("Reading UEFI boot entries"));
     state.uefi = QDir(QStringLiteral("/sys/firmware/efi")).exists();
     state.efiArchitecture = runReadOnly(QStringLiteral("bootctl"), {QStringLiteral("--print-efi-architecture")}).trimmed();
     const QString defaultVariable = QStringLiteral("/sys/firmware/efi/efivars/LoaderEntryDefault-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f");
@@ -193,6 +196,7 @@ BootSnapshot BootProbe::inspect()
     if (state.uefi && efidata.isEmpty())
         state.messages.append(QObject::tr("Could not read UEFI variables; firmware management is unavailable."));
 
+    stage(QObject::tr("Finding EFI system partitions and systems"));
     QStringList mounts = espMounts();
     for (const auto &root : BootRepair::mountedTargets()) {
         if (!QFileInfo::exists(BootDeploy::configurationPath(root))) continue;
@@ -220,15 +224,19 @@ BootSnapshot BootProbe::inspect()
         const auto directory = mount.isEmpty() ? QString() : QDir(mount).relativeFilePath(esp);
         partitions.append({esp, uuid, directory == QLatin1String(".") ? QString() : directory});
     }
+    stage(QObject::tr("Identifying EFI programs"));
     BootDiscovery::populate(state, partitions, QStringLiteral("/"), [](const QString &path) {
         const auto details = BootSecurity::readCommand(QStringLiteral("objdump"), {QStringLiteral("-f"), path});
         return BootDiscovery::Image{
             runReadOnly(QStringLiteral("bootctl"), {QStringLiteral("kernel-identify"), path}).trimmed(),
             details.completed && details.exitCode == 0 ? BootDiscovery::architectureFromObjdump(details.output) : QString()};
     });
+    stage(QObject::tr("Checking Secure Boot and signatures"));
     BootSecurity::inspect(state);
+    stage(QObject::tr("Reading boot menus and settings"));
     BootDeploy::populate(state);
     BootContent::populate(state);
+    stage(QObject::tr("Checking for problems"));
     BootHealth::inspect(state);
     state.backups = BootBackup::list(BootBackup::defaultRoot());
     if (!state.uefi) state.messages.append(QObject::tr("This system was not booted in UEFI mode."));

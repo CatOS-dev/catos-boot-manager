@@ -457,7 +457,11 @@ int main(int argc, char **argv)
         const auto request = document.object();
         const QString action = request.value(QStringLiteral("action")).toString();
         if (action == QLatin1String("scan")) {
-            const auto snapshot = BootProbe::inspect();
+            bool connected = true;
+            const auto snapshot = BootProbe::inspect([&](const QString &stage) {
+                connected &= respond(responses, {{QStringLiteral("type"), QStringLiteral("progress")}, {QStringLiteral("stage"), stage}});
+            });
+            if (!connected) return 2;
             if (!respond(responses, {{QStringLiteral("type"), QStringLiteral("snapshot")},
                 {QStringLiteral("data"), QString::fromLatin1(BootSnapshotCodec::encode(snapshot))}})) return 2;
         } else if (action == QLatin1String("preview")) {

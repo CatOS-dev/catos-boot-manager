@@ -10,6 +10,8 @@
 #include "pages/RecoveryPage.h"
 #include "pages/SettingsPage.h"
 #include "services/BootSession.h"
+#include "services/BootProbe.h"
+#include "services/BootScan.h"
 
 #include <QApplication>
 #include <QCloseEvent>
@@ -28,8 +30,10 @@
 #include <QStatusBar>
 #include <QVBoxLayout>
 
-BootManagerWindow::BootManagerWindow(BootSession *session, QWidget *parent) : QMainWindow(parent), session_(session)
+BootManagerWindow::BootManagerWindow(BootSession *session, QWidget *parent, std::function<BootSnapshot()> localInspect)
+    : QMainWindow(parent), session_(session)
 {
+    localScan_ = new BootScan(localInspect ? std::move(localInspect) : std::function<BootSnapshot()>([] { return BootProbe::inspect(); }), this);
     setWindowTitle(tr("CatOS Boot Manager"));
     resize(1040, 700);
     setMinimumSize(760, 520);
@@ -82,6 +86,21 @@ BootManagerWindow::BootManagerWindow(BootSession *session, QWidget *parent) : QM
     auto *rightLayout = new QVBoxLayout(right);
     rightLayout->setContentsMargins(0, 0, 0, 0);
     rightLayout->setSpacing(0);
+    readOnlyBanner_ = new QFrame(right);
+    readOnlyBanner_->setObjectName(QStringLiteral("readOnlyBanner"));
+    readOnlyBanner_->setFrameShape(QFrame::StyledPanel);
+    auto *bannerLayout = new QHBoxLayout(readOnlyBanner_);
+    bannerLayout->setContentsMargins(28, 8, 34, 8);
+    auto *bannerText = new QLabel(tr("Read-only mode: administrator access was not granted. Information may be incomplete, "
+        "and changes can be prepared but not applied."), readOnlyBanner_);
+    bannerText->setWordWrap(true);
+    bannerLayout->addWidget(bannerText, 1);
+    auto *authorize = new QPushButton(tr("Authorize"), readOnlyBanner_);
+    authorize->setObjectName(QStringLiteral("authorizeSession"));
+    bannerLayout->addWidget(authorize);
+    readOnlyBanner_->hide();
+    rightLayout->addWidget(readOnlyBanner_);
+    connect(authorize, &QPushButton::clicked, session_, &BootSession::start);
     pages_ = new QStackedWidget(right);
     overview_ = new OverviewPage(pages_);
     methods_ = new MethodsPage(pages_);
@@ -140,7 +159,12 @@ BootManagerWindow::BootManagerWindow(BootSession *session, QWidget *parent) : QM
                 });
     connect(methods_, &MethodsPage::operationRequested, this, &BootManagerWindow::queue);
     const auto executeNow = [this](const BootOperation &operation) {
-        if (session_->isBusy()) return;
+        if (isBusy()) return;
+        if (readOnly_) {
+            QMessageBox::information(this, tr("Administrator access required"),
+                tr("This action needs administrator access. Use Authorize at the top of the window, then try again."));
+            return;
+        }
         BootTransaction installation;
         installation.stage(operation);
         const auto result = ApplyDialog::execute(this, *session_, installation, true);
@@ -158,34 +182,60 @@ BootManagerWindow::BootManagerWindow(BootSession *session, QWidget *parent) : QM
     });
     auto *refreshShortcut = new QShortcut(QKeySequence::Refresh, this);
     connect(refreshShortcut, &QShortcut::activated, this, &BootManagerWindow::refresh);
-    connect(session_, &BootSession::snapshotReady, this, [this](const BootSnapshot &snapshot) {
-        snapshot_ = snapshot;
-        overview_->updateSnapshot(snapshot_);
-        updatingSnapshot_ = true;
-        methods_->updateSnapshot(snapshot_);
-        security_->updateSnapshot(snapshot_);
-        menu_->updateSnapshot(snapshot_, preserveDrafts_);
-        settings_->updateSnapshot(snapshot_, preserveDrafts_);
-        recovery_->updateSnapshot(snapshot_);
-        menu_->selector()->selectInstallation(methods_->selector()->method(), methods_->selector()->currentId());
-        security_->selector()->selectInstallation(methods_->selector()->method(), methods_->selector()->currentId());
-        recovery_->selector()->selectInstallation(methods_->selector()->method(), methods_->selector()->currentId());
-        settings_->selector()->selectInstallation(menu_->selector()->method(), menu_->selector()->currentId());
-        for (const auto &operation : transaction_.operations()) settings_->reflectOperation(operation);
-        updatingSnapshot_ = false;
-        firmware_->updateSnapshot(snapshot_);
-        pages_->setEnabled(true);
-        refreshButton_->setEnabled(true);
+    connect(session_, &BootSession::snapshotReady, this, &BootManagerWindow::showSnapshot);
+    connect(localScan_, &BootScan::completed, this, &BootManagerWindow::showSnapshot);
+    connect(session_, &BootSession::scanProgress, this, [this](const QString &stage) {
+        scanStage_ = stage;
         updateFooter();
+    });
+    connect(session_, &BootSession::authorized, this, [this] {
+        if (!readOnly_) return;
+        setReadOnly(false);
+        if (!localScan_->isRunning()) rescan(true);
     });
     navigation_->setCurrentRow(0);
     updateFooter();
     QTimer::singleShot(0, this, &BootManagerWindow::refresh);
 }
 
+void BootManagerWindow::setReadOnly(bool readOnly)
+{
+    readOnly_ = readOnly;
+    readOnlyBanner_->setVisible(readOnly);
+    updateFooter();
+}
+
+bool BootManagerWindow::isBusy() const
+{
+    return session_->isBusy() || localScan_->isRunning();
+}
+
+void BootManagerWindow::showSnapshot(const BootSnapshot &snapshot)
+{
+    snapshot_ = snapshot;
+    scanStage_.clear();
+    overview_->updateSnapshot(snapshot_);
+    updatingSnapshot_ = true;
+    methods_->updateSnapshot(snapshot_);
+    security_->updateSnapshot(snapshot_);
+    menu_->updateSnapshot(snapshot_, preserveDrafts_);
+    settings_->updateSnapshot(snapshot_, preserveDrafts_);
+    recovery_->updateSnapshot(snapshot_);
+    menu_->selector()->selectInstallation(methods_->selector()->method(), methods_->selector()->currentId());
+    security_->selector()->selectInstallation(methods_->selector()->method(), methods_->selector()->currentId());
+    recovery_->selector()->selectInstallation(methods_->selector()->method(), methods_->selector()->currentId());
+    settings_->selector()->selectInstallation(menu_->selector()->method(), menu_->selector()->currentId());
+    for (const auto &operation : transaction_.operations()) settings_->reflectOperation(operation);
+    updatingSnapshot_ = false;
+    firmware_->updateSnapshot(snapshot_);
+    pages_->setEnabled(true);
+    refreshButton_->setEnabled(true);
+    updateFooter();
+}
+
 void BootManagerWindow::refresh()
 {
-    if (session_->isBusy()) return;
+    if (isBusy()) return;
     if (hasChanges() && QMessageBox::question(this, tr("Refresh detection"),
         tr("Refreshing will discard your pending changes and drafts. Continue?")) != QMessageBox::Yes) return;
     transaction_.clear();
@@ -197,7 +247,9 @@ void BootManagerWindow::rescan(bool preserveDrafts)
     preserveDrafts_ = preserveDrafts;
     pages_->setEnabled(false);
     refreshButton_->setEnabled(false);
-    session_->scan();
+    scanStage_.clear();
+    if (readOnly_) localScan_->start();
+    else session_->scan();
     updateFooter();
 }
 
@@ -215,16 +267,18 @@ void BootManagerWindow::updateFooter()
     firmware_->updateTransaction(transaction_);
     methods_->updateTransaction(transaction_);
     menu_->updateTransaction(transaction_);
-    pending_->setText(settings_->hasInvalidDrafts() ? tr("Correct invalid settings before applying.") : session_->isBusy() ? tr("Detecting boot state…")
+    const bool scanning = localScan_->isRunning() || session_->isBusy();
+    pending_->setText(settings_->hasInvalidDrafts() ? tr("Correct invalid settings before applying.")
+        : scanning ? (scanStage_.isEmpty() ? tr("Detecting boot state…") : tr("Detecting boot state: %1…").arg(scanStage_))
         : count ? tr("%1 pending change(s)").arg(count) : tr("No pending changes"));
-    apply_->setEnabled(!session_->isBusy() && count > 0 && conflict.isEmpty() && !settings_->hasInvalidDrafts());
-    apply_->setToolTip(conflict);
-    discard_->setEnabled(!session_->isBusy() && hasChanges());
+    apply_->setEnabled(!readOnly_ && !scanning && count > 0 && conflict.isEmpty() && !settings_->hasInvalidDrafts());
+    apply_->setToolTip(readOnly_ ? tr("Authorize to apply changes.") : conflict);
+    discard_->setEnabled(!scanning && hasChanges());
 }
 
 void BootManagerWindow::applyTransaction()
 {
-    if (session_->isBusy() || settings_->hasInvalidDrafts() || !BootPlan::firmwareConflict(transaction_.operations(), snapshot_).isEmpty()) return;
+    if (readOnly_ || isBusy() || settings_->hasInvalidDrafts() || !BootPlan::firmwareConflict(transaction_.operations(), snapshot_).isEmpty()) return;
     const auto result = ApplyDialog::execute(this, *session_, transaction_);
     if (result == ApplyResult::Cancelled) return;
     if (result == ApplyResult::Failed) {
@@ -250,7 +304,7 @@ bool BootManagerWindow::hasChanges() const
 
 void BootManagerWindow::closeEvent(QCloseEvent *event)
 {
-    if (session_->isBusy()) {
+    if (isBusy()) {
         statusBar()->showMessage(tr("Boot detection or execution is still running. Please wait before closing."), 8000);
         event->ignore();
         return;

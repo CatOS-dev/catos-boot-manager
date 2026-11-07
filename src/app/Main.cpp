@@ -27,14 +27,24 @@ int main(int argc, char **argv)
     }
     BootSession session;
     std::unique_ptr<BootManagerWindow> window;
+    bool privileged = false;
+    const auto openReadOnly = [&] {
+        window = std::make_unique<BootManagerWindow>(&session);
+        window->setReadOnly(true);
+        window->show();
+    };
     QObject::connect(&session, &BootSession::authorized, &app, [&] {
+        privileged = true;
+        if (window) return;  // An open read-only window switches itself over.
         window = std::make_unique<BootManagerWindow>(&session);
         window->show();
     });
-    QObject::connect(&session, &BootSession::authorizationCancelled, &app, &QApplication::quit);
+    // Without administrator access, still show what can be read.
+    QObject::connect(&session, &BootSession::authorizationCancelled, &app, [&] { if (!window) openReadOnly(); });
     QObject::connect(&session, &BootSession::failed, &app, [&](const QString &message) {
         QMessageBox::critical(window.get(), QObject::tr("Administrator access unavailable"), message);
-        app.exit(1);
+        if (!window) { openReadOnly(); return; }
+        if (privileged) app.exit(1);  // The administrator connection was lost mid-session.
     });
     QMetaObject::invokeMethod(&session, &BootSession::start, Qt::QueuedConnection);
     return app.exec();

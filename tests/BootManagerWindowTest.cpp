@@ -19,6 +19,7 @@
 #include <QPushButton>
 #include <QTemporaryDir>
 #include <QTimer>
+#include <QFrame>
 #include <QPlainTextEdit>
 #include <QTreeWidget>
 #include <QJsonArray>
@@ -36,6 +37,7 @@ private slots:
     void retainFailedTransaction();
     void separateConfigurationAndRecoveryPages();
     void queueBackupRestore();
+    void readOnlyModeUntilAuthorized();
 };
 
 static BootSnapshot settingsSnapshot()
@@ -260,6 +262,30 @@ void BootManagerWindowTest::queueBackupRestore()
     window.findChild<SettingsPage *>()->findChild<QLineEdit *>("GRUB_TIMEOUT")->setText("9");
     QCOMPARE(pending->count(), 2);
     QVERIFY(!apply->isEnabled());
+}
+
+void BootManagerWindowTest::readOnlyModeUntilAuthorized()
+{
+    BootSession session;
+    int scans = 0;
+    BootManagerWindow window(&session, nullptr, [&scans] { ++scans; return settingsSnapshot(); });
+    window.setReadOnly(true);
+    auto *banner = window.findChild<QFrame *>("readOnlyBanner"); QVERIFY(banner);
+    QVERIFY(banner->isVisibleTo(&window));
+    auto *settings = window.findChild<SettingsPage *>(); QVERIFY(settings);
+    QTRY_VERIFY(settings->findChild<QLineEdit *>("GRUB_TIMEOUT"));
+    QCOMPARE(scans, 1);
+    settings->findChild<QLineEdit *>("GRUB_TIMEOUT")->setText("9");
+    auto *pending = window.findChild<QListWidget *>("pendingOperations");
+    QCOMPARE(pending->count(), 1);
+    auto *apply = window.findChild<QPushButton *>("applyTransaction");
+    QVERIFY(!apply->isEnabled());
+    QVERIFY(!apply->toolTip().isEmpty());
+    // Authorizing switches over and keeps the prepared change.
+    emit session.authorized();
+    QVERIFY(!window.isReadOnly());
+    QVERIFY(!banner->isVisibleTo(&window));
+    QCOMPARE(pending->count(), 1);
 }
 
 int main(int argc, char **argv)

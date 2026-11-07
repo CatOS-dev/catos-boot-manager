@@ -137,6 +137,30 @@
         <source>Repair and recovery</source>
         <translation>修复与恢复</translation>
     </message>
+    <message>
+        <source>Read-only mode: administrator access was not granted. Information may be incomplete, and changes can be prepared but not applied.</source>
+        <translation>只读模式：未获得管理员权限。显示的信息可能不完整，可以准备修改，但不能应用。</translation>
+    </message>
+    <message>
+        <source>Authorize</source>
+        <translation>授权</translation>
+    </message>
+    <message>
+        <source>Administrator access required</source>
+        <translation>需要管理员权限</translation>
+    </message>
+    <message>
+        <source>This action needs administrator access. Use Authorize at the top of the window, then try again.</source>
+        <translation>此操作需要管理员权限。请先点击窗口顶部的“授权”，然后重试。</translation>
+    </message>
+    <message>
+        <source>Detecting boot state: %1…</source>
+        <translation>正在检测启动状态：%1…</translation>
+    </message>
+    <message>
+        <source>Authorize to apply changes.</source>
+        <translation>授权后才能应用修改。</translation>
+    </message>
 </context>
 <context>
     <name>BootSession</name>
@@ -2186,6 +2210,34 @@ They are checked again before applying.</source>
     <message>
         <source>The changes cannot be shown right now. They are checked again before applying.</source>
         <translation>暂时无法显示改动，应用前会再次检查。</translation>
+    </message>
+    <message>
+        <source>Reading installed software packages</source>
+        <translation>读取已安装的软件包</translation>
+    </message>
+    <message>
+        <source>Reading UEFI boot entries</source>
+        <translation>读取 UEFI 启动项</translation>
+    </message>
+    <message>
+        <source>Finding EFI system partitions and systems</source>
+        <translation>查找 EFI 系统分区和系统</translation>
+    </message>
+    <message>
+        <source>Identifying EFI programs</source>
+        <translation>识别 EFI 程序</translation>
+    </message>
+    <message>
+        <source>Checking Secure Boot and signatures</source>
+        <translation>检查安全启动与签名</translation>
+    </message>
+    <message>
+        <source>Reading boot menus and settings</source>
+        <translation>读取启动菜单和设置</translation>
+    </message>
+    <message>
+        <source>Checking for problems</source>
+        <translation>检查问题</translation>
     </message>
 </context>
 <context>

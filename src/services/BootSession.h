@@ -28,6 +28,7 @@ signals:
     void authorizationCancelled();
     void snapshotReady(const BootSnapshot &snapshot);
     void previewReady(const QJsonArray &files, const QString &error);
+    void scanProgress(const QString &stage);
     void operationFinished(bool success);
     void output(const QString &text);
     void failed(const QString &message);
