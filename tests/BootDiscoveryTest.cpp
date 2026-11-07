@@ -32,6 +32,7 @@ private slots:
     void identifyRealUkiWithBootctl();
     void retainMissingRegisteredProgram();
     void distinguishEfiArchitectures();
+    void discoverShimAndRemovableFallbackLoaders();
 };
 
 void BootDiscoveryTest::bindSubdirectoryDeploymentsWithoutDuplicatingPrograms()
@@ -176,6 +177,21 @@ void BootDiscoveryTest::distinguishEfiArchitectures()
     QCOMPARE(BootDiscovery::architectureFromObjdump("image: file format pei-i386\narchitecture: i386, flags 0x103:\n"), QString("ia32"));
     QVERIFY(BootDiscovery::architectureFromObjdump("not an executable").isEmpty());
     QVERIFY(BootDiscovery::architectureFromObjdump("architecture: unknown, flags 0x103:\n").isEmpty());
+}
+
+void BootDiscoveryTest::discoverShimAndRemovableFallbackLoaders()
+{
+    QTemporaryDir directory; QVERIFY(directory.isValid());
+    const auto esp = directory.path() + "/esp";
+    const auto shim = esp + "/EFI/Linux/shimx64.efi";
+    const auto fallback = esp + "/EFI/BOOT/BOOTX64.EFI";
+    QVERIFY(fixture(shim)); QVERIFY(fixture(fallback));
+    BootSnapshot snapshot;
+    BootDiscovery::populate(snapshot, {{esp, "uuid"}}, directory.path(),
+        [](const QString &) { return BootDiscovery::Image{}; });
+    QCOMPARE(snapshot.installations.size(), 2);
+    QCOMPARE(byBinary(snapshot, shim).kind, LoaderKind::Grub);
+    QCOMPARE(byBinary(snapshot, fallback).kind, LoaderKind::Grub);
 }
 
 QTEST_GUILESS_MAIN(BootDiscoveryTest)

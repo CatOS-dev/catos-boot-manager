@@ -25,7 +25,7 @@
 - [ ] **P1-6** 已解锁的 LUKS（`crypt`）和 LVM 根设备被拒绝且没有说明。支持这两类设备，或给出明确提示。
 - [ ] **P1-7** 开启 Secure Boot 或状态未知时，引导方式页无法设默认或单次启动，UEFI 启动项页却可以。统一规则，并说明原因。
 - [ ] **P1-8** `BootPlan::firmwareConflict` 在 GUI 进程中以桌面用户读取 ESP 文件大小，ESP 以 `umask=0077` 挂载时所有实例都不可选。文件检查移至特权端，结果放入快照。`FirmwarePage` 的文件选择对话框同样受影响。
-- [ ] **P1-9** 发现逻辑不识别 `shim*.efi` 和 `EFI/BOOT/BOOT*.EFI`。Secure Boot 下的实例显示未注册，removable 安装无法识别。
+- [x] **P1-9** 发现逻辑不识别 `shim*.efi` 和 `EFI/BOOT/BOOT*.EFI`。Secure Boot 下的实例显示未注册，removable 安装无法识别。
 
 ## P2 边界问题
 

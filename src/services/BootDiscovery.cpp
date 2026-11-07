@@ -20,9 +20,12 @@ std::optional<LoaderKind> namedLoader(const QString &path)
     static const QRegularExpression grub(QStringLiteral("^grub(?:x64|aa64|ia32)\\.efi$"));
     static const QRegularExpression systemd(QStringLiteral("^systemd-boot(?:x64|aa64|ia32)\\.efi$"));
     static const QRegularExpression refind(QStringLiteral("^refind_(?:x64|aa64|ia32)\\.efi$"));
+    static const QRegularExpression shim(QStringLiteral("^shim(?:x64|aa64|ia32)?(?:-[^.]*)?\\.efi$"));
+    static const QRegularExpression fallback(QStringLiteral("^boot(?:x64|aa64|ia32)\\.efi$"));
     if (grub.match(name).hasMatch()) return LoaderKind::Grub;
     if (systemd.match(name).hasMatch()) return LoaderKind::SystemdBoot;
     if (refind.match(name).hasMatch()) return LoaderKind::Refind;
+    if (shim.match(name).hasMatch() || fallback.match(name).hasMatch()) return LoaderKind::Grub;
     if (name == QLatin1String("limine.efi") || name == QLatin1String("liminex64.efi")
         || name == QLatin1String("limine_x64.efi")) return LoaderKind::Limine;
     return std::nullopt;

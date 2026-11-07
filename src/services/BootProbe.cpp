@@ -32,7 +32,8 @@ QString firmwareLoader(const QString &path, const QString &label)
     if (name.contains(QLatin1String("refind"))) return QStringLiteral("rEFInd");
     if (name.contains(QLatin1String("grub"))) return QStringLiteral("GRUB");
     if (name.contains(QLatin1String("shim"))) return QObject::tr("shim");
-    if (name.contains(QLatin1String("bootx64.efi"))) return QObject::tr("EFI fallback");
+    if (name.contains(QLatin1String("bootx64.efi")) || name.contains(QLatin1String("bootaa64.efi"))
+        || name.contains(QLatin1String("bootia32.efi"))) return QObject::tr("EFI fallback");
     if (label.contains(QLatin1String("limine"), Qt::CaseInsensitive)) return QObject::tr("Limine");
     return {};
 }

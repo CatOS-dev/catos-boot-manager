@@ -54,6 +54,7 @@ void MethodsPageTest::stageInstanceSelectionAndRejectChangedTarget()
     installation.espPartuuid = "uuid";
     installation.binary = program.fileName();
     installation.binaryPresent = true;
+    installation.binaryBytes = program.size();
     installation.firmwareEntries = {"0002"};
     installation.imageType = "pe";
     installation.architecture = "x64";
@@ -104,6 +105,8 @@ void MethodsPageTest::stageInstanceSelectionAndRejectChangedTarget()
     QVERIFY(!setDefault->isEnabled());
     QVERIFY(!once->isEnabled());
     QVERIFY(program.remove());
+    snapshot.installations[0].binaryPresent = false;
+    snapshot.installations[0].binaryBytes = -1;
     QVERIFY(!BootPlan::firmwareConflict(decoded, snapshot).isEmpty());
     page.updateTransaction({});
     page.updateSnapshot(snapshot);
