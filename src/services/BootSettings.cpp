@@ -20,13 +20,31 @@ QString parseValue(QString text)
     if (text.size() >= 2
         && ((text.startsWith(QLatin1Char('"')) && text.endsWith(QLatin1Char('"')))
             || (text.startsWith(QLatin1Char('\'')) && text.endsWith(QLatin1Char('\'')))))
+        const bool single = text.startsWith(QLatin1Char('\''));
         text = text.mid(1, text.size() - 2);
+        if (single) text.replace(QStringLiteral("'\\''"), QStringLiteral("'"));
     return text;
+}
+
+QString withoutComment(const QString &line)
+{
+    bool single = false;
+    bool doubleQuote = false;
+    bool escaped = false;
+    for (int i = 0; i < line.size(); ++i) {
+        const auto ch = line[i];
+        if (escaped) { escaped = false; continue; }
+        if (ch == QLatin1Char('\\') && single) { escaped = true; continue; }
+        if (ch == QLatin1Char('\'') && !doubleQuote) single = !single;
+        else if (ch == QLatin1Char('"') && !single) doubleQuote = !doubleQuote;
+        else if (ch == QLatin1Char('#') && !single && !doubleQuote) return line.left(i).trimmed();
+    }
+    return line;
 }
 
 QString settingValue(const QString &line, LoaderKind loader, const QString &key, bool *matched)
 {
-    const QString trimmed = line.trimmed();
+    const QString trimmed = withoutComment(line).trimmed();
     *matched = false;
     if (trimmed.startsWith(QLatin1Char('#'))) return {};
     if (loader == LoaderKind::SystemdBoot) {

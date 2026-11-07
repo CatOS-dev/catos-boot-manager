@@ -22,6 +22,7 @@ private slots:
     void rejectUnboundGeneratorConfiguration();
     void editOnlySelectedRefindConfiguration();
     void editRefindIncludesAndManualBlocks();
+    void readGrubQuotedValuesWithComments();
 };
 
 void SettingsDraftTest::chooseInstalledKernelWithoutImagePaths()
@@ -49,6 +50,18 @@ void SettingsDraftTest::chooseInstalledKernelWithoutImagePaths()
     QCOMPARE(transaction.count(), 1);
     QCOMPARE(transaction.operations()[0].target, loader.config + "|default_kernel");
     QCOMPARE(transaction.operations()[0].value, QString("linux-6.2"));
+}
+
+void SettingsDraftTest::readGrubQuotedValuesWithComments()
+{
+    QTemporaryDir directory; QVERIFY(directory.isValid());
+    const auto path = directory.filePath("grub");
+    QFile file(path); QVERIFY(file.open(QIODevice::WriteOnly));
+    QVERIFY(file.write("GRUB_THEME='a\\'b' # keep this comment\\n") > 0);
+    file.close();
+    QString error;
+    QCOMPARE(BootSettings::read(LoaderKind::Grub, path, "GRUB_THEME", &error), QString("a'b"));
+    QVERIFY(error.isEmpty());
 }
 
 void SettingsDraftTest::detectDraftAndAcknowledgeApplied()
