@@ -24,18 +24,16 @@ void setEditorValue(QWidget *widget, const QString &value)
 }
 }
 
-SettingsPage::SettingsPage(QWidget *parent, bool embedded) : QWidget(parent)
+SettingsPage::SettingsPage(QWidget *parent) : QWidget(parent)
 {
-    layout_ = embedded ? new QVBoxLayout(this) : BootUi::page(this);
-    if (embedded) layout_->setContentsMargins(0, 0, 0, 0);
+    layout_ = BootUi::page(this);
     auto *content = layout_->parentWidget();
-    if (!embedded) BootUi::title(layout_, content, tr("Boot loader settings"),
-                  tr("Edit boot menu settings."));
-    if (!embedded) BootUi::section(layout_, content, tr("Choose installation"));
+    BootUi::title(layout_, content, tr("Configuration"),
+                  tr("Menu timeout, kernel parameters, appearance and other boot loader settings. Edits are staged until you apply them."));
+    BootUi::section(layout_, content, tr("Choose installation"));
     selector_ = new LoaderSelector(content, true);
     selector_->setObjectName(QStringLiteral("settingsInstallation"));
     layout_->addWidget(selector_);
-    selector_->setVisible(!embedded);
     location_ = BootUi::muted({}, content);
     layout_->addWidget(location_);
     BootUi::section(layout_, content, tr("Configuration"));

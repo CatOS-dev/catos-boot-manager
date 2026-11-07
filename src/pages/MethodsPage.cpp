@@ -71,6 +71,7 @@ MethodsPage::MethodsPage(QWidget *parent) : QWidget(parent)
         });
         {
             BootUi::section(body, panel.page, tr("Deploy %1").arg(loaderName(kind)));
+            body->addWidget(BootUi::muted(tr("To repair a system that is not running, use Repair and recovery."), panel.page));
             panel.repair = new RepairPage(kind, panel.page);
             panel.repair->setObjectName(QStringLiteral("installationForm"));
             body->addWidget(panel.repair);

@@ -17,7 +17,7 @@
 #include <QSignalBlocker>
 #include <QVBoxLayout>
 
-RepairPage::RepairPage(LoaderKind kind, QWidget *parent) : QWidget(parent), kind_(kind)
+RepairPage::RepairPage(LoaderKind kind, QWidget *parent, Mode mode) : QWidget(parent), kind_(kind), mode_(mode)
 {
     loader_ = BootDeploy::loaderId(kind);
     auto *layout = new QVBoxLayout(this);
@@ -107,7 +107,7 @@ RepairPage::RepairPage(LoaderKind kind, QWidget *parent) : QWidget(parent), kind
     actions->addStretch();
     layout->addLayout(actions);
     connect(deploy_, &QPushButton::clicked, this, [this] {
-        install(binary_.isEmpty() ? QStringLiteral("install") : QStringLiteral("repair"));
+        install(mode_ == Mode::Repair || !binary_.isEmpty() ? QStringLiteral("repair") : QStringLiteral("install"));
     });
     connect(update_, &QPushButton::clicked, this, [this] { install(QStringLiteral("update")); });
     connect(rootTarget_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
@@ -135,7 +135,7 @@ void RepairPage::updateTargets(const BootSnapshot &snapshot)
     for (const auto &root : snapshot.repairRoots)
         rootTarget_->addItem(root == QLatin1String("/") ? tr("Current system (/)" ) : root, root);
     for (const auto &device : devices_) {
-        if (device.type == QLatin1String("part")
+        if (mode_ == Mode::Repair && device.type == QLatin1String("part")
             && QStringList{QStringLiteral("btrfs"), QStringLiteral("ext4"),
                            QStringLiteral("xfs"), QStringLiteral("f2fs")}.contains(device.filesystem))
             rootTarget_->addItem(tr("Mount for repair: %1").arg(device.label()),
@@ -256,7 +256,8 @@ void RepairPage::updateRepairAvailability()
 void RepairPage::updateActionText()
 {
     const bool existing = !binary_.isEmpty();
-    deploy_->setText(existing ? tr("Reinstall boot loader") : tr("Deploy boot loader"));
+    deploy_->setText(mode_ == Mode::Repair ? tr("Repair boot loader")
+        : existing ? tr("Reinstall boot loader") : tr("Deploy boot loader"));
     QString help;
     switch (kind_) {
     case LoaderKind::Grub:

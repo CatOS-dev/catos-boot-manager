@@ -3,6 +3,7 @@
 #include "model/BootPlan.h"
 #include "pages/MenuPage.h"
 #include "pages/SettingsPage.h"
+#include "widgets/LoaderSelector.h"
 #include <QLineEdit>
 #include <QDialog>
 #include <QAbstractButton>
@@ -84,7 +85,11 @@ void SystemdMenuTest::displayRealBootctlEntriesAndQueueExactDefault()
     QVERIFY2(parseError.isEmpty(), qPrintable(parseError));
     QCOMPARE(entries.size(), 2);
     MenuPage page;
+    SettingsPage settings;
+    connect(&page, &MenuPage::operationRequested, &settings, &SettingsPage::reflectOperation);
     page.updateSnapshot(snapshot);
+    settings.updateSnapshot(snapshot);
+    settings.selector()->selectInstallation(page.selector()->method(), page.selector()->currentId());
     auto *tree = page.findChild<QTreeWidget *>("bootMenuEntries");
     auto *select = page.findChild<QComboBox *>("defaultBootEntry");
     QVERIFY(tree);
@@ -103,6 +108,7 @@ void SystemdMenuTest::displayRealBootctlEntriesAndQueueExactDefault()
     tree->setCurrentItem(other);
     BootTransaction transaction;
     connect(&page, &MenuPage::operationRequested, &page, [&](const BootOperation &op) { transaction.stage(op); });
+    connect(&settings, &SettingsPage::operationRequested, &page, [&](const BootOperation &op) { transaction.stage(op); });
     select->setCurrentIndex(select->findData(tree->currentItem()->data(0, Qt::UserRole)));
     QVERIFY(QMetaObject::invokeMethod(select, "activated", Q_ARG(int, select->currentIndex())));
     QCOMPARE(transaction.count(), 1);
@@ -118,7 +124,7 @@ void SystemdMenuTest::displayRealBootctlEntriesAndQueueExactDefault()
     QVERIFY(!BootBls::defaultTargetMatches(changed, esp, operation.value, operation.expectedMenu));
     QVERIFY(!BootBls::defaultTargetMatches(snapshot, esp, "missing.conf", operation.expectedMenu));
     QVERIFY(page.findChildren<QTabWidget *>().isEmpty());
-    auto *timeout = page.settings()->findChild<QLineEdit *>("timeout");
+    auto *timeout = settings.findChild<QLineEdit *>("timeout");
     QVERIFY(timeout);
     timeout->setText("5");
     QCOMPARE(transaction.count(), 2);
@@ -152,12 +158,14 @@ void SystemdMenuTest::selectGrubSubmenuDefault()
         " menuentry 'Recovery' {\n }\n}\nmenuentry 'Windows' {\n}\n";
     BootSnapshot snapshot; snapshot.installations = {loader};
     MenuPage page; page.updateSnapshot(snapshot);
+    SettingsPage settings; settings.updateSnapshot(snapshot);
     auto *tree = page.findChild<QTreeWidget *>("bootMenuEntries"); QVERIFY(tree);
     QCOMPARE(tree->topLevelItemCount(), 3);
     QCOMPARE(tree->topLevelItem(1)->childCount(), 2);
     auto *choice = page.findChild<QComboBox *>("defaultBootEntry"); QVERIFY(choice);
     QCOMPARE(choice->currentText(), QString("CatOS {Linux}"));
-    QVERIFY(!page.settings()->findChild<QLineEdit *>("GRUB_DEFAULT"));
+    QVERIFY(settings.findChild<QLineEdit *>("GRUB_TIMEOUT"));
+    QVERIFY(!settings.findChild<QLineEdit *>("GRUB_DEFAULT"));
     BootTransaction transaction;
     connect(&page, &MenuPage::operationRequested, &page, [&](const BootOperation &op) { transaction.stage(op); page.updateTransaction(transaction); });
     const int lts = choice->findText("Advanced / Linux LTS"); QVERIFY(lts >= 0);
@@ -271,7 +279,6 @@ void SystemdMenuTest::editLimineNestedDefaultAndPreserveDrafts()
     QCOMPARE(transaction.operations()[1].value, QString("2"));
     page.selectMethod(LoaderKind::Grub); page.selectMethod(LoaderKind::Limine);
     QCOMPARE(tree->topLevelItem(0)->child(0)->text(0), QString("Updated Linux"));
-    page.findChild<QPushButton *>("showConfiguration")->click();
     page.resize(1050, 850); page.show(); QVERIFY(QTest::qWaitForWindowActive(&page));
     QVERIFY(page.grab().save("/tmp/catos-menu-limine-complete.png"));
     transaction.clear(); page.updateTransaction(transaction);

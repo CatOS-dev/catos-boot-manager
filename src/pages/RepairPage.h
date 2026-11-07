@@ -16,7 +16,10 @@ class QFormLayout;
 class RepairPage : public QWidget {
     Q_OBJECT
 public:
-    explicit RepairPage(LoaderKind kind, QWidget *parent = nullptr);
+    // Deploy installs on a running or mounted system; Repair additionally
+    // offers temporarily mounting a system that is not running.
+    enum class Mode { Deploy, Repair };
+    explicit RepairPage(LoaderKind kind, QWidget *parent = nullptr, Mode mode = Mode::Deploy);
     QPushButton *bootEntryButton() const { return addEntry_; }
     void setPackagesReady(bool ready);
     void selectDestination(const QString &esp);
@@ -35,6 +38,7 @@ private:
     void updateActionText();
     void updateRegistrationDefault();
     LoaderKind kind_;
+    Mode mode_ = Mode::Deploy;
     QJsonArray kernels_;
     QString binary_;
     QString installationId_;

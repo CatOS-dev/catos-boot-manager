@@ -18,6 +18,7 @@ class PendingPage;
 class BootSession;
 class MethodsPage;
 class SecurityPage;
+class RecoveryPage;
 
 class BootManagerWindow : public QMainWindow {
     Q_OBJECT
@@ -46,6 +47,7 @@ private:
     OverviewPage *overview_ = nullptr;
     MethodsPage *methods_ = nullptr;
     SecurityPage *security_ = nullptr;
+    RecoveryPage *recovery_ = nullptr;
     MenuPage *menu_ = nullptr;
     SettingsPage *settings_ = nullptr;
     FirmwarePage *firmware_ = nullptr;

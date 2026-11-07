@@ -29,6 +29,7 @@ private slots:
     void deployAllNewMethodsWithIndependentInputs();
     void updateOnlyForSystemdBoot();
     void proposeFirmwareRegistrationWhenMissing();
+    void offerTemporaryMountsOnlyForRepair();
 };
 
 void MethodsPageTest::stageInstanceSelectionAndRejectChangedTarget()
@@ -372,6 +373,21 @@ void MethodsPageTest::proposeFirmwareRegistrationWhenMissing()
     legacy.selectInstallation(nullptr);
     QVERIFY(!legacy.findChild<QCheckBox *>("registerFirmwareEntry")->isChecked());
     QVERIFY(!legacy.findChild<QCheckBox *>("registerFirmwareEntry")->isEnabled());
+}
+
+void MethodsPageTest::offerTemporaryMountsOnlyForRepair()
+{
+    BootSnapshot snapshot;
+    snapshot.uefi = true; snapshot.repairRoots = {"/"};
+    snapshot.devices = {{"/dev/sda2", "part", "ext4", "100G", "uuid", {}}};
+    RepairPage deploy(LoaderKind::Grub);
+    RepairPage repair(LoaderKind::Grub, nullptr, RepairPage::Mode::Repair);
+    deploy.updateTargets(snapshot); repair.updateTargets(snapshot);
+    deploy.selectInstallation(nullptr); repair.selectInstallation(nullptr);
+    QCOMPARE(deploy.findChild<QComboBox *>("repairRootTarget")->findData("auto:/dev/sda2"), -1);
+    QVERIFY(repair.findChild<QComboBox *>("repairRootTarget")->findData("auto:/dev/sda2") >= 0);
+    QCOMPARE(deploy.findChild<QPushButton *>("deployBootLoader")->text(), QString("Deploy boot loader"));
+    QCOMPARE(repair.findChild<QPushButton *>("deployBootLoader")->text(), QString("Repair boot loader"));
 }
 
 QTEST_MAIN(MethodsPageTest)

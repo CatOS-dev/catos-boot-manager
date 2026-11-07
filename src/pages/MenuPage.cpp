@@ -1,5 +1,4 @@
 #include "MenuPage.h"
-#include "SettingsPage.h"
 #include "services/BootBls.h"
 #include "services/BootDeploy.h"
 #include "services/BootMenus.h"
@@ -219,20 +218,6 @@ MenuPage::MenuPage(QWidget *parent) : QWidget(parent)
     up_->setObjectName("moveMenuEntryUp"); down_->setObjectName("moveMenuEntryDown");
     row->addStretch(); entries->addLayout(row);
     layout->addWidget(entries_);
-    auto *settingsToggle = new QPushButton(tr("Show configuration"), content);
-    settingsToggle->setCheckable(true);
-    settingsToggle->setObjectName("showConfiguration");
-    layout->addWidget(settingsToggle, 0, Qt::AlignLeft);
-    settings_ = new SettingsPage(content, true);
-    layout->addWidget(settings_);
-    settings_->hide();
-    connect(settingsToggle, &QPushButton::toggled, this, [this, settingsToggle](bool checked) {
-        settings_->setVisible(checked);
-        settingsToggle->setText(checked ? tr("Hide configuration") : tr("Show configuration"));
-    });
-    connect(settings_, &SettingsPage::operationRequested, this, &MenuPage::operationRequested);
-    connect(selector_, &LoaderSelector::installationChanged, settings_->selector(), &LoaderSelector::selectInstallation);
-    connect(this, &MenuPage::operationRequested, settings_, &SettingsPage::reflectOperation);
     connect(selector_, &LoaderSelector::selectionChanged, this, &MenuPage::loadMenu);
     connect(selector_, &LoaderSelector::methodChanged, this, &MenuPage::methodChanged);
     connect(add_, &QPushButton::clicked, this, [this] { editEntry(true); });
@@ -286,9 +271,7 @@ void MenuPage::updateSnapshot(const BootSnapshot &snapshot, bool preserveDrafts)
 {
     snapshot_ = snapshot;
     if (!preserveDrafts) { drafts_.clear(); limineDefaults_.clear(); pendingDefaults_.clear(); }
-    settings_->updateSnapshot(snapshot, preserveDrafts);
     selector_->updateSnapshot(snapshot);
-    settings_->selector()->selectInstallation(selector_->method(), selector_->currentId());
 }
 
 void MenuPage::updateTransaction(const BootTransaction &transaction)

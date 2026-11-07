@@ -7,6 +7,7 @@
 #include "pages/MethodsPage.h"
 #include "pages/SecurityPage.h"
 #include "pages/PendingPage.h"
+#include "pages/RecoveryPage.h"
 #include "pages/SettingsPage.h"
 #include "services/BootSession.h"
 
@@ -59,10 +60,13 @@ BootManagerWindow::BootManagerWindow(BootSession *session, QWidget *parent) : QM
     sideLayout->addWidget(brand);
     navigation_ = new QListWidget(sidebar);
     navigation_->setObjectName(QStringLiteral("navigation"));
-    navigation_->addItems({tr("Overview"), tr("Boot methods"), tr("Boot menu"),
-                           tr("UEFI entries"), tr("Secure Boot"), tr("Pending changes")});
+    navigation_->addItems({tr("Overview"), tr("Boot methods"), tr("Boot menu"), tr("Configuration"),
+                           tr("UEFI entries"), tr("Secure Boot"), tr("Repair and recovery"), tr("Pending changes")});
     navigation_->setFrameShape(QFrame::NoFrame);
-    navigation_->setSpacing(7);
+    navigation_->setSpacing(4);
+    navigation_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    navigation_->setTextElideMode(Qt::ElideRight);
+    navigation_->setWordWrap(true);
     navigation_->setStyleSheet(QStringLiteral(
         "QListWidget { background: transparent; border: none; }"
         "QListWidget::item { padding: 10px 12px; border-radius: 8px; }"
@@ -83,11 +87,11 @@ BootManagerWindow::BootManagerWindow(BootSession *session, QWidget *parent) : QM
     methods_ = new MethodsPage(pages_);
     security_ = new SecurityPage(pages_);
     menu_ = new MenuPage(pages_);
-    settings_ = menu_->settings();
+    settings_ = new SettingsPage(pages_);
     firmware_ = new FirmwarePage(pages_);
+    recovery_ = new RecoveryPage(pages_);
     pendingPage_ = new PendingPage(pages_);
-    for (QWidget *page : {static_cast<QWidget *>(overview_), static_cast<QWidget *>(methods_), static_cast<QWidget *>(menu_),
-                          static_cast<QWidget *>(firmware_), static_cast<QWidget *>(security_), static_cast<QWidget *>(pendingPage_)})
+    for (QWidget *page : std::initializer_list<QWidget *>{overview_, methods_, menu_, settings_, firmware_, security_, recovery_, pendingPage_})
         pages_->addWidget(page);
     rightLayout->addWidget(pages_, 1);
     footer_ = new QFrame(right);
@@ -115,6 +119,7 @@ BootManagerWindow::BootManagerWindow(BootSession *session, QWidget *parent) : QM
             QMessageBox::Discard | QMessageBox::Cancel, QMessageBox::Cancel) != QMessageBox::Discard) return;
         transaction_.clear();
         menu_->updateSnapshot(snapshot_);
+        settings_->updateSnapshot(snapshot_);
         firmware_->updateSnapshot(snapshot_);
         settings_->selector()->selectInstallation(menu_->selector()->method(), menu_->selector()->currentId());
         updateFooter();
@@ -122,7 +127,11 @@ BootManagerWindow::BootManagerWindow(BootSession *session, QWidget *parent) : QM
     connect(settings_, &SettingsPage::draftStateChanged, this, &BootManagerWindow::updateFooter);
     connect(apply_, &QPushButton::clicked, this, &BootManagerWindow::applyTransaction);
     connect(menu_, &MenuPage::operationRequested, this, &BootManagerWindow::queue);
-    const QList<LoaderSelector *> selectors{methods_->selector(), menu_->selector(), security_->selector()};
+    // Default entries chosen in the menu are settings too; keep the draft in step.
+    connect(menu_, &MenuPage::operationRequested, settings_, &SettingsPage::reflectOperation);
+    connect(settings_, &SettingsPage::operationRequested, this, &BootManagerWindow::queue);
+    const QList<LoaderSelector *> selectors{methods_->selector(), menu_->selector(), settings_->selector(),
+                                            security_->selector(), recovery_->selector()};
     for (auto *source : selectors)
         for (auto *target : selectors)
             if (source != target)
@@ -130,13 +139,15 @@ BootManagerWindow::BootManagerWindow(BootSession *session, QWidget *parent) : QM
                     if (!updatingSnapshot_) target->selectInstallation(kind, id);
                 });
     connect(methods_, &MethodsPage::operationRequested, this, &BootManagerWindow::queue);
-    connect(methods_, &MethodsPage::installationRequested, this, [this](const BootOperation &operation) {
+    const auto executeNow = [this](const BootOperation &operation) {
         if (session_->isBusy()) return;
         BootTransaction installation;
         installation.stage(operation);
         const auto result = ApplyDialog::execute(this, *session_, installation, true);
         if (result != ApplyResult::Cancelled && session_->isAuthorized()) rescan(true);
-    });
+    };
+    connect(methods_, &MethodsPage::installationRequested, this, executeNow);
+    connect(recovery_, &RecoveryPage::installationRequested, this, executeNow);
     connect(firmware_, &FirmwarePage::operationRequested, this, &BootManagerWindow::queue);
     connect(pendingPage_, &PendingPage::removalRequested, this, [this](const QString &key) {
         for (const auto &operation : transaction_.operations())
@@ -153,8 +164,11 @@ BootManagerWindow::BootManagerWindow(BootSession *session, QWidget *parent) : QM
         methods_->updateSnapshot(snapshot_);
         security_->updateSnapshot(snapshot_);
         menu_->updateSnapshot(snapshot_, preserveDrafts_);
+        settings_->updateSnapshot(snapshot_, preserveDrafts_);
+        recovery_->updateSnapshot(snapshot_);
         menu_->selector()->selectInstallation(methods_->selector()->method(), methods_->selector()->currentId());
         security_->selector()->selectInstallation(methods_->selector()->method(), methods_->selector()->currentId());
+        recovery_->selector()->selectInstallation(methods_->selector()->method(), methods_->selector()->currentId());
         settings_->selector()->selectInstallation(menu_->selector()->method(), menu_->selector()->currentId());
         for (const auto &operation : transaction_.operations()) settings_->reflectOperation(operation);
         updatingSnapshot_ = false;

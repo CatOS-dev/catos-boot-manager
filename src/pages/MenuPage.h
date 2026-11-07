@@ -8,7 +8,6 @@
 
 class QComboBox;
 class LoaderSelector;
-class SettingsPage;
 class QPlainTextEdit;
 class QPushButton;
 class QTreeWidget;
@@ -20,7 +19,6 @@ public:
     explicit MenuPage(QWidget *parent = nullptr);
     void updateSnapshot(const BootSnapshot &snapshot, bool preserveDrafts = false);
     void updateTransaction(const BootTransaction &transaction);
-    SettingsPage *settings() const { return settings_; }
     void selectMethod(LoaderKind kind);
     LoaderSelector *selector() const { return selector_; }
 
@@ -40,7 +38,6 @@ private:
     void stageMenu(const QString &source, const QJsonObject &data, const QString &fingerprint);
     const BootInstallation *installation() const;
 
-    SettingsPage *settings_ = nullptr;
     QWidget *entries_ = nullptr;
     QPushButton *rebuild_ = nullptr;
     BootSnapshot snapshot_;

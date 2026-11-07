@@ -129,6 +129,14 @@
         <source>There are %1 pending change(s). Apply them before closing, or discard all changes and invalid edits.</source>
         <translation>有 %1 项待办更改。可审核并应用后关闭，或放弃全部更改及无效编辑。</translation>
     </message>
+    <message>
+        <source>Configuration</source>
+        <translation>配置与更新</translation>
+    </message>
+    <message>
+        <source>Repair and recovery</source>
+        <translation>修复与恢复</translation>
+    </message>
 </context>
 <context>
     <name>BootSession</name>
@@ -844,6 +852,10 @@
         <location filename="../src/pages/MethodsPage.cpp" line="225"/>
         <source>Set instance %1 (%2) as default</source>
         <translation>将实例 %1（%2）设为默认</translation>
+    </message>
+    <message>
+        <source>To repair a system that is not running, use Repair and recovery.</source>
+        <translation>要修复未在运行的系统，请使用“修复与恢复”。</translation>
     </message>
 </context>
 <context>
@@ -2499,6 +2511,45 @@ State: %2
     <message>
         <source>Invalid value. %1</source>
         <translation>值无效。%1</translation>
+    </message>
+    <message>
+        <source>Menu timeout, kernel parameters, appearance and other boot loader settings. Edits are staged until you apply them.</source>
+        <translation>菜单等待时间、内核参数、外观等引导器设置。修改会先暂存，应用后才写入。</translation>
+    </message>
+</context>
+<context>
+    <name>RecoveryPage</name>
+    <message>
+        <source>Repair and recovery</source>
+        <translation>修复与恢复</translation>
+    </message>
+    <message>
+        <source>Check installed boot loaders and repair them, including systems that are not currently running.</source>
+        <translation>检查已安装的引导器并进行修复，包括当前未运行的系统。</translation>
+    </message>
+    <message>
+        <source>Diagnosis</source>
+        <translation>诊断</translation>
+    </message>
+    <message>
+        <source>Repair</source>
+        <translation>修复</translation>
+    </message>
+    <message>
+        <source>To repair a system that is not running, choose “Mount for repair” as the target system. Its root partition and EFI system partition are mounted temporarily and unmounted afterwards.</source>
+        <translation>要修复未运行的系统，请在目标系统中选择“挂载后修复”。其根分区和 EFI 系统分区会被临时挂载，完成后卸载。</translation>
+    </message>
+    <message>
+        <source>%1 was not detected. Repair installs it at the chosen destination.</source>
+        <translation>未检测到 %1。修复会将其安装到所选位置。</translation>
+    </message>
+    <message>
+        <source>No problems were detected for this installation.</source>
+        <translation>此安装未发现问题。</translation>
+    </message>
+    <message>
+        <source>No UEFI firmware entry starts this program.</source>
+        <translation>没有 UEFI 固件启动项指向此程序。</translation>
     </message>
 </context>
 </TS>

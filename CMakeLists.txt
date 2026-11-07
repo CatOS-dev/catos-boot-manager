@@ -88,6 +88,8 @@ qt_add_executable(catos-boot-manager
     src/pages/PendingPage.cpp
     src/pages/RepairPage.h
     src/pages/RepairPage.cpp
+    src/pages/RecoveryPage.h
+    src/pages/RecoveryPage.cpp
     src/dialogs/ApplyDialog.h
     src/dialogs/ApplyDialog.cpp
 )
@@ -103,7 +105,7 @@ if(BUILD_TESTING)
         src/app/BootManagerWindow.cpp src/dialogs/ApplyDialog.cpp
         src/pages/OverviewPage.cpp src/pages/MethodsPage.cpp src/pages/SecurityPage.cpp
         src/pages/MenuPage.cpp src/pages/SettingsPage.cpp src/pages/FirmwarePage.cpp
-        src/pages/PendingPage.cpp src/pages/RepairPage.cpp
+        src/pages/PendingPage.cpp src/pages/RepairPage.cpp src/pages/RecoveryPage.cpp
         src/widgets/LoaderSelector.cpp src/widgets/BootUi.cpp)
     target_link_libraries(boot-window-test PRIVATE catos-boot-core Qt6::Widgets Qt6::Test)
     add_test(NAME boot-window COMMAND boot-window-test)

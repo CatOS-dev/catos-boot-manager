@@ -19,6 +19,8 @@
 #include <QPushButton>
 #include <QTemporaryDir>
 #include <QTimer>
+#include <QStackedWidget>
+#include <QDir>
 #include <QtTest>
 
 class BootManagerWindowTest : public QObject {
@@ -29,6 +31,7 @@ private slots:
     void confirmImmediateExecutionBeforeStarting();
     void retainFailedTransaction_data();
     void retainFailedTransaction();
+    void separateConfigurationAndRecoveryPages();
 };
 
 static BootSnapshot settingsSnapshot()
@@ -198,6 +201,30 @@ void BootManagerWindowTest::retainFailedTransaction()
     QCOMPARE(session.lastApplyCode(), code);
     QCOMPARE(pending->count(), 1);
     QVERIFY(window.findChild<QPushButton *>("applyTransaction")->isEnabled());
+}
+
+void BootManagerWindowTest::separateConfigurationAndRecoveryPages()
+{
+    BootSession session;
+    BootManagerWindow window(&session);
+    QCoreApplication::processEvents();
+    emit session.snapshotReady(settingsSnapshot());
+    auto *navigation = window.findChild<QListWidget *>("navigation"); QVERIFY(navigation);
+    QStringList names;
+    for (int i = 0; i < navigation->count(); ++i) names << navigation->item(i)->text();
+    QCOMPARE(names, QStringList({"Overview", "Boot methods", "Boot menu", "Configuration", "UEFI entries",
+        "Secure Boot", "Repair and recovery", "Pending changes"}));
+    auto *pages = window.findChild<QStackedWidget *>(); QVERIFY(pages);
+    navigation->setCurrentRow(3);
+    QVERIFY(qobject_cast<SettingsPage *>(pages->currentWidget()));
+    QVERIFY(pages->currentWidget()->findChild<QLineEdit *>("GRUB_TIMEOUT"));
+    navigation->setCurrentRow(6);
+    QVERIFY(pages->currentWidget()->findChild<QWidget *>("recoveryForms"));
+    QVERIFY(!window.findChild<QPushButton *>("showConfiguration"));
+    window.resize(1040, 700); window.show(); QVERIFY(QTest::qWaitForWindowActive(&window));
+    QVERIFY(window.grab().save(QDir::tempPath() + "/catos-window-recovery.png"));
+    navigation->setCurrentRow(3);
+    QVERIFY(window.grab().save(QDir::tempPath() + "/catos-window-configuration.png"));
 }
 
 int main(int argc, char **argv)

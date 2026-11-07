@@ -16,7 +16,7 @@ class QVBoxLayout;
 class SettingsPage : public QWidget {
     Q_OBJECT
 public:
-    explicit SettingsPage(QWidget *parent = nullptr, bool embedded = false);
+    explicit SettingsPage(QWidget *parent = nullptr);
     void updateSnapshot(const BootSnapshot &snapshot, bool preserveDrafts = false);
     void acknowledgeApplied(const BootTransaction &transaction);
     bool hasDraftChanges() const;
