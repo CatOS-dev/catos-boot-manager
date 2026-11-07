@@ -4,6 +4,7 @@
 #include <QFile>
 #include <QTemporaryDir>
 #include <QJsonObject>
+#include <QStandardPaths>
 #include <QtTest>
 
 namespace {
@@ -99,6 +100,8 @@ void BootSecurityTest::preserveUnknownOnMissingFirmwareAndFailedTools()
 
 void BootSecurityTest::inspectRealUnsignedPeImage()
 {
+    if (QStandardPaths::findExecutable(QStringLiteral("sbverify")).isEmpty())
+        QSKIP("sbverify is not installed");
     const auto result = BootSecurity::readCommand("sbverify", {"--list", "/usr/lib/systemd/boot/efi/linuxx64.efi.stub"});
     QVERIFY2(result.completed, qPrintable(result.error));
     QCOMPARE(result.exitCode, 0);
