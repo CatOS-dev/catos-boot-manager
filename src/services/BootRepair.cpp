@@ -243,6 +243,10 @@ bool validateAuto(const BootOperation &operation, const QJsonObject &data, QStri
     const bool fallback = data.value(QStringLiteral("fallback")).toBool();
     const auto devices = BootDevices::discover();
     const auto *system = BootDevices::byPath(devices, rootDevice);
+    if (system && (system->type == QLatin1String("crypt") || system->type == QLatin1String("lvm"))) {
+        *error = QObject::tr("The selected root is an unlocked LUKS or LVM device; automatic repair needs its mapped filesystem mounted.");
+        return false;
+    }
     if (root != QStringLiteral("auto:") + rootDevice || !system
         || system->type != QLatin1String("part")
         || !QStringList{QStringLiteral("btrfs"), QStringLiteral("ext4"),

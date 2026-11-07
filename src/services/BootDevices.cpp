@@ -17,7 +17,8 @@ void appendDevices(const QJsonArray &items, QList<BootDevice> &devices)
         const BootDevice entry{get("name"), get("type"), get("fstype"), get("size"),
                                get("partuuid"), get("model").trimmed()};
         if (!entry.path.isEmpty() && (entry.type == QLatin1String("disk")
-            || entry.type == QLatin1String("part") || entry.type == QLatin1String("crypt")))
+            || entry.type == QLatin1String("part") || entry.type == QLatin1String("crypt")
+            || entry.type == QLatin1String("lvm")))
             devices.append(entry);
         appendDevices(device.value(QStringLiteral("children")).toArray(), devices);
     }
