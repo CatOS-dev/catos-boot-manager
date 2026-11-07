@@ -268,6 +268,11 @@ bool validateAuto(const BootOperation &operation, const QJsonObject &data, QStri
             *error = QObject::tr("Invalid UEFI partition or target mount point");
             return false;
         }
+        if (loader == QLatin1String("limine")
+            && data.value(QStringLiteral("espRelative")).toString() != QLatin1String("/boot")) {
+            *error = QObject::tr("Automatic Limine repair requires the tool-configured EFI mount at /boot");
+            return false;
+        }
         if (registerEfi && !QDir(QStringLiteral("/sys/firmware/efi")).exists()) {
             *error = QObject::tr("Firmware registration requires UEFI boot mode");
             return false;
