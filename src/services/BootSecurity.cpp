@@ -1,4 +1,5 @@
 #include "BootSecurity.h"
+#include "BootProbe.h"
 
 #include <QDir>
 #include <QFile>
@@ -29,8 +30,7 @@ BootSecurity::CommandResult BootSecurity::readCommand(const QString &program, co
     CommandResult result;
     if (!process.waitForStarted(2000)) { result.error = process.errorString(); return result; }
     if (!process.waitForFinished(6500)) {
-        process.kill();
-        process.waitForFinished();
+        BootProbe::stop(process);
         result.error = QStringLiteral("Read-only command timed out");
         return result;
     }

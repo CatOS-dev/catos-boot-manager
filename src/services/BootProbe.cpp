@@ -57,8 +57,22 @@ QString readLoaderInfo()
 }
 }
 
+void BootProbe::stop(QProcess &process)
+{
+    if (process.state() == QProcess::NotRunning) return;
+    process.terminate();
+    if (process.waitForFinished(2000)) return;
+    process.kill();
+    process.waitForFinished(2000);
+}
+
 QString BootProbe::runReadOnly(const QString &program, const QStringList &arguments)
 {
+    // Wrappers that enter another system set up mounts and run that system's
+    // programs; they belong to explicit operations, never to detection.
+    const QString name = QFileInfo(program).fileName();
+    if (name == QLatin1String("arch-chroot") || name == QLatin1String("chroot")
+        || name == QLatin1String("systemd-nspawn")) return {};
     const QStringList args = program == QLatin1String("limine-entry-tool")
         ? QStringList{QStringLiteral("--no-hooks"), QStringLiteral("--no-mutex")} + arguments
         : arguments;
@@ -66,7 +80,7 @@ QString BootProbe::runReadOnly(const QString &program, const QStringList &argume
     process.start(program, args);
     if (!process.waitForStarted(2000) || !process.waitForFinished(6500)
         || process.exitStatus() != QProcess::NormalExit || process.exitCode() != 0) {
-        if (process.state() != QProcess::NotRunning) process.kill();
+        stop(process);
         return {};
     }
     return QString::fromUtf8(process.readAllStandardOutput());

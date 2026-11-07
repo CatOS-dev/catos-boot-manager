@@ -1,7 +1,9 @@
 #include "services/BootScan.h"
 #include "services/BootProbe.h"
 
+#include <QElapsedTimer>
 #include <QFile>
+#include <QProcess>
 #include <QScopeGuard>
 #include <QSemaphore>
 #include <QTemporaryDir>
@@ -14,6 +16,8 @@ class BootScanTest : public QObject {
 private slots:
     void scanKeepsEventLoopAvailable();
     void limineQueriesDoNotRunBootHooks();
+    void readOnlyCommandsNeverEnterOtherSystems();
+    void timedOutCommandsCanCleanUp();
 };
 
 void BootScanTest::scanKeepsEventLoopAvailable()
@@ -82,6 +86,56 @@ void BootScanTest::limineQueriesDoNotRunBootHooks()
     QCOMPARE(BootProbe::runReadOnly("limine-entry-tool", {"--tree-json"}), QString("{\"entries\":[],\"globals\":{}}"));
     QCOMPARE(BootProbe::runReadOnly("limine-entry-tool", {"--config-json"}), QString("{\"entries\":[],\"globals\":{}}"));
     QVERIFY(!QFile::exists(directory.filePath("modified")));
+}
+
+namespace {
+bool executable(const QString &path, const QByteArray &script)
+{
+    QFile file(path);
+    return file.open(QIODevice::WriteOnly) && file.write(script) == script.size()
+        && file.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
+}
+}
+
+void BootScanTest::readOnlyCommandsNeverEnterOtherSystems()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QByteArray script = "#!/bin/sh\ntouch \"$0.ran\"\necho output\n";
+    for (const auto &name : {QStringLiteral("arch-chroot"), QStringLiteral("chroot"), QStringLiteral("systemd-nspawn")})
+        QVERIFY(executable(directory.filePath(name), script));
+    const auto previousPath = qgetenv("PATH");
+    const auto restore = qScopeGuard([&] { qputenv("PATH", previousPath); });
+    qputenv("PATH", directory.path().toUtf8());
+    for (const auto &name : {QStringLiteral("arch-chroot"), QStringLiteral("chroot"), QStringLiteral("systemd-nspawn")}) {
+        QVERIFY(BootProbe::runReadOnly(name, {"/run/media/drive", "true"}).isEmpty());
+        QVERIFY(BootProbe::runReadOnly(directory.filePath(name), {"/run/media/drive", "true"}).isEmpty());
+        QVERIFY(!QFile::exists(directory.filePath(name + ".ran")));
+    }
+}
+
+void BootScanTest::timedOutCommandsCanCleanUp()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString command = directory.filePath("slow-tool");
+    const QString cleaned = directory.filePath("cleaned");
+    QVERIFY(executable(command, "#!/bin/sh\ntrap 'touch \"" + cleaned.toUtf8() + "\"; exit 1' TERM\n"
+        "while :; do sleep 0.1; done\n"));
+    QElapsedTimer timer;
+    timer.start();
+    QVERIFY(BootProbe::runReadOnly(command).isEmpty());
+    QVERIFY(timer.elapsed() < 15000);
+    QVERIFY(QFile::exists(cleaned));
+
+    const QString stubborn = directory.filePath("stubborn-tool");
+    QVERIFY(executable(stubborn, "#!/bin/sh\ntrap '' TERM\nwhile :; do sleep 0.1; done\n"));
+    QProcess process;
+    process.start(stubborn);
+    QVERIFY(process.waitForStarted());
+    QTest::qWait(200);
+    BootProbe::stop(process);
+    QCOMPARE(process.state(), QProcess::NotRunning);
 }
 
 QTEST_GUILESS_MAIN(BootScanTest)

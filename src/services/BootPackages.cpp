@@ -1,4 +1,5 @@
 #include "BootPackages.h"
+#include "BootProbe.h"
 
 #include <QObject>
 #include <QProcess>
@@ -11,7 +12,7 @@ void BootPackages::inspect(BootSnapshot &snapshot)
     process.start(QStringLiteral("pacman"), {QStringLiteral("-Qq")});
     if (!process.waitForStarted(2000) || !process.waitForFinished(6500)
         || process.exitStatus() != QProcess::NormalExit || process.exitCode() != 0) {
-        if (process.state() != QProcess::NotRunning) { process.kill(); process.waitForFinished(); }
+        BootProbe::stop(process);
         return;
     }
     for (const auto &name : QString::fromUtf8(process.readAllStandardOutput()).split(QLatin1Char('\n'), Qt::SkipEmptyParts))

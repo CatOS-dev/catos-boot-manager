@@ -1,5 +1,6 @@
 #include "BootMenus.h"
 #include "BootBls.h"
+#include "BootProbe.h"
 
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -149,7 +150,7 @@ QJsonObject nativeMenu(const QJsonObject &request, QString *error)
     process.write(QJsonDocument(request).toJson(QJsonDocument::Compact));
     process.closeWriteChannel();
     if (!process.waitForFinished(10000)) {
-        process.kill(); process.waitForFinished();
+        BootProbe::stop(process);
         *error = QObject::tr("Unable to read the Limine boot menu."); return {};
     }
     const auto result = QJsonDocument::fromJson(process.readAllStandardOutput());
