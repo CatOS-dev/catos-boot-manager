@@ -315,7 +315,9 @@ void RepairPage::install(const QString &action)
         {QStringLiteral("espDevice"), espDevice},
         {QStringLiteral("espRelative"), autoRoot && !bios ? espMountPoint_->currentText() : QString()},
         {QStringLiteral("rootSource"), autoRoot ? QString() : mountSources_.value(root)},
-        {QStringLiteral("espSource"), mountSources_.value(esp)}};
+        {QStringLiteral("espSource"), mountSources_.value(esp)},
+        {QStringLiteral("architecture"), architecture_},
+        {QStringLiteral("bootloaderId"), bootloaderId_}};
     data.insert("action", action);
     // Human-readable description of the device a high-risk write affects.
     const QString device = bios ? disk : autoRoot ? espDevice : mountSources_.value(esp);
@@ -356,6 +358,13 @@ void RepairPage::selectInstallation(const BootInstallation *installation)
     const bool changed = id != installationId_;
     installationId_ = id;
     binary_ = installation ? installation->binary : QString();
+    architecture_ = installation ? installation->architecture : QString();
+    bootloaderId_.clear();
+    if (installation && !installation->binary.isEmpty()) {
+        const auto parts = installation->binary.split(QLatin1Char('/'), Qt::SkipEmptyParts);
+        for (int i = 0; i + 1 < parts.size(); ++i)
+            if (parts.at(i).compare(QLatin1String("EFI"), Qt::CaseInsensitive) == 0) { bootloaderId_ = parts.at(i + 1); break; }
+    }
     registered_ = installation && installation->firmwareRegistered;
     if (changed) {
         registerChosen_ = false;

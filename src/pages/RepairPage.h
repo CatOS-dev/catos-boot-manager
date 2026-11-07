@@ -41,6 +41,8 @@ private:
     Mode mode_ = Mode::Deploy;
     QJsonArray kernels_;
     QString binary_;
+    QString architecture_;
+    QString bootloaderId_;
     QString installationId_;
     QString destinationRoot_;
     QMap<QString, QString> destinations_;

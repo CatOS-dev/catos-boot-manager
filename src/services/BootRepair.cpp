@@ -60,14 +60,19 @@ QList<Command> commands(const QJsonObject &data)
     const QString disk = data.value(QStringLiteral("disk")).toString();
     const bool registerEfi = data.value(QStringLiteral("register")).toBool();
     const bool fallback = data.value(QStringLiteral("fallback")).toBool();
+    const QString architecture = data.value(QStringLiteral("architecture")).toString();
+    const QString bootloaderId = data.value(QStringLiteral("bootloaderId")).toString();
     QList<Command> result;
     if (loader == QLatin1String("grub")) {
         if (mode == QLatin1String("bios")) {
             result.append({QStringLiteral("grub-install"),
                 {QStringLiteral("--target=i386-pc"), QStringLiteral("--recheck"), disk}});
         } else {
-            QStringList arguments{QStringLiteral("--target=x86_64-efi"),
-                QStringLiteral("--efi-directory=") + esp, QStringLiteral("--bootloader-id=CatOS")};
+            const QString target = grubTarget(data.value(QStringLiteral("architecture")).toString());
+            if (target.isEmpty()) return {};
+            QStringList arguments{QStringLiteral("--target=") + target,
+                QStringLiteral("--efi-directory=") + esp,
+                QStringLiteral("--bootloader-id=") + data.value(QStringLiteral("bootloaderId")).toString("CatOS")};
             if (!registerEfi) arguments.append(QStringLiteral("--no-nvram"));
             if (fallback) arguments.append(QStringLiteral("--removable"));
             result.append({QStringLiteral("grub-install"), arguments});
@@ -107,6 +112,13 @@ bool validEspMount(const QString &path)
 {
     return path == QLatin1String("/boot/efi") || path == QLatin1String("/efi")
         || path == QLatin1String("/boot");
+}
+
+QString grubTarget(const QString &architecture)
+{
+    if (architecture == QLatin1String("aa64")) return QStringLiteral("arm64-efi");
+    if (architecture == QLatin1String("ia32")) return QStringLiteral("i386-efi");
+    return architecture.isEmpty() || architecture == QLatin1String("x64") ? QStringLiteral("x86_64-efi") : QString();
 }
 
 class RepairMount {
@@ -320,6 +332,12 @@ bool BootRepair::validate(const BootOperation &operation, QString *error)
     if (!QStringList{QStringLiteral("grub"), QStringLiteral("systemd-boot"), QStringLiteral("limine"), QStringLiteral("refind"), QStringLiteral("uki"), QStringLiteral("efistub")}.contains(loader)
         || !QStringList{QStringLiteral("bios"), QStringLiteral("uefi")}.contains(mode)) {
         *error = QObject::tr("Unsupported boot loader or firmware mode"); return false;
+    }
+    if (mode == QLatin1String("uefi") && loader == QLatin1String("grub") && grubTarget(architecture).isEmpty()) {
+        *error = QObject::tr("The selected GRUB instance has an unsupported EFI architecture"); return false;
+    }
+    if (bootloaderId.contains('/') || bootloaderId.contains('\\') || bootloaderId.size() > 80) {
+        *error = QObject::tr("Invalid boot loader instance name"); return false;
     }
     if (root.isEmpty() || !mountedTargets().contains(root)
         || !QFileInfo::exists(root + QStringLiteral("/usr/bin/sh"))) {
