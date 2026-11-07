@@ -1923,6 +1923,18 @@ Pending value: %2</source>
         <translation>无法读取引导设置。</translation>
     </message>
     <message>
+        <source>Unable to read firmware boot entries.</source>
+        <translation>无法读取固件启动项。</translation>
+    </message>
+    <message>
+        <source>The firmware boot entry was created but could not be identified to add it to the boot order.</source>
+        <translation>固件启动项已创建，但无法识别该项，未能加入启动顺序。</translation>
+    </message>
+    <message>
+        <source>The firmware boot entry Boot%1 was created but could not be added to the boot order.</source>
+        <translation>固件启动项 Boot%1 已创建，但未能加入启动顺序。</translation>
+    </message>
+    <message>
         <location filename="../src/services/BootDeploy.cpp" line="225"/>
         <source>Select a boot loader.</source>
         <translation>请选择引导方式。</translation>

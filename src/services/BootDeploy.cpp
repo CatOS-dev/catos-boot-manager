@@ -134,13 +134,62 @@ bool registerEntry(const QJsonObject &data, const QString &binary, const QString
         if (device.size() != 2 || !QRegularExpression(QStringLiteral("^[0-9]+$")).match(device[1]).hasMatch()) {
             *error = QObject::tr("Unable to locate the EFI partition."); return false;
         }
-        QStringList args{"--create", "--disk", "/dev/" + device[0], "--part", device[1], "--loader", efiPath,
+        QStringList args{"--disk", "/dev/" + device[0], "--part", device[1], "--loader", efiPath,
             "--label", data.value("label").toString()};
         if (!options.isEmpty()) args << "--unicode" << options;
-        if (!command("/", "efibootmgr", args, error)) return false;
+        if (!BootDeploy::createFirmwareEntry(args, error)) return false;
     }
     return true;
 }
+}
+
+namespace {
+struct FirmwareList {
+    QStringList numbers;
+    QStringList order;
+    bool valid = false;
+};
+
+FirmwareList firmwareList()
+{
+    FirmwareList result;
+    static const QRegularExpression entry(QStringLiteral("^Boot([0-9A-Fa-f]{4})\\*?\\s"));
+    static const QRegularExpression order(QStringLiteral("^BootOrder:\\s*(.*)$"));
+    const QString output = BootProbe::runReadOnly(QStringLiteral("efibootmgr"));
+    for (const auto &raw : output.split(QLatin1Char('\n'), Qt::SkipEmptyParts)) {
+        const QString line = raw.trimmed();
+        const auto entryMatch = entry.match(line);
+        if (entryMatch.hasMatch()) { result.numbers.append(entryMatch.captured(1).toUpper()); continue; }
+        const auto orderMatch = order.match(line);
+        if (orderMatch.hasMatch())
+            for (const auto &number : orderMatch.captured(1).split(QLatin1Char(','), Qt::SkipEmptyParts))
+                result.order.append(number.trimmed().toUpper());
+    }
+    result.valid = !output.trimmed().isEmpty();
+    return result;
+}
+}
+
+bool BootDeploy::createFirmwareEntry(const QStringList &arguments, QString *error)
+{
+    const auto before = firmwareList();
+    if (!before.valid) { *error = QObject::tr("Unable to read firmware boot entries."); return false; }
+    // --create-only leaves BootOrder untouched; plain --create would make the
+    // new entry the default. Append it instead so the default stays as chosen.
+    if (!command("/", "efibootmgr", QStringList{"--create-only"} + arguments, error)) return false;
+    const auto after = firmwareList();
+    QStringList created;
+    for (const auto &number : after.numbers) if (!before.numbers.contains(number)) created.append(number);
+    if (!after.valid || created.size() != 1) {
+        *error = QObject::tr("The firmware boot entry was created but could not be identified to add it to the boot order.");
+        return false;
+    }
+    if (after.order.contains(created.first())) return true;
+    if (!command("/", "efibootmgr", {"--bootorder", (after.order + created).join(QLatin1Char(','))}, error)) {
+        *error = QObject::tr("The firmware boot entry Boot%1 was created but could not be added to the boot order.").arg(created.first());
+        return false;
+    }
+    return true;
 }
 
 QByteArray BootDeploy::firmwareData(const QByteArray &original, const QString &label, const QString &options, QString *error)

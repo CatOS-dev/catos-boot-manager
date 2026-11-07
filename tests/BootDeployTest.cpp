@@ -39,6 +39,7 @@ private slots:
     void rejectFailedProviderWithoutTouchingExistingFiles();
     void preserveFirmwareDevicePathAndAttributes();
     void readMountedProfileWithoutExecutingTarget();
+    void createFirmwareEntryKeepsDefault();
 };
 
 void BootDeployTest::detectInstalledKernelsWithoutInitramfs()
@@ -242,6 +243,45 @@ void BootDeployTest::readMountedProfileWithoutExecutingTarget()
     QVERIFY(BootDeploy::profile(path, &error).isEmpty());
     QVERIFY(!error.isEmpty());
     QVERIFY(!QFileInfo::exists(marker));
+}
+
+void BootDeployTest::createFirmwareEntryKeepsDefault()
+{
+    QTemporaryDir dir; QVERIFY(dir.isValid());
+    // Stateful efibootmgr: --create mimics the real tool by prepending the
+    // new entry to BootOrder, --create-only leaves BootOrder alone.
+    const QByteArray script = "#!/bin/sh\nstate=\"$CATOS_TEST_STATE\"\n"
+        "printf '%s\\n' \"$*\" >> \"$state.log\"\n"
+        "read -r order < \"$state.order\"\n"
+        "case \"$1\" in\n"
+        "--create|-c) echo 0005 >> \"$state.entries\"; printf '0005,%s' \"$order\" > \"$state.order\";;\n"
+        "--create-only|-C) [ -n \"$CATOS_TEST_SILENT\" ] || echo 0005 >> \"$state.entries\";;\n"
+        "--bootorder|-o) printf '%s' \"$2\" > \"$state.order\";;\n"
+        "'') printf 'BootCurrent: 0001\\nBootOrder: %s\\n' \"$order\"; while read n; do printf 'Boot%s* Entry %s\\tHD(1,GPT,x)/File(\\\\EFI\\\\x.efi)\\n' \"$n\" \"$n\"; done < \"$state.entries\";;\n"
+        "*) exit 9;;\nesac\n";
+    QVERIFY(fixture(dir.path() + "/efibootmgr", script));
+    QVERIFY(QFile::setPermissions(dir.path() + "/efibootmgr", QFileDevice::ReadOwner | QFileDevice::ExeOwner));
+    const auto state = dir.path() + "/state";
+    QVERIFY(fixture(state + ".order", "0001,0002"));
+    QVERIFY(fixture(state + ".entries", "0001\n0002\n0003\n"));
+    const auto oldPath = qgetenv("PATH");
+    const auto oldState = qgetenv("CATOS_TEST_STATE");
+    const auto restore = qScopeGuard([&] { qputenv("PATH", oldPath); qputenv("CATOS_TEST_STATE", oldState); qunsetenv("CATOS_TEST_SILENT"); });
+    qputenv("PATH", dir.path().toUtf8());
+    qputenv("CATOS_TEST_STATE", state.toUtf8());
+    QString error;
+    QVERIFY2(BootDeploy::createFirmwareEntry({"-d", "/dev/mock", "-p", "1", "-L", "New", "-l", "\\EFI\\new.efi"}, &error), qPrintable(error));
+    QCOMPARE(read(state + ".order"), QByteArray("0001,0002,0005"));
+    const auto log = read(state + ".log");
+    QVERIFY(log.contains("--create-only -d /dev/mock -p 1 -L New -l \\EFI\\new.efi\n"));
+    QVERIFY(!log.contains("--create "));
+
+    // An entry that cannot be identified afterwards is reported, not ignored.
+    QVERIFY(fixture(state + ".order", "0001,0002"));
+    qputenv("CATOS_TEST_SILENT", "1");
+    QVERIFY(!BootDeploy::createFirmwareEntry({"-L", "Again"}, &error));
+    QVERIFY(!error.isEmpty());
+    QCOMPARE(read(state + ".order"), QByteArray("0001,0002"));
 }
 
 void BootDeployTest::preserveFirmwareDevicePathAndAttributes()

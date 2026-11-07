@@ -95,7 +95,7 @@ bool firmwareAddArguments(const QString &path, const QString &label,
     if (!QFileInfo::exists(disk)) { *error = QStringLiteral("EFI disk is unavailable"); return false; }
     QString efiRelative = absolute.mid(mount.size());
     efiRelative.replace(QLatin1Char('/'), QLatin1Char('\\'));
-    *arguments = {QStringLiteral("-c"), QStringLiteral("-d"), disk,
+    *arguments = {QStringLiteral("-d"), disk,
                   QStringLiteral("-p"), parts[1], QStringLiteral("-L"), label,
                   QStringLiteral("-l"), efiRelative};
     return true;
@@ -323,8 +323,13 @@ bool apply(const QList<BootOperation> &operations, BootBackup &backup, const Boo
         } else if (op.kind == QLatin1String("firmware-add")) {
             QStringList arguments;
             QString error;
-            success = firmwareAddArguments(op.target, op.value, &arguments, &error)
-                && run(backup, QStringLiteral("efibootmgr"), arguments);
+            success = firmwareAddArguments(op.target, op.value, &arguments, &error);
+            if (success) {
+                QTextStream(stdout) << "efibootmgr --create-only " << arguments.join(QLatin1Char(' ')) << Qt::endl;
+                success = BootDeploy::createFirmwareEntry(arguments, &error);
+            }
+            if (!error.isEmpty()) QTextStream(stderr) << error << Qt::endl;
+            success = recordResult(backup, QStringLiteral("efibootmgr --create-only ") + arguments.join(QLatin1Char(' ')), success);
         } else if (BootRepair::supports(op.kind)) {
             QString error;
             success = BootRepair::execute(op, &error);

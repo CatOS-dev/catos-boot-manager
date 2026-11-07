@@ -21,7 +21,7 @@ UKI 和 EFI Stub 统一使用目标系统的 `/etc/catos/firmware-boot.conf` 和
 
 执行前重新检查配置、菜单指纹和目标分区。菜单文件修改先于同一文件的全局设置修改，随后进行所需重建。应用前，配置原件、操作记录和固件状态保存在 `/var/lib/catos-boot-manager/backups/`。
 
-Limine 菜单使用相邻 `limine-tool` 项目的原生解析器，由 `catos-limine-menu` 提供结构化读写。固件项参数更新使用 libefiboot/libefivar，保留现有设备路径、编号和启动顺序。
+Limine 菜单使用相邻 `limine-tool` 项目的原生解析器，由 `catos-limine-menu` 提供结构化读写。固件项参数更新使用 libefiboot/libefivar，保留现有设备路径、编号和启动顺序。新建固件项不改变原有启动顺序，只追加到 BootOrder 末尾；默认项只能通过显式操作修改。
 
 ## 构建与验证
 

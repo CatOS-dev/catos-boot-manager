@@ -12,7 +12,7 @@
 - [x] **P0-2 只读命令超时以 SIGKILL 结束，可能残留挂载和子进程**
   `BootProbe::runReadOnly` 超时直接 `kill()`，包装器的清理逻辑和子进程都得不到处理。
   验收：只读命令不得经由 chroot 包装器运行；超时先发 SIGTERM，等待后再强制结束整个进程组。
-- [ ] **P0-3 新建固件项被插到 BootOrder 首位，悄悄改变默认启动**
+- [x] **P0-3 新建固件项被插到 BootOrder 首位，悄悄改变默认启动**
   `firmware-add` 使用 `efibootmgr -c`，rEFInd 注册使用 `--create`，二者都会把新项放到 BootOrder 最前。`catos-firmware-boot` 使用 `--create-only` 并追加到末尾，行为不一致。
   验收：新建固件项不改变原有 BootOrder 的先后，只追加到末尾；默认项只能通过显式操作修改。
 
