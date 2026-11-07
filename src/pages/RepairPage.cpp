@@ -175,8 +175,11 @@ void RepairPage::updateRepairChoices()
     espTarget_->setEditable(directory && !autoRoot);
     if (!bios && autoRoot) {
         espTarget_->addItem(tr("Select a target EFI system partition"), QString());
+        static const QString espPartitionType = QStringLiteral("c12a7328-f81f-11d2-ba4b-00a0c93ec93b");
         for (const auto &device : devices_) {
-            if (device.type == QLatin1String("part"))
+            if (device.type == QLatin1String("part")
+                && device.filesystem.compare(QLatin1String("vfat"), Qt::CaseInsensitive) == 0
+                && device.partuuid.compare(espPartitionType, Qt::CaseInsensitive) == 0)
                 espTarget_->addItem(device.label(), device.path);
         }
     } else if (directory && !bios) {

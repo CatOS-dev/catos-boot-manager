@@ -244,7 +244,10 @@ bool validateAuto(const BootOperation &operation, const QJsonObject &data, QStri
         }
     } else {
         const auto *efi = BootDevices::byPath(devices, espDevice);
+        static const QString espPartitionType = QStringLiteral("c12a7328-f81f-11d2-ba4b-00a0c93ec93b");
         if (!efi || efi->type != QLatin1String("part")
+            || efi->filesystem.compare(QLatin1String("vfat"), Qt::CaseInsensitive) != 0
+            || efi->partuuid.compare(espPartitionType, Qt::CaseInsensitive) != 0
             || espDevice == rootDevice
             || !validEspMount(data.value(QStringLiteral("espRelative")).toString())
             || !data.value(QStringLiteral("esp")).toString().isEmpty()
