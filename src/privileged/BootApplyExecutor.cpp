@@ -249,7 +249,8 @@ bool apply(const QList<BootOperation> &operations, BootBackup &backup, const Boo
     const auto packages = BootPackages::installArguments(operations, snapshot, &packageError);
     if (!packageError.isEmpty()) return false;
     if (!packages.isEmpty()) {
-        const bool success = run(backup, QStringLiteral("pacman"), packages);
+        const bool synced = run(backup, QStringLiteral("pacman"), {QStringLiteral("-Sy"), QStringLiteral("--noconfirm"), QStringLiteral("--")});
+        const bool success = synced && run(backup, QStringLiteral("pacman"), packages);
         for (const auto &op : operations)
             if (op.kind == "install-packages") outcomes->insert(op.key(), success ? "succeeded" : "failed");
         if (!success) return false;
