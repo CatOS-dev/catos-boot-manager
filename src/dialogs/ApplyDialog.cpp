@@ -3,6 +3,11 @@
 #include "services/BootSession.h"
 
 #include <QCloseEvent>
+#include <QEventLoop>
+#include <QFontDatabase>
+#include <QJsonArray>
+#include <QSyntaxHighlighter>
+#include "model/BootDiff.h"
 #include <QFileDialog>
 #include <QSaveFile>
 #include <QClipboard>
@@ -20,6 +25,55 @@
 #include <QVBoxLayout>
 
 namespace {
+class DiffHighlighter : public QSyntaxHighlighter {
+public:
+    using QSyntaxHighlighter::QSyntaxHighlighter;
+protected:
+    void highlightBlock(const QString &text) override
+    {
+        QTextCharFormat format;
+        if (text.startsWith(QLatin1String("@@"))) format.setForeground(QColor(0x3b, 0x82, 0xc4));
+        else if (text.startsWith(QLatin1Char('+'))) format.setBackground(QColor(46, 160, 67, 60));
+        else if (text.startsWith(QLatin1Char('-'))) format.setBackground(QColor(248, 81, 73, 60));
+        else if (text.startsWith(QLatin1String("▸ "))) format.setFontWeight(QFont::Bold);
+        else return;
+        setFormat(0, text.size(), format);
+    }
+};
+
+QString renderChanges(const QJsonArray &files)
+{
+    QStringList lines;
+    for (const auto &value : files) {
+        const auto file = value.toObject();
+        const QString path = file.value("path").toString();
+        if (file.contains("settings")) {
+            lines << QStringLiteral("▸ ") + path;
+            for (const auto &setting : file.value("settings").toArray()) {
+                const auto item = setting.toObject();
+                lines << QStringLiteral("- %1 = %2").arg(item.value("key").toString(), item.value("before").toString())
+                      << QStringLiteral("+ %1 = %2").arg(item.value("key").toString(), item.value("after").toString());
+            }
+            lines << QString();
+            continue;
+        }
+        const bool created = !file.value("existed").toBool() && !file.value("removed").toBool();
+        const bool removed = file.value("removed").toBool();
+        lines << QStringLiteral("▸ ") + path + (created ? QObject::tr(" (new file)") : removed ? QObject::tr(" (removed)") : QString());
+        lines << BootDiff::unified(file.value("before").toString(), removed ? QString() : file.value("after").toString());
+        lines << QString();
+    }
+    return lines.isEmpty() ? QObject::tr("No file contents change.") : lines.join(QLatin1Char('\n'));
+}
+
+bool hasFileChanges(const BootTransaction &transaction)
+{
+    for (const auto &op : transaction.operations())
+        if (op.kind == QLatin1String("menu-write") || op.kind.endsWith(QLatin1String("-setting"))
+            || op.kind == QLatin1String("restore-backup")) return true;
+    return false;
+}
+
 class ExecutionDialog : public QDialog {
 public:
     using QDialog::QDialog;
@@ -70,6 +124,20 @@ ApplyResult ApplyDialog::execute(QWidget *parent, BootSession &session, const Bo
     items->addStretch();
     scroll->setWidget(content);
     layout->addWidget(scroll, 1);
+    QPlainTextEdit *changes = nullptr;
+    const bool diffable = !immediate && hasFileChanges(transaction);
+    if (diffable) {
+        preview.resize(760, 640);
+        layout->addWidget(BootUi::muted(QObject::tr("Changes to configuration files:"), &preview));
+        changes = new QPlainTextEdit(&preview);
+        changes->setObjectName("changeDiff");
+        changes->setReadOnly(true);
+        changes->setLineWrapMode(QPlainTextEdit::NoWrap);
+        changes->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
+        changes->setPlainText(QObject::tr("Loading changes…"));
+        new DiffHighlighter(changes->document());
+        layout->addWidget(changes, 2);
+    }
     auto *controls = new QHBoxLayout;
     controls->addStretch();
     auto *cancel = new QPushButton(QObject::tr("Cancel"), &preview);
@@ -90,7 +158,28 @@ ApplyResult ApplyDialog::execute(QWidget *parent, BootSession &session, const Bo
     layout->addLayout(controls);
     QObject::connect(cancel, &QPushButton::clicked, &preview, &QDialog::reject);
     QObject::connect(confirm, &QPushButton::clicked, &preview, &QDialog::accept);
-    if (preview.exec() != QDialog::Accepted) return ApplyResult::Cancelled;
+    if (diffable) {
+        // Applying waits for the preview: the session handles one request at a time.
+        confirm->setEnabled(false);
+        QObject::connect(&session, &BootSession::previewReady, &preview, [changes, confirm](const QJsonArray &files, const QString &error) {
+            changes->setPlainText(error.isEmpty() ? renderChanges(files)
+                : QObject::tr("Unable to show the changes: %1\nThey are checked again before applying.").arg(error));
+            confirm->setEnabled(true);
+        });
+        if (!session.preview(transaction)) {
+            changes->setPlainText(QObject::tr("The changes cannot be shown right now. They are checked again before applying."));
+            confirm->setEnabled(session.isAuthorized() && !session.isBusy());
+        }
+    }
+    const int accepted = preview.exec();
+    if (diffable && session.isBusy()) {
+        // Wait for an outstanding preview so the session can take the next request.
+        QEventLoop wait;
+        QObject::connect(&session, &BootSession::previewReady, &wait, &QEventLoop::quit);
+        QObject::connect(&session, &BootSession::failed, &wait, &QEventLoop::quit);
+        if (session.isBusy()) wait.exec();
+    }
+    if (accepted != QDialog::Accepted) return ApplyResult::Cancelled;
     }
 
     ExecutionDialog running(parent);

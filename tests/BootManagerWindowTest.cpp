@@ -19,6 +19,7 @@
 #include <QPushButton>
 #include <QTemporaryDir>
 #include <QTimer>
+#include <QPlainTextEdit>
 #include <QTreeWidget>
 #include <QJsonArray>
 #include <QStackedWidget>
@@ -176,6 +177,7 @@ void BootManagerWindowTest::retainFailedTransaction()
     auto *pending = window.findChild<QListWidget *>("pendingOperations"); QVERIFY(pending);
     QCOMPARE(pending->count(), 1);
     bool sawWarning = false;
+    bool sawDiff = false;
     QTimer modal;
     connect(&modal, &QTimer::timeout, &window, [&] {
         auto *dialog = qobject_cast<QDialog *>(QApplication::activeModalWidget());
@@ -186,6 +188,8 @@ void BootManagerWindowTest::retainFailedTransaction()
             box->accept();
             return;
         }
+        if (auto *changes = dialog->findChild<QPlainTextEdit *>("changeDiff"))
+            sawDiff |= changes->toPlainText().contains("-GRUB_TIMEOUT='3'") && changes->toPlainText().contains("+GRUB_TIMEOUT='5'");
         for (auto *button : dialog->findChildren<QPushButton *>())
             if ((button->text() == "Apply" || button->text() == "Close") && button->isEnabled()) {
                 if (button->text() == "Close") {
@@ -201,6 +205,7 @@ void BootManagerWindowTest::retainFailedTransaction()
     window.findChild<QPushButton *>("applyTransaction")->click();
     modal.stop();
     QVERIFY(sawWarning);
+    QVERIFY(sawDiff);
     QCOMPARE(session.lastApplyCode(), code);
     QCOMPARE(pending->count(), 1);
     QVERIFY(window.findChild<QPushButton *>("applyTransaction")->isEnabled());
@@ -271,6 +276,12 @@ int main(int argc, char **argv)
             if (request.value("action").toString() == "scan") {
                 const QJsonObject response{{"type", "snapshot"},
                     {"data", QString::fromLatin1(BootSnapshotCodec::encode(settingsSnapshot()))}};
+                output.write(QJsonDocument(response).toJson(QJsonDocument::Compact) + '\n'); output.flush();
+            }
+            if (request.value("action").toString() == "preview") {
+                const QJsonObject response{{"type", "preview"}, {"error", ""}, {"files", QJsonArray{QJsonObject{
+                    {"path", "/etc/default/grub"}, {"before", "GRUB_TIMEOUT='3'\n"}, {"after", "GRUB_TIMEOUT='5'\n"},
+                    {"existed", true}, {"removed", false}}}}};
                 output.write(QJsonDocument(response).toJson(QJsonDocument::Compact) + '\n'); output.flush();
             }
             if (request.value("action").toString() == "apply") {

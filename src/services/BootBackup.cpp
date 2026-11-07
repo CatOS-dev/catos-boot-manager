@@ -273,3 +273,22 @@ bool BootBackup::restore(const QString &root, const QString &id, QString *error)
     }
     return true;
 }
+
+QList<BootBackup::SavedFile> BootBackup::savedFiles(const QString &root, const QString &id, QString *error)
+{
+    QByteArray raw;
+    const auto manifest = readManifest(root, id, &raw, error);
+    if (!error->isEmpty()) return {};
+    QList<SavedFile> result;
+    for (const auto &value : manifest.value(QStringLiteral("files")).toArray()) {
+        const auto file = value.toObject();
+        SavedFile saved{file.value(QStringLiteral("path")).toString(), file.value(QStringLiteral("existed")).toBool(), {}};
+        if (saved.existed) {
+            QFile original(QDir(QDir(root).filePath(id)).filePath(file.value(QStringLiteral("backup")).toString()));
+            if (!original.open(QIODevice::ReadOnly)) { *error = QObject::tr("The selected backup is damaged."); return {}; }
+            saved.data = original.readAll();
+        }
+        result.append(saved);
+    }
+    return result;
+}

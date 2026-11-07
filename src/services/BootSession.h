@@ -15,22 +15,25 @@ public:
     void stop();
     bool scan();
     bool apply(const BootTransaction &transaction);
+    // Asks the privileged side which files the transaction would change.
+    bool preview(const BootTransaction &transaction);
     QJsonObject lastOutcomes() const { return lastOutcomes_; }
     QString lastReportDirectory() const { return lastReportDirectory_; }
     int lastApplyCode() const { return lastApplyCode_; }
     bool isAuthorized() const { return state_ != State::Stopped && state_ != State::Starting; }
-    bool isBusy() const { return state_ == State::Scanning || state_ == State::Applying; }
+    bool isBusy() const { return state_ == State::Scanning || state_ == State::Applying || state_ == State::Previewing; }
 
 signals:
     void authorized();
     void authorizationCancelled();
     void snapshotReady(const BootSnapshot &snapshot);
+    void previewReady(const QJsonArray &files, const QString &error);
     void operationFinished(bool success);
     void output(const QString &text);
     void failed(const QString &message);
 
 private:
-    enum class State { Stopped, Starting, Ready, Scanning, Applying };
+    enum class State { Stopped, Starting, Ready, Scanning, Applying, Previewing };
     void receive();
     void fail(const QString &message);
     bool send(const QJsonObject &request, State state);

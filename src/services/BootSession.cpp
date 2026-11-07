@@ -92,6 +92,13 @@ bool BootSession::apply(const BootTransaction &transaction)
                  {QStringLiteral("transaction"), QString::fromLatin1(transaction.encoded())}}, State::Applying);
 }
 
+bool BootSession::preview(const BootTransaction &transaction)
+{
+    if (!transaction.count()) return false;
+    return send({{QStringLiteral("action"), QStringLiteral("preview")},
+                 {QStringLiteral("transaction"), QString::fromLatin1(transaction.encoded())}}, State::Previewing);
+}
+
 void BootSession::receive()
 {
     input_ += process_.readAllStandardOutput();
@@ -119,6 +126,10 @@ void BootSession::receive()
             }
             state_ = State::Ready;
             emit snapshotReady(snapshot);
+        } else if (document.isObject() && type == QLatin1String("preview") && state_ == State::Previewing
+                   && response.value(QStringLiteral("files")).isArray() && response.value(QStringLiteral("error")).isString()) {
+            state_ = State::Ready;
+            emit previewReady(response.value(QStringLiteral("files")).toArray(), response.value(QStringLiteral("error")).toString());
         } else if (document.isObject() && type == QLatin1String("result") && state_ == State::Applying
                    && response.value(QStringLiteral("success")).isBool()
                    && response.value(QStringLiteral("outcomes")).isObject()

@@ -15,6 +15,9 @@ public:
     // Checks the backup still matches what was reviewed (manifest digest) and
     // that every saved original is intact.
     static bool validateRestore(const QString &root, const QString &id, const QString &digest, QString *error);
+    struct SavedFile { QString path; bool existed = false; QByteArray data; };
+    // The originals a restore would write back, for previewing.
+    static QList<SavedFile> savedFiles(const QString &root, const QString &id, QString *error);
     // Writes the saved originals back and removes files that did not exist.
     static bool restore(const QString &root, const QString &id, QString *error);
 

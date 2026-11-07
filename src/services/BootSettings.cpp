@@ -189,35 +189,14 @@ bool BootSettings::allowed(LoaderKind loader, const QString &key, const QString 
     return true;
 }
 
-bool BootSettings::write(LoaderKind loader, const QString &esp, const QString &key,
-                         const QString &value, QString *error)
+QString BootSettings::apply(LoaderKind loader, const QString &text, const QString &key,
+                            const QString &value, QString *error)
 {
-    if (!allowed(loader, key, value)) { if (error) *error = QStringLiteral("Unsupported setting or value"); return false; }
-    if (BootDeploy::directImage(loader)) return BootDeploy::writeSetting(loader, esp, key, value, error);
-    const QString path = configPath(loader, esp);
-    if (loader == LoaderKind::Limine || loader == LoaderKind::Refind) {
-        if (loader == LoaderKind::Refind && !refindEditable(path, error)) return false;
-        const auto text = BootMenus::readText(path, error);
-        if (!error->isEmpty()) return false;
-        const auto changed = loader == LoaderKind::Limine ? BootMenus::setLimineValue(text, key, value, error)
-            : BootMenus::setRefindValue(text, key, value);
-        return error->isEmpty() && BootMenus::save(path, changed, error);
-    }
-    const QFileInfo info(path);
-    if (path.isEmpty() || info.isSymLink() || !info.dir().exists()) {
-        if (error) *error = QStringLiteral("Configuration path is unavailable");
-        return false;
-    }
-    QStringList lines;
-    QFile original(path);
-    if (original.exists()) {
-        if (!original.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            if (error) *error = original.errorString();
-            return false;
-        }
-        QTextStream reader(&original);
-        while (!reader.atEnd()) lines.append(reader.readLine());
-    }
+    error->clear();
+    if (loader == LoaderKind::Limine) return BootMenus::setLimineValue(text, key, value, error);
+    if (loader == LoaderKind::Refind) return BootMenus::setRefindValue(text, key, value);
+    QStringList lines = text.split(QLatin1Char('\n'));
+    if (text.endsWith(QLatin1Char('\n')) || text.isEmpty()) lines.removeLast();
     const QString replacement = formattedLine(loader, key, value);
     bool found = false;
     for (int i = 0; i < lines.size(); ++i) {
@@ -230,12 +209,44 @@ bool BootSettings::write(LoaderKind loader, const QString &esp, const QString &k
         }
     }
     if (!found && !value.isEmpty()) lines.append(replacement);
+    return lines.join(QLatin1Char('\n')) + QLatin1Char('\n');
+}
+
+bool BootSettings::write(LoaderKind loader, const QString &esp, const QString &key,
+                         const QString &value, QString *error)
+{
+    if (!allowed(loader, key, value)) { if (error) *error = QStringLiteral("Unsupported setting or value"); return false; }
+    if (BootDeploy::directImage(loader)) return BootDeploy::writeSetting(loader, esp, key, value, error);
+    const QString path = configPath(loader, esp);
+    if (loader == LoaderKind::Limine || loader == LoaderKind::Refind) {
+        if (loader == LoaderKind::Refind && !refindEditable(path, error)) return false;
+        const auto text = BootMenus::readText(path, error);
+        if (!error->isEmpty()) return false;
+        const auto changed = apply(loader, text, key, value, error);
+        return error->isEmpty() && BootMenus::save(path, changed, error);
+    }
+    const QFileInfo info(path);
+    if (path.isEmpty() || info.isSymLink() || !info.dir().exists()) {
+        if (error) *error = QStringLiteral("Configuration path is unavailable");
+        return false;
+    }
+    QString text;
+    QFile original(path);
+    if (original.exists()) {
+        if (!original.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            if (error) *error = original.errorString();
+            return false;
+        }
+        text = QString::fromUtf8(original.readAll());
+    }
+    QString applyError;
+    const QString changed = apply(loader, text, key, value, &applyError);
     QSaveFile output(path);
     if (!output.open(QIODevice::WriteOnly | QIODevice::Text)) {
         if (error) *error = output.errorString();
         return false;
     }
-    const QByteArray contents = (lines.join(QLatin1Char('\n')) + QLatin1Char('\n')).toUtf8();
+    const QByteArray contents = changed.toUtf8();
     if (output.write(contents) != contents.size() || !output.commit()) {
         if (error) *error = output.errorString();
         return false;

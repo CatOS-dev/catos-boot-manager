@@ -9,6 +9,7 @@
 #include "services/BootPackages.h"
 #include "services/BootMenus.h"
 #include "services/BootDeploy.h"
+#include "services/BootPreview.h"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -459,6 +460,14 @@ int main(int argc, char **argv)
             const auto snapshot = BootProbe::inspect();
             if (!respond(responses, {{QStringLiteral("type"), QStringLiteral("snapshot")},
                 {QStringLiteral("data"), QString::fromLatin1(BootSnapshotCodec::encode(snapshot))}})) return 2;
+        } else if (action == QLatin1String("preview")) {
+            // Read-only: renders the files the transaction would change.
+            QString error;
+            QJsonArray files;
+            const auto operations = BootTransaction::decode(request.value(QStringLiteral("transaction")).toString().toLatin1(), &error);
+            if (error.isEmpty()) files = BootPreview::files(operations, &error);
+            if (!respond(responses, {{QStringLiteral("type"), QStringLiteral("preview")},
+                                    {QStringLiteral("files"), files}, {QStringLiteral("error"), error}})) return 2;
         } else if (action == QLatin1String("apply")) {
             QJsonObject outcomes;
             QString reportDirectory;

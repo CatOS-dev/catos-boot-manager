@@ -2157,6 +2157,36 @@ Replace removable EFI loader: %4</source>
         <source>Restore a backup on its own. Apply or cancel the other pending changes first.</source>
         <translation>恢复备份需要单独进行，请先应用或取消其他待应用修改。</translation>
     </message>
+    <message>
+        <source> (new file)</source>
+        <translation>（新文件）</translation>
+    </message>
+    <message>
+        <source> (removed)</source>
+        <translation>（将删除）</translation>
+    </message>
+    <message>
+        <source>No file contents change.</source>
+        <translation>文件内容没有变化。</translation>
+    </message>
+    <message>
+        <source>Changes to configuration files:</source>
+        <translation>配置文件的改动：</translation>
+    </message>
+    <message>
+        <source>Loading changes…</source>
+        <translation>正在计算改动…</translation>
+    </message>
+    <message>
+        <source>Unable to show the changes: %1
+They are checked again before applying.</source>
+        <translation>无法显示改动：%1
+应用前会再次检查。</translation>
+    </message>
+    <message>
+        <source>The changes cannot be shown right now. They are checked again before applying.</source>
+        <translation>暂时无法显示改动，应用前会再次检查。</translation>
+    </message>
 </context>
 <context>
     <name>RepairPage</name>

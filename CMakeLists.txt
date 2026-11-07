@@ -43,6 +43,10 @@ add_library(catos-boot-core STATIC
     src/services/BootContent.cpp
     src/services/BootMenus.h
     src/services/BootMenus.cpp
+    src/services/BootPreview.h
+    src/services/BootPreview.cpp
+    src/model/BootDiff.h
+    src/model/BootDiff.cpp
     src/services/BootDeploy.h
     src/services/BootDeploy.cpp
     src/services/BootBls.h
@@ -179,6 +183,10 @@ if(BUILD_TESTING)
     target_link_libraries(boot-loader-selector-test PRIVATE catos-boot-core Qt6::Widgets Qt6::Test)
     add_test(NAME boot-loader-selector COMMAND boot-loader-selector-test)
     set_tests_properties(boot-loader-selector PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    qt_add_executable(boot-preview-test tests/BootPreviewTest.cpp)
+    target_link_libraries(boot-preview-test PRIVATE catos-boot-core Qt6::Test)
+    add_test(NAME boot-preview COMMAND boot-preview-test)
+
     qt_add_executable(boot-methods-test tests/MethodsPageTest.cpp
         src/pages/MethodsPage.cpp src/pages/RepairPage.cpp src/widgets/LoaderSelector.cpp src/widgets/BootUi.cpp)
     target_link_libraries(boot-methods-test PRIVATE catos-boot-core Qt6::Widgets Qt6::Test)
