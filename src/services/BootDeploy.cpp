@@ -15,6 +15,7 @@
 #include <QSysInfo>
 #include <QTextStream>
 #include <QStandardPaths>
+#include <QHash>
 #include <QtEndian>
 #include <efivar/efiboot.h>
 #include <cstdlib>
@@ -335,8 +336,17 @@ QJsonObject BootDeploy::profile(const QString &path, QString *error)
         }
         document = parsed.object();
     } else {
+        static QHash<QString, QPair<qint64, QJsonObject>> cache;
+        const QString configPath = configurationPath(root);
+        const qint64 stamp = QFileInfo(configPath).lastModified().toMSecsSinceEpoch();
+        const auto cached = cache.value(configPath);
+        if (cached.first == stamp && !cached.second.isEmpty()) {
+            document = cached.second;
+        } else {
         document = mountedProfile(root, error);
         if (!error->isEmpty()) return {};
+            cache.insert(configPath, {stamp, document});
+        }
     }
     auto data = document;
     data.insert("root", root);

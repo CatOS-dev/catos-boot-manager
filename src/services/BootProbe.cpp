@@ -17,6 +17,7 @@
 #include <QProcess>
 #include <QRegularExpression>
 #include <QSet>
+#include <QHash>
 
 namespace {
 QString cleanPath(QString path)
@@ -226,11 +227,17 @@ BootSnapshot BootProbe::inspect(const std::function<void(const QString &)> &prog
         partitions.append({esp, uuid, directory == QLatin1String(".") ? QString() : directory});
     }
     stage(QObject::tr("Identifying EFI programs"));
+    static QHash<QString, BootDiscovery::Image> imageCache;
     BootDiscovery::populate(state, partitions, QStringLiteral("/"), [](const QString &path) {
+        const auto stamp = QFileInfo(path).lastModified().toMSecsSinceEpoch();
+        const QString cacheKey = path + QLatin1Char('|') + QString::number(stamp);
+        if (imageCache.contains(cacheKey)) return imageCache.value(cacheKey);
         const auto details = BootSecurity::readCommand(QStringLiteral("objdump"), {QStringLiteral("-f"), path});
-        return BootDiscovery::Image{
+        const auto image = BootDiscovery::Image{
             runReadOnly(QStringLiteral("bootctl"), {QStringLiteral("kernel-identify"), path}).trimmed(),
             details.completed && details.exitCode == 0 ? BootDiscovery::architectureFromObjdump(details.output) : QString()};
+        imageCache.insert(cacheKey, image);
+        return image;
     });
     stage(QObject::tr("Checking Secure Boot and signatures"));
     BootSecurity::inspect(state);
