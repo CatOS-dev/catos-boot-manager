@@ -30,8 +30,12 @@ void BootTransaction::stage(const BootOperation &operation)
         if ((operation.kind.endsWith(QLatin1String("-setting"))
              || operation.kind == QLatin1String("firmware-next")
              || operation.kind == QLatin1String("firmware-order")
-             || operation.kind == QLatin1String("firmware-toggle"))
+             || operation.kind == QLatin1String("firmware-toggle")
+             || operation.kind == QLatin1String("firmware-rename"))
             && operation.value == operations_[i].expected) {
+            operations_.removeAt(i);
+        } else if (operation.kind == QLatin1String("firmware-rename")
+                   && operation.value == operations_[i].expected.section(QLatin1Char('|'), 1, 1)) {
             operations_.removeAt(i);
         } else {
             auto replacement = operation;
@@ -43,8 +47,11 @@ void BootTransaction::stage(const BootOperation &operation)
     if ((operation.kind.endsWith(QLatin1String("-setting"))
          || operation.kind == QLatin1String("firmware-next")
          || operation.kind == QLatin1String("firmware-order")
-         || operation.kind == QLatin1String("firmware-toggle"))
+         || operation.kind == QLatin1String("firmware-toggle")
+         || operation.kind == QLatin1String("firmware-rename"))
         && operation.value == operation.expected) return;
+    if (operation.kind == QLatin1String("firmware-rename")
+        && operation.value == operation.expected.section(QLatin1Char('|'), 1, 1)) return;
     operations_.append(operation);
 }
 

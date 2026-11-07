@@ -191,8 +191,16 @@ void FirmwarePage::moveSelected(int delta)
     const QString id = selectedId();
     const int position = displayOrder_.indexOf(id);
     const int destination = position + delta;
-    if (position < 0 || position >= snapshot_.bootOrder.size()
-        || destination < 0 || destination >= snapshot_.bootOrder.size()) return;
+    if (position < 0 || destination < 0 || destination >= displayOrder_.size()) return;
+    if (position >= snapshot_.bootOrder.size() && delta >= 0) return;
+    if (position == snapshot_.bootOrder.size() && delta < 0) {
+        displayOrder_.move(position, snapshot_.bootOrder.size() - 1);
+        redraw();
+        table_->selectRow(snapshot_.bootOrder.size() - 1);
+        queueOrder();
+        return;
+    }
+    if (position > snapshot_.bootOrder.size() || destination >= snapshot_.bootOrder.size()) return;
     displayOrder_.move(position, destination);
     redraw();
     table_->selectRow(destination);
@@ -201,7 +209,7 @@ void FirmwarePage::moveSelected(int delta)
 
 void FirmwarePage::queueOrder()
 {
-    const QStringList ordered = displayOrder_.mid(0, snapshot_.bootOrder.size());
+    const QStringList ordered = displayOrder_;
     emit operationRequested({QStringLiteral("firmware-order"), QStringLiteral("BootOrder"),
         ordered.join(QLatin1Char(',')), snapshot_.bootOrder.join(QLatin1Char(',')),
         tr("Set UEFI boot order: %1").arg(ordered.join(QStringLiteral(", ")))});
