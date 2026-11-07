@@ -32,6 +32,7 @@ private:
     void updateRepairAvailability();
     void install(const QString &action);
     void updateKernels();
+    void updateActionText();
     LoaderKind kind_;
     QJsonArray kernels_;
     QString binary_;
@@ -58,6 +59,6 @@ private:
     QCheckBox *installFallback_ = nullptr;
     bool packagesReady_ = false;
     QPushButton *deploy_ = nullptr;
-    QPushButton *repair_ = nullptr;
+    QLabel *actionHelp_ = nullptr;
     QPushButton *addEntry_ = nullptr;
 };

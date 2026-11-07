@@ -79,23 +79,30 @@ RepairPage::RepairPage(LoaderKind kind, QWidget *parent) : QWidget(parent), kind
     installFallback_ = new QCheckBox(tr("Replace the removable EFI fallback loader (advanced)"), content);
     installFallback_->setChecked(false);
     layout->addWidget(installFallback_);
+    actionHelp_ = BootUi::muted({}, content);
+    actionHelp_->setObjectName(QStringLiteral("deploymentActionHelp"));
+    actionHelp_->setTextFormat(Qt::PlainText);
+    layout->addWidget(actionHelp_);
     auto *actions = new QHBoxLayout;
+    // GRUB, Limine, rEFInd, UKI and EFI Stub run the same steps for a new and
+    // an existing installation, so one action covers both. Only systemd-boot
+    // has a distinct update command (bootctl update).
     deploy_ = new QPushButton(tr("Deploy boot loader"), content);
     deploy_->setObjectName(QStringLiteral("deployBootLoader"));
-    repair_ = new QPushButton(tr("Repair boot loader"), content);
-    repair_->setObjectName(QStringLiteral("repairBootLoader"));
     actions->addWidget(deploy_);
-    actions->addWidget(repair_);
     update_ = new QPushButton(tr("Update boot loader"), content);
     update_->setObjectName("updateBootLoader");
+    update_->setToolTip(tr("Replace the installed systemd-boot program with the packaged version (bootctl update)."));
+    update_->setVisible(kind == LoaderKind::SystemdBoot);
     actions->addWidget(update_);
     addEntry_ = new QPushButton(tr("Add boot entry"), content);
     addEntry_->setObjectName(QStringLiteral("methodAddBootEntry"));
     actions->addWidget(addEntry_);
     actions->addStretch();
     layout->addLayout(actions);
-    connect(deploy_, &QPushButton::clicked, this, [this] { install(QStringLiteral("install")); });
-    connect(repair_, &QPushButton::clicked, this, [this] { install(QStringLiteral("repair")); });
+    connect(deploy_, &QPushButton::clicked, this, [this] {
+        install(binary_.isEmpty() ? QStringLiteral("install") : QStringLiteral("repair"));
+    });
     connect(update_, &QPushButton::clicked, this, [this] { install(QStringLiteral("update")); });
     connect(rootTarget_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
             &RepairPage::updateRepairChoices);
@@ -235,8 +242,37 @@ void RepairPage::updateRepairAvailability()
         : (limine && !automatic) || (espTarget_->isEditable() ? espTarget_->currentText().startsWith('/') : !espTarget_->currentData().toString().isEmpty());
     const bool ready = !root.isEmpty() && supported && chosen && (root != QLatin1String("/") || packagesReady_);
     deploy_->setEnabled(ready);
-    repair_->setEnabled(ready);
     update_->setEnabled(ready && !binary_.isEmpty());
+    updateActionText();
+}
+
+void RepairPage::updateActionText()
+{
+    const bool existing = !binary_.isEmpty();
+    deploy_->setText(existing ? tr("Reinstall boot loader") : tr("Deploy boot loader"));
+    QString help;
+    switch (kind_) {
+    case LoaderKind::Grub:
+        help = tr("Runs grub-install and regenerates grub.cfg. /etc/default/grub is kept.");
+        break;
+    case LoaderKind::Limine:
+        help = tr("Runs limine-install and regenerates the Limine menu. Existing menu settings are kept.");
+        break;
+    case LoaderKind::Refind:
+        help = tr("Copies the packaged rEFInd program, drivers and icons. An existing refind.conf is kept.");
+        break;
+    case LoaderKind::SystemdBoot:
+        help = existing ? tr("Reinstall writes the program and loader.conf defaults again; Update only replaces the program.")
+                        : tr("Runs bootctl install. Boot entries are maintained by kernel-install.");
+        break;
+    case LoaderKind::Uki:
+        help = tr("Builds a unified kernel image for every installed kernel with catos-firmware-boot.");
+        break;
+    case LoaderKind::EfiStub:
+        help = tr("Deploys every installed kernel with its initramfs using catos-firmware-boot.");
+        break;
+    }
+    actionHelp_->setText(help);
 }
 
 void RepairPage::install(const QString &action)
@@ -313,6 +349,6 @@ void RepairPage::addImageBootEntry()
 {
     const bool checked = registerFirmware_->isChecked();
     registerFirmware_->setChecked(true);
-    install(QStringLiteral("repair"));
+    install(binary_.isEmpty() ? QStringLiteral("install") : QStringLiteral("repair"));
     registerFirmware_->setChecked(checked);
 }

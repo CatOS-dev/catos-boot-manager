@@ -27,6 +27,7 @@ private slots:
     void installPackagesAndDeployImmediately();
     void showInstalledKernelsWithoutManualImageInputs();
     void deployAllNewMethodsWithIndependentInputs();
+    void updateOnlyForSystemdBoot();
 };
 
 void MethodsPageTest::stageInstanceSelectionAndRejectChangedTarget()
@@ -195,13 +196,12 @@ void MethodsPageTest::installPackagesAndDeployImmediately()
     QVERIFY(packages);
     QVERIFY(form);
     auto *deploy = form->findChild<QPushButton *>("deployBootLoader");
-    auto *repair = form->findChild<QPushButton *>("repairBootLoader");
     auto *add = panel->findChild<QPushButton *>("methodAddBootEntry");
     QVERIFY(deploy);
-    QVERIFY(repair);
+    QVERIFY(!form->findChild<QPushButton *>("repairBootLoader"));
+    QVERIFY(!form->findChild<QPushButton *>("updateBootLoader")->isVisibleTo(form));
     QVERIFY(add);
     QCOMPARE(add->parentWidget(), deploy->parentWidget());
-    QCOMPARE(add->parentWidget(), repair->parentWidget());
     QList<BootOperation> immediate;
     BootTransaction queued;
     connect(&page, &MethodsPage::installationRequested, &page, [&](const BootOperation &op) { immediate.append(op); });
@@ -223,13 +223,12 @@ void MethodsPageTest::installPackagesAndDeployImmediately()
     QCOMPARE(immediate[1].kind, QString("repair-install"));
     QCOMPARE(BootRepair::arguments(immediate[1]).value("loader").toString(), QString("limine"));
     QCOMPARE(BootRepair::arguments(immediate[1]).value("root").toString(), QString("/"));
-    repair->click();
-    QCOMPARE(immediate.size(), 3);
-    QCOMPARE(immediate[2].kind, QString("repair-install"));
+    QCOMPARE(BootRepair::arguments(immediate[1]).value("action").toString(), QString("repair"));
+    QCOMPARE(deploy->text(), QString("Reinstall boot loader"));
     add->click();
-    QCOMPARE(immediate.size(), 4);
-    QCOMPARE(immediate[3].kind, QString("firmware-add"));
-    QCOMPARE(immediate[3].target, installation.binary);
+    QCOMPARE(immediate.size(), 3);
+    QCOMPARE(immediate[2].kind, QString("firmware-add"));
+    QCOMPARE(immediate[2].target, installation.binary);
     QCOMPARE(queued.count(), 0);
 }
 
@@ -294,27 +293,53 @@ void MethodsPageTest::deployAllNewMethodsWithIndependentInputs()
         auto *parameters = form->findChild<QLineEdit *>("deploymentParameters"); QVERIFY(parameters);
         parameters->setText(loaderName(kind) + " parameters");
         auto *deploy = form->findChild<QPushButton *>("deployBootLoader");
-        auto *repair = form->findChild<QPushButton *>("repairBootLoader");
         auto *update = form->findChild<QPushButton *>("updateBootLoader");
-        QVERIFY(deploy); QVERIFY(repair); QVERIFY(update); QVERIFY(deploy->isEnabled()); QVERIFY(update->isEnabled());
+        QVERIFY(deploy); QVERIFY(update); QVERIFY(deploy->isEnabled());
+        QVERIFY(!form->findChild<QPushButton *>("repairBootLoader"));
+        QVERIFY(!update->isVisibleTo(form));
+        QVERIFY(!form->findChild<QLabel *>("deploymentActionHelp")->text().isEmpty());
         const int count = immediate.size();
-        deploy->click(); repair->click(); update->click();
-        QCOMPARE(immediate.size(), count + 3); QCOMPARE(queued.count(), 0);
+        deploy->click();
+        QCOMPARE(immediate.size(), count + 1); QCOMPARE(queued.count(), 0);
         const auto first = BootRepair::arguments(immediate[count]);
-        const auto second = BootRepair::arguments(immediate[count + 1]);
-        const auto third = BootRepair::arguments(immediate[count + 2]);
         QCOMPARE(first.value("loader").toString(), BootDeploy::loaderId(kind));
         QCOMPARE(first.value("esp").toString(), QString("/test-esp"));
-        QCOMPARE(first.value("action").toString(), QString("install"));
-        QCOMPARE(second.value("action").toString(), QString("repair"));
-        QCOMPARE(third.value("action").toString(), QString("update"));
+        QCOMPARE(first.value("action").toString(), QString("repair"));
         QVERIFY(!first.contains("initramfs"));
-        QVERIFY(!third.contains("binary"));
+        QVERIFY(!first.contains("binary"));
         QVERIFY(!first.contains("kernel"));
         page.resize(1000, 760); page.show(); QVERIFY(QTest::qWaitForWindowActive(&page));
         QVERIFY(page.grab().save("/tmp/catos-method-" + BootDeploy::loaderId(kind) + "-complete.png"));
     }
-    QCOMPARE(immediate.size(), 9);
+    QCOMPARE(immediate.size(), 3);
+}
+
+void MethodsPageTest::updateOnlyForSystemdBoot()
+{
+    BootSnapshot snapshot;
+    snapshot.uefi = true; snapshot.packageStateAvailable = true;
+    snapshot.installedPackages = {"catos-systemd-boot-config", "efibootmgr"};
+    snapshot.repairRoots = {"/"}; snapshot.espMounts = {"/test-esp"};
+    RepairPage page(LoaderKind::SystemdBoot);
+    page.updateTargets(snapshot);
+    page.setPackagesReady(true);
+    auto *deploy = page.findChild<QPushButton *>("deployBootLoader");
+    auto *update = page.findChild<QPushButton *>("updateBootLoader");
+    auto *destination = page.findChild<QComboBox *>("installationDirectory");
+    destination->setCurrentIndex(destination->findData("/test-esp"));
+    QVERIFY(update->isVisibleTo(&page));
+    QVERIFY(deploy->isEnabled());
+    QVERIFY(!update->isEnabled());
+    BootInstallation installed; installed.kind = LoaderKind::SystemdBoot; installed.id = "sd";
+    installed.esp = "/test-esp"; installed.binary = "/test-esp/EFI/systemd/systemd-bootx64.efi"; installed.binaryPresent = true;
+    page.selectInstallation(&installed);
+    QVERIFY(update->isEnabled());
+    QList<BootOperation> requested;
+    connect(&page, &RepairPage::installationRequested, &page, [&](const BootOperation &op) { requested.append(op); });
+    deploy->click(); update->click();
+    QCOMPARE(requested.size(), 2);
+    QCOMPARE(BootRepair::arguments(requested[0]).value("action").toString(), QString("repair"));
+    QCOMPARE(BootRepair::arguments(requested[1]).value("action").toString(), QString("update"));
 }
 
 QTEST_MAIN(MethodsPageTest)

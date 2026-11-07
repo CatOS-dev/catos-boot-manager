@@ -2289,6 +2289,42 @@ Replace removable EFI loader: %4</source>
         <source> · overwrite EFI fallback</source>
         <translation> · 覆盖 EFI 回退引导器</translation>
     </message>
+    <message>
+        <source>Replace the installed systemd-boot program with the packaged version (bootctl update).</source>
+        <translation>用软件包中的版本替换已安装的 systemd-boot 程序（bootctl update）。</translation>
+    </message>
+    <message>
+        <source>Reinstall boot loader</source>
+        <translation>重新安装引导器</translation>
+    </message>
+    <message>
+        <source>Runs grub-install and regenerates grub.cfg. /etc/default/grub is kept.</source>
+        <translation>运行 grub-install 并重新生成 grub.cfg，保留 /etc/default/grub。</translation>
+    </message>
+    <message>
+        <source>Runs limine-install and regenerates the Limine menu. Existing menu settings are kept.</source>
+        <translation>运行 limine-install 并重新生成 Limine 菜单，保留现有菜单设置。</translation>
+    </message>
+    <message>
+        <source>Copies the packaged rEFInd program, drivers and icons. An existing refind.conf is kept.</source>
+        <translation>复制软件包中的 rEFInd 程序、驱动和图标，保留已有的 refind.conf。</translation>
+    </message>
+    <message>
+        <source>Reinstall writes the program and loader.conf defaults again; Update only replaces the program.</source>
+        <translation>重新安装会再次写入程序和 loader.conf 默认值；更新只替换程序。</translation>
+    </message>
+    <message>
+        <source>Runs bootctl install. Boot entries are maintained by kernel-install.</source>
+        <translation>运行 bootctl install，启动项由 kernel-install 维护。</translation>
+    </message>
+    <message>
+        <source>Builds a unified kernel image for every installed kernel with catos-firmware-boot.</source>
+        <translation>使用 catos-firmware-boot 为每个已安装内核生成统一内核镜像。</translation>
+    </message>
+    <message>
+        <source>Deploys every installed kernel with its initramfs using catos-firmware-boot.</source>
+        <translation>使用 catos-firmware-boot 部署每个已安装内核及其 initramfs。</translation>
+    </message>
 </context>
 <context>
     <name>SecurityPage</name>
