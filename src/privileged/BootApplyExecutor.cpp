@@ -202,6 +202,9 @@ bool preflight(const QList<BootOperation> &operations, const BootSnapshot &snaps
             if (!bound) { *error = QStringLiteral("The selected image settings changed"); return false; }
             imageRebuilds[op.target].insert(op.value == QLatin1String("uki") ? LoaderKind::Uki : LoaderKind::EfiStub);
         }
+        else if (op.kind == QLatin1String("restore-backup")) {
+            if (!BootBackup::validateRestore(BootBackup::defaultRoot(), op.target, op.expected, error)) return false;
+        }
         else if (BootRepair::supports(op.kind)) {
             if (!BootRepair::validate(op, error)) return false;
         } else {
@@ -247,6 +250,13 @@ bool apply(const QList<BootOperation> &operations, BootBackup &backup, const Boo
         for (const auto &op : operations)
             if (op.kind == "install-packages") outcomes->insert(op.key(), success ? "succeeded" : "failed");
         if (!success) return false;
+    }
+    for (const auto &op : operations) {
+        if (op.kind != QLatin1String("restore-backup")) continue;
+        QString error;
+        const bool restored = BootBackup::restore(BootBackup::defaultRoot(), op.target, &error);
+        outcomes->insert(op.key(), restored ? "succeeded" : "failed");
+        if (!recordResult(backup, op.kind + ':' + op.target, restored)) { QTextStream(stderr) << error << Qt::endl; return false; }
     }
     bool grubEdited = false;
     QMap<QString, QSet<LoaderKind>> images;
@@ -367,7 +377,7 @@ int executeTransaction(const QByteArray &payload, QJsonObject *outcomes, QString
         return 3;
     }
     BootBackup backup;
-    if (!backup.prepare(operations, snapshot, QStringLiteral("/var/lib/catos-boot-manager/backups"), &error)) {
+    if (!backup.prepare(operations, snapshot, BootBackup::defaultRoot(), &error)) {
         errors << "Backup failed before applying changes: " << error << Qt::endl;
         return 3;
     }

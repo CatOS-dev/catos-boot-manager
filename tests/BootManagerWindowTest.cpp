@@ -19,6 +19,8 @@
 #include <QPushButton>
 #include <QTemporaryDir>
 #include <QTimer>
+#include <QTreeWidget>
+#include <QJsonArray>
 #include <QStackedWidget>
 #include <QDir>
 #include <QtTest>
@@ -32,6 +34,7 @@ private slots:
     void retainFailedTransaction_data();
     void retainFailedTransaction();
     void separateConfigurationAndRecoveryPages();
+    void queueBackupRestore();
 };
 
 static BootSnapshot settingsSnapshot()
@@ -225,6 +228,33 @@ void BootManagerWindowTest::separateConfigurationAndRecoveryPages()
     QVERIFY(window.grab().save(QDir::tempPath() + "/catos-window-recovery.png"));
     navigation->setCurrentRow(3);
     QVERIFY(window.grab().save(QDir::tempPath() + "/catos-window-configuration.png"));
+}
+
+void BootManagerWindowTest::queueBackupRestore()
+{
+    BootSession session;
+    BootManagerWindow window(&session);
+    QCoreApplication::processEvents();
+    auto snapshot = settingsSnapshot();
+    snapshot.backups = {QJsonObject{{"id", "11111111-2222-3333-4444-555555555555"}, {"created", "2026-11-07T10:00:00Z"},
+        {"phase", "completed"}, {"operations", QJsonArray{"Timeout"}}, {"digest", "abc"},
+        {"files", QJsonArray{QJsonObject{{"path", "/etc/default/grub"}, {"existed", true}}}}, {"bootOrder", QJsonArray{"0001"}}}};
+    emit session.snapshotReady(snapshot);
+    auto *list = window.findChild<QTreeWidget *>("configurationBackups"); QVERIFY(list);
+    auto *restore = window.findChild<QPushButton *>("restoreBackup"); QVERIFY(restore);
+    QCOMPARE(list->topLevelItemCount(), 1);
+    QVERIFY(!restore->isEnabled());
+    list->setCurrentItem(list->topLevelItem(0));
+    QVERIFY(restore->isEnabled());
+    QVERIFY(window.findChild<QLabel *>("backupDetails")->text().contains("/etc/default/grub"));
+    restore->click();
+    auto *pending = window.findChild<QListWidget *>("pendingOperations"); QVERIFY(pending);
+    QCOMPARE(pending->count(), 1);
+    auto *apply = window.findChild<QPushButton *>("applyTransaction");
+    QVERIFY(apply->isEnabled());
+    window.findChild<SettingsPage *>()->findChild<QLineEdit *>("GRUB_TIMEOUT")->setText("9");
+    QCOMPARE(pending->count(), 2);
+    QVERIFY(!apply->isEnabled());
 }
 
 int main(int argc, char **argv)

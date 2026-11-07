@@ -10,6 +10,9 @@
 #include <QJsonDocument>
 #include <QSaveFile>
 #include <QUuid>
+#include <QObject>
+#include <QRegularExpression>
+#include <algorithm>
 
 namespace {
 constexpr auto privateFile = QFileDevice::ReadOwner | QFileDevice::WriteOwner;
@@ -50,6 +53,10 @@ bool BootBackup::prepare(const QList<BootOperation> &operations, const BootSnaps
         }
         if (op.kind == QLatin1String("refind-setting"))
             paths.insert(op.target.left(op.target.lastIndexOf(QLatin1Char('|'))));
+        if (op.kind == QLatin1String("restore-backup")) {
+            QString ignored;
+            for (const auto &path : restorePaths(root, op.target, &ignored)) paths.insert(path);
+        }
     }
     QJsonArray files;
     QStringList ordered = paths.values();
@@ -132,4 +139,137 @@ bool BootBackup::finish(bool success, QString *error)
 {
     manifest_.insert(QStringLiteral("phase"), success ? QStringLiteral("completed") : QStringLiteral("incomplete"));
     return save(error);
+}
+
+namespace {
+QJsonObject readManifest(const QString &root, const QString &id, QByteArray *raw, QString *error)
+{
+    static const QRegularExpression valid(QStringLiteral("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"));
+    const QString directory = QDir(root).filePath(id);
+    if (!valid.match(id).hasMatch() || QFileInfo(directory).isSymLink() || !QFileInfo(directory).isDir()) {
+        *error = QObject::tr("The selected backup is not available.");
+        return {};
+    }
+    QFile file(QDir(directory).filePath(QStringLiteral("manifest.json")));
+    if (QFileInfo(file.fileName()).isSymLink() || !file.open(QIODevice::ReadOnly)) {
+        *error = QObject::tr("The selected backup is not available.");
+        return {};
+    }
+    *raw = file.read(4 * 1024 * 1024);
+    const auto document = QJsonDocument::fromJson(*raw);
+    if (!document.isObject() || document.object().value(QStringLiteral("version")).toInt() != 1) {
+        *error = QObject::tr("The selected backup is damaged.");
+        return {};
+    }
+    error->clear();
+    return document.object();
+}
+
+QString digest(const QByteArray &data)
+{
+    return QString::fromLatin1(QCryptographicHash::hash(data, QCryptographicHash::Sha256).toHex());
+}
+}
+
+QJsonArray BootBackup::list(const QString &root, int limit)
+{
+    QList<QPair<QString, QJsonObject>> found;
+    for (const auto &id : QDir(root).entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+        QByteArray raw;
+        QString error;
+        const auto manifest = readManifest(root, id, &raw, &error);
+        if (!error.isEmpty()) continue;
+        QStringList descriptions;
+        for (const auto &value : manifest.value(QStringLiteral("operations")).toArray())
+            descriptions.append(value.toObject().value(QStringLiteral("description")).toString());
+        QJsonArray files;
+        for (const auto &value : manifest.value(QStringLiteral("files")).toArray()) {
+            const auto file = value.toObject();
+            files.append(QJsonObject{{QStringLiteral("path"), file.value(QStringLiteral("path"))},
+                                     {QStringLiteral("existed"), file.value(QStringLiteral("existed"))}});
+        }
+        found.append({manifest.value(QStringLiteral("created")).toString(), QJsonObject{
+            {QStringLiteral("id"), id}, {QStringLiteral("created"), manifest.value(QStringLiteral("created"))},
+            {QStringLiteral("phase"), manifest.value(QStringLiteral("phase"))},
+            {QStringLiteral("operations"), QJsonArray::fromStringList(descriptions)},
+            {QStringLiteral("files"), files}, {QStringLiteral("bootOrder"), manifest.value(QStringLiteral("bootOrder"))},
+            {QStringLiteral("bootNext"), manifest.value(QStringLiteral("bootNext"))},
+            {QStringLiteral("digest"), digest(raw)}}});
+    }
+    std::sort(found.begin(), found.end(), [](const auto &a, const auto &b) { return a.first > b.first; });
+    QJsonArray result;
+    for (const auto &item : found) {
+        if (result.size() >= limit) break;
+        result.append(item.second);
+    }
+    return result;
+}
+
+QStringList BootBackup::restorePaths(const QString &root, const QString &id, QString *error)
+{
+    QByteArray raw;
+    const auto manifest = readManifest(root, id, &raw, error);
+    if (!error->isEmpty()) return {};
+    QStringList paths;
+    for (const auto &value : manifest.value(QStringLiteral("files")).toArray())
+        paths.append(value.toObject().value(QStringLiteral("path")).toString());
+    return paths;
+}
+
+bool BootBackup::validateRestore(const QString &root, const QString &id, const QString &expected, QString *error)
+{
+    QByteArray raw;
+    const auto manifest = readManifest(root, id, &raw, error);
+    if (!error->isEmpty()) return false;
+    if (digest(raw) != expected) { *error = QObject::tr("The selected backup changed. Refresh and try again."); return false; }
+    const auto files = manifest.value(QStringLiteral("files")).toArray();
+    if (files.isEmpty()) { *error = QObject::tr("This backup contains no configuration files."); return false; }
+    for (const auto &value : files) {
+        const auto file = value.toObject();
+        const QString path = file.value(QStringLiteral("path")).toString();
+        const QFileInfo target(path);
+        if (!target.isAbsolute() || QDir::cleanPath(path) != path || target.isSymLink() || (target.exists() && !target.isFile())) {
+            *error = QObject::tr("Unable to restore %1: the destination is not a regular file.").arg(path);
+            return false;
+        }
+        if (!file.value(QStringLiteral("existed")).toBool()) continue;
+        const QString name = file.value(QStringLiteral("backup")).toString();
+        QFile saved(QDir(QDir(root).filePath(id)).filePath(name));
+        if (name.contains(QLatin1Char('/')) || !saved.open(QIODevice::ReadOnly)
+            || digest(saved.readAll()) != file.value(QStringLiteral("sha256")).toString()) {
+            *error = QObject::tr("The saved copy of %1 is damaged.").arg(path);
+            return false;
+        }
+        if (!target.dir().exists()) {
+            *error = QObject::tr("Unable to restore %1: its directory no longer exists.").arg(path);
+            return false;
+        }
+    }
+    return true;
+}
+
+bool BootBackup::restore(const QString &root, const QString &id, QString *error)
+{
+    QByteArray raw;
+    const auto manifest = readManifest(root, id, &raw, error);
+    if (!error->isEmpty()) return false;
+    for (const auto &value : manifest.value(QStringLiteral("files")).toArray()) {
+        const auto file = value.toObject();
+        const QString path = file.value(QStringLiteral("path")).toString();
+        if (QFileInfo(path).isSymLink()) { *error = QObject::tr("Unable to restore %1.").arg(path); return false; }
+        if (!file.value(QStringLiteral("existed")).toBool()) {
+            if (QFileInfo::exists(path) && !QFile::remove(path)) { *error = QObject::tr("Unable to remove %1.").arg(path); return false; }
+            continue;
+        }
+        QFile saved(QDir(QDir(root).filePath(id)).filePath(file.value(QStringLiteral("backup")).toString()));
+        QSaveFile target(path);
+        if (!saved.open(QIODevice::ReadOnly) || !target.open(QIODevice::WriteOnly)) {
+            *error = QObject::tr("Unable to restore %1.").arg(path); return false;
+        }
+        const QByteArray data = saved.readAll();
+        if (target.write(data) != data.size() || !target.commit()) { *error = QObject::tr("Unable to restore %1.").arg(path); return false; }
+        if (file.contains(QStringLiteral("permissions")))
+            QFile::setPermissions(path, QFileDevice::Permissions(file.value(QStringLiteral("permissions")).toInt()));
+    }
+    return true;
 }

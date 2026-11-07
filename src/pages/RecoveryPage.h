@@ -9,6 +9,8 @@
 class LoaderSelector;
 class RepairPage;
 class QLabel;
+class QPushButton;
+class QTreeWidget;
 class QStackedWidget;
 class QVBoxLayout;
 
@@ -23,9 +25,12 @@ public:
 
 signals:
     void installationRequested(const BootOperation &operation);
+    void operationRequested(const BootOperation &operation);
 
 private:
     void showInstance();
+    void showBackups();
+    void showBackup();
 
     BootSnapshot snapshot_;
     LoaderSelector *selector_ = nullptr;
@@ -33,4 +38,7 @@ private:
     QStackedWidget *forms_ = nullptr;
     QMap<int, RepairPage *> repairs_;
     QVBoxLayout *layout_ = nullptr;
+    QTreeWidget *backups_ = nullptr;
+    QLabel *backupDetails_ = nullptr;
+    QPushButton *restore_ = nullptr;
 };

@@ -23,6 +23,7 @@ private slots:
     void clearNextBeforeRemoval();
     void rejectEditOfRemovedEntry();
     void validateRemainingOrder();
+    void restoreBackupAlone();
 };
 
 void BootTransactionTest::toggleAndAutomaticallyQueueOrder()
@@ -253,6 +254,13 @@ void BootTransactionTest::validateRemainingOrder()
     QVERIFY(BootPlan::firmwareConflict(transaction.operations(), snapshot).isEmpty());
     transaction.stage({"firmware-order", "BootOrder", "0003,0001,0001", "0001,0002,0003", "Order"});
     QVERIFY(!BootPlan::firmwareConflict(transaction.operations(), snapshot).isEmpty());
+}
+
+void BootTransactionTest::restoreBackupAlone()
+{
+    const BootOperation restore{"restore-backup", "id", {}, "digest", "Restore"};
+    QVERIFY(BootPlan::firmwareConflict({restore}, {}).isEmpty());
+    QVERIFY(!BootPlan::firmwareConflict({restore, {"grub-setting", "GRUB_TIMEOUT", "5", "3", "Timeout"}}, {}).isEmpty());
 }
 
 QTEST_MAIN(BootTransactionTest)

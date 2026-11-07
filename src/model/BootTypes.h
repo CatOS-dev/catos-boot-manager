@@ -116,6 +116,7 @@ struct BootSnapshot {
     QStringList espMounts;
     QMap<QString, QString> mountSources;
     QJsonArray kernels;
+    QJsonArray backups;
 
     QList<BootInstallation> manageableInstallations() const
     {

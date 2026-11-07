@@ -47,12 +47,12 @@ QByteArray BootSnapshotCodec::encode(const BootSnapshot &v)
     QByteArray data;
     QDataStream s(&data, QIODevice::WriteOnly);
     s.setVersion(QDataStream::Qt_6_0);
-    s << quint32(2) << v.uefi << v.efiArchitecture << v.bootCurrent << v.bootNext
+    s << quint32(3) << v.uefi << v.efiArchitecture << v.bootCurrent << v.bootNext
         << v.bootOrder << v.firmware << v.installations << v.currentLoader
         << v.currentEvidence << v.messages << v.secureBoot << v.installedPackages
         << v.packageStateAvailable << v.setupMode << v.moduleSignatureEnforcement
         << v.enrolledMok << v.pendingMok << v.securityMessages << v.systemdDefaultOverride
-        << v.devices << v.repairRoots << v.espMounts << v.mountSources << v.kernels;
+        << v.devices << v.repairRoots << v.espMounts << v.mountSources << v.kernels << v.backups;
     return data.toBase64();
 }
 
@@ -63,13 +63,13 @@ bool BootSnapshotCodec::decode(const QByteArray &data, BootSnapshot *snapshot)
     quint32 version = 0;
     BootSnapshot v;
     s >> version;
-    if (version != 2) return false;
+    if (version != 3) return false;
     s >> v.uefi >> v.efiArchitecture >> v.bootCurrent >> v.bootNext
         >> v.bootOrder >> v.firmware >> v.installations >> v.currentLoader
         >> v.currentEvidence >> v.messages >> v.secureBoot >> v.installedPackages
         >> v.packageStateAvailable >> v.setupMode >> v.moduleSignatureEnforcement
         >> v.enrolledMok >> v.pendingMok >> v.securityMessages >> v.systemdDefaultOverride
-        >> v.devices >> v.repairRoots >> v.espMounts >> v.mountSources >> v.kernels;
+        >> v.devices >> v.repairRoots >> v.espMounts >> v.mountSources >> v.kernels >> v.backups;
     if (s.status() != QDataStream::Ok || !s.atEnd()) return false;
     *snapshot = std::move(v);
     return true;

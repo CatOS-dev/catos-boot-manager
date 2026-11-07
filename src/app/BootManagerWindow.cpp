@@ -148,6 +148,7 @@ BootManagerWindow::BootManagerWindow(BootSession *session, QWidget *parent) : QM
     };
     connect(methods_, &MethodsPage::installationRequested, this, executeNow);
     connect(recovery_, &RecoveryPage::installationRequested, this, executeNow);
+    connect(recovery_, &RecoveryPage::operationRequested, this, &BootManagerWindow::queue);
     connect(firmware_, &FirmwarePage::operationRequested, this, &BootManagerWindow::queue);
     connect(pendingPage_, &PendingPage::removalRequested, this, [this](const QString &key) {
         for (const auto &operation : transaction_.operations())

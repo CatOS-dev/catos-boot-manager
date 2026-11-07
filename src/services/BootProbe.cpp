@@ -7,6 +7,7 @@
 #include "BootDevices.h"
 #include "BootRepair.h"
 #include "BootDeploy.h"
+#include "BootBackup.h"
 
 #include <QDir>
 #include <QDirIterator>
@@ -229,6 +230,7 @@ BootSnapshot BootProbe::inspect()
     BootDeploy::populate(state);
     BootContent::populate(state);
     BootHealth::inspect(state);
+    state.backups = BootBackup::list(BootBackup::defaultRoot());
     if (!state.uefi) state.messages.append(QObject::tr("This system was not booted in UEFI mode."));
     if (mounts.isEmpty()) state.messages.append(QObject::tr("No mounted EFI system partition was detected."));
     return state;

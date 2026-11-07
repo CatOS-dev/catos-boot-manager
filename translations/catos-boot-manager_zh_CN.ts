@@ -2117,6 +2117,46 @@ Replace removable EFI loader: %4</source>
         <source>No</source>
         <translation>否</translation>
     </message>
+    <message>
+        <source>The selected backup is not available.</source>
+        <translation>所选备份不可用。</translation>
+    </message>
+    <message>
+        <source>The selected backup is damaged.</source>
+        <translation>所选备份已损坏。</translation>
+    </message>
+    <message>
+        <source>The selected backup changed. Refresh and try again.</source>
+        <translation>所选备份已变化，请刷新后重试。</translation>
+    </message>
+    <message>
+        <source>This backup contains no configuration files.</source>
+        <translation>此备份不包含配置文件。</translation>
+    </message>
+    <message>
+        <source>Unable to restore %1: the destination is not a regular file.</source>
+        <translation>无法恢复 %1：目标不是普通文件。</translation>
+    </message>
+    <message>
+        <source>The saved copy of %1 is damaged.</source>
+        <translation>%1 的备份副本已损坏。</translation>
+    </message>
+    <message>
+        <source>Unable to restore %1: its directory no longer exists.</source>
+        <translation>无法恢复 %1：所在目录已不存在。</translation>
+    </message>
+    <message>
+        <source>Unable to restore %1.</source>
+        <translation>无法恢复 %1。</translation>
+    </message>
+    <message>
+        <source>Unable to remove %1.</source>
+        <translation>无法删除 %1。</translation>
+    </message>
+    <message>
+        <source>Restore a backup on its own. Apply or cancel the other pending changes first.</source>
+        <translation>恢复备份需要单独进行，请先应用或取消其他待应用修改。</translation>
+    </message>
 </context>
 <context>
     <name>RepairPage</name>
@@ -2550,6 +2590,70 @@ State: %2
     <message>
         <source>No UEFI firmware entry starts this program.</source>
         <translation>没有 UEFI 固件启动项指向此程序。</translation>
+    </message>
+    <message>
+        <source>Configuration backups</source>
+        <translation>配置备份</translation>
+    </message>
+    <message>
+        <source>Before applying changes, the original configuration files are saved. Restoring writes them back and removes files the change created. Firmware entries, generated menus and boot images are not changed; rebuild them afterwards if needed.</source>
+        <translation>每次应用修改前都会保存配置原件。恢复会写回这些原件，并删除修改时新建的文件。固件启动项、生成的菜单和启动镜像不会改变，需要时请在恢复后重新生成。</translation>
+    </message>
+    <message>
+        <source>Time</source>
+        <translation>时间</translation>
+    </message>
+    <message>
+        <source>Result</source>
+        <translation>结果</translation>
+    </message>
+    <message>
+        <source>Changes</source>
+        <translation>修改内容</translation>
+    </message>
+    <message>
+        <source>Restore configuration files</source>
+        <translation>恢复配置文件</translation>
+    </message>
+    <message>
+        <source>Restore configuration files from %1</source>
+        <translation>从 %1 的备份恢复配置文件</translation>
+    </message>
+    <message>
+        <source>Completed</source>
+        <translation>已完成</translation>
+    </message>
+    <message>
+        <source>Incomplete</source>
+        <translation>未完成</translation>
+    </message>
+    <message>
+        <source>Interrupted</source>
+        <translation>已中断</translation>
+    </message>
+    <message>
+        <source>No backups yet. One is created each time changes are applied.</source>
+        <translation>暂无备份。每次应用修改时都会创建备份。</translation>
+    </message>
+    <message>
+        <source>Restore %1</source>
+        <translation>恢复 %1</translation>
+    </message>
+    <message>
+        <source>Remove %1 (created by the change)</source>
+        <translation>删除 %1（由该次修改创建）</translation>
+    </message>
+    <message>
+        <source>For reference, BootOrder was %1; it is not changed by restoring.</source>
+        <translation>备份时的 BootOrder 为 %1，仅供参考，恢复不会改变它。</translation>
+    </message>
+    <message>
+        <source>This backup contains no configuration files.</source>
+        <translation>此备份不包含配置文件。</translation>
+    </message>
+    <message>
+        <source>Select a backup to see which files it restores.</source>
+        <translation>选择一个备份以查看会恢复哪些文件。</translation>
     </message>
 </context>
 </TS>

@@ -11,6 +11,9 @@ QString BootPlan::firmwareConflict(const QList<BootOperation> &operations, const
     QString next = snapshot.bootNext;
     QStringList order;
     bool orderChanged = false;
+    for (const auto &op : operations)
+        if (op.kind == QLatin1String("restore-backup") && operations.size() > 1)
+            return QObject::tr("Restore a backup on its own. Apply or cancel the other pending changes first.");
     for (const auto &op : operations) {
         if (op.kind == QLatin1String("systemd-setting") && op.target.endsWith(QLatin1String("|default"))
             && !snapshot.systemdDefaultOverride.isEmpty())

@@ -14,6 +14,7 @@ class BootBackupTest : public QObject {
 private slots:
     void keepOriginalAfterConfigurationWriteAndGeneratorFailure();
     void recordMissingOriginalAndRejectSymlink();
+    void listAndRestoreOriginals();
 };
 
 void BootBackupTest::keepOriginalAfterConfigurationWriteAndGeneratorFailure()
@@ -99,6 +100,59 @@ void BootBackupTest::recordMissingOriginalAndRejectSymlink()
     QVERIFY(!error.isEmpty());
     QVERIFY(original.open(QIODevice::ReadOnly));
     QCOMPARE(original.readAll(), QByteArray("do not touch\n"));
+}
+
+void BootBackupTest::listAndRestoreOriginals()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString root = directory.path() + "/backups";
+    const QString esp = directory.path() + "/esp";
+    const QString config = esp + "/loader/loader.conf";
+    const QString created = esp + "/loader/entries/new.conf";
+    QVERIFY(QDir().mkpath(esp + "/loader/entries"));
+    auto write = [](const QString &path, const QByteArray &data) {
+        QFile file(path); return file.open(QIODevice::WriteOnly) && file.write(data) == data.size();
+    };
+    auto read = [](const QString &path) { QFile file(path); return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray(); };
+    QVERIFY(write(config, "timeout 3\n"));
+    const QList<BootOperation> operations{{"systemd-setting", esp + "|timeout", "8", "3", "Timeout"},
+        {"menu-write", created, "{}", "", "Add entry"}};
+    BootBackup backup;
+    QString error;
+    QVERIFY2(backup.prepare(operations, {}, root, &error), qPrintable(error));
+    QVERIFY(backup.finish(true, &error));
+    QVERIFY(write(config, "timeout 8\n"));
+    QVERIFY(write(created, "title New\n"));
+
+    const auto list = BootBackup::list(root);
+    QCOMPARE(list.size(), 1);
+    const auto summary = list.first().toObject();
+    const QString id = summary.value("id").toString();
+    QCOMPARE(summary.value("phase").toString(), QString("completed"));
+    QCOMPARE(summary.value("operations").toArray().size(), 2);
+    QCOMPARE(summary.value("files").toArray().size(), 2);
+    const QString digest = summary.value("digest").toString();
+    QVERIFY(!BootBackup::validateRestore(root, id, "stale", &error));
+    QVERIFY(!BootBackup::validateRestore(root, "../escape", digest, &error));
+    QVERIFY2(BootBackup::validateRestore(root, id, digest, &error), qPrintable(error));
+
+    // Restoring is itself backed up, so it can be undone.
+    BootBackup undo;
+    QVERIFY2(undo.prepare({{"restore-backup", id, {}, digest, "Restore"}}, {}, root, &error), qPrintable(error));
+    QVERIFY2(BootBackup::restore(root, id, &error), qPrintable(error));
+    QCOMPARE(read(config), QByteArray("timeout 3\n"));
+    QVERIFY(!QFileInfo::exists(created));
+    QCOMPARE(BootBackup::list(root).size(), 2);
+
+    const auto originals = QDir(root + "/" + id).entryList({"*.original"}, QDir::Files);
+    QCOMPARE(originals.size(), 1);
+    QFile saved(QDir(root + "/" + id).filePath(originals.first()));
+    QVERIFY(saved.open(QIODevice::Append));
+    saved.write("tampered");
+    saved.close();
+    QVERIFY(!BootBackup::validateRestore(root, id, digest, &error));
+    QVERIFY(!error.isEmpty());
 }
 
 QTEST_GUILESS_MAIN(BootBackupTest)
