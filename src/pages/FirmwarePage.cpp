@@ -72,14 +72,19 @@ FirmwarePage::FirmwarePage(QWidget *parent) : QWidget(parent)
         const int position = displayOrder_.indexOf(selectedId());
         const QString select = tr("Select a firmware entry first.");
         const bool removing = entry && pendingRemovals_.contains(entry->number);
+        const bool secureBootBlocked = snapshot_.secureBoot != SecureBootState::Disabled
+            && snapshot_.secureBoot != SecureBootState::Unsupported;
         const QString removal = tr("This entry is queued for removal. Cancel the removal in Pending changes to edit it.");
         const bool ordered = position >= 0 && position < snapshot_.bootOrder.size();
         const QString orderReason = !entry ? select : !ordered ? tr("This entry is not part of BootOrder.")
             : tr("The entry is already at this end of the boot order.");
-        BootUi::setAvailable(up, ordered && position > 0, orderReason);
-        BootUi::setAvailable(down, ordered && position + 1 < snapshot_.bootOrder.size(), orderReason);
-        BootUi::setAvailable(next, entry && pendingEnabled_.value(entry->number, entry->enabled) && !removing,
-            !entry ? select : removing ? removal : tr("Enable this entry before selecting it for the next boot."));
+        BootUi::setAvailable(up, ordered && position > 0 && !secureBootBlocked,
+            secureBootBlocked ? tr("Secure Boot is enabled or its state is unknown; changing the default is unavailable.") : orderReason);
+        BootUi::setAvailable(down, ordered && position + 1 < snapshot_.bootOrder.size() && !secureBootBlocked,
+            secureBootBlocked ? tr("Secure Boot is enabled or its state is unknown; changing the default is unavailable.") : orderReason);
+        BootUi::setAvailable(next, entry && pendingEnabled_.value(entry->number, entry->enabled) && !removing && !secureBootBlocked,
+            secureBootBlocked ? tr("Secure Boot is enabled or its state is unknown; one-time firmware selection is unavailable.")
+                : !entry ? select : removing ? removal : tr("Enable this entry before selecting it for the next boot."));
         BootUi::setAvailable(rename, entry && !removing, !entry ? select : removal);
         BootUi::setAvailable(toggle_, entry && !removing, !entry ? select : removal);
         toggle_->setText(entry && pendingEnabled_.value(entry->number, entry->enabled) ? tr("Disable") : tr("Enable"));
@@ -115,6 +120,8 @@ void FirmwarePage::updateSnapshot(const BootSnapshot &snapshot)
     BootUi::setAvailable(clearNext_, snapshot.uefi && !snapshot.bootNext.isEmpty(), tr("No one-time boot entry is set."));
     if (snapshot.uefi && snapshot.firmware.isEmpty()) {
         detail_->setText(tr("Unable to read boot entries. Refresh and try again."));
+    } else if (snapshot.secureBoot != SecureBootState::Disabled && snapshot.secureBoot != SecureBootState::Unsupported) {
+        detail_->setText(tr("Secure Boot is enabled or its state is unknown; default and one-time firmware selection are unavailable."));
     } else {
         detail_->setText(tr("Current: %1 · Next: %2 · BootOrder: %3")
             .arg(snapshot.bootCurrent.isEmpty() ? tr("unknown") : snapshot.bootCurrent,
