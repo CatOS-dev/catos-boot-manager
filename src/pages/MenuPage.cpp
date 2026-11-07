@@ -647,6 +647,16 @@ void MenuPage::removeEntry()
             }
         }
     }
+    if (loader->kind == LoaderKind::Limine) {
+        const QString configured = loader->settingValues.value(QStringLiteral("default_entry"));
+        const int selected = limineIndex(menu_, item);
+        bool isDefault = configured.isEmpty() ? selected == 1 : configured.toInt() == selected;
+        if (isDefault) {
+            QMessageBox::warning(this, tr("Default boot entry"),
+                tr("Choose another default boot entry before removing this entry."));
+            return;
+        }
+    }
     if (QMessageBox::question(this, tr("Remove boot entry"), tr("Remove %1?").arg(item->text(0))) != QMessageBox::Yes) return;
     const auto entry = item->data(0, dataRole).toJsonObject();
     const auto document = QJsonDocument::fromJson(loader->menuContent.toUtf8()).object();
