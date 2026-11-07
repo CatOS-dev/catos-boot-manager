@@ -22,6 +22,7 @@ public:
     QJsonObject lastOutcomes() const { return lastOutcomes_; }
     QString lastReportDirectory() const { return lastReportDirectory_; }
     int lastApplyCode() const { return lastApplyCode_; }
+    QString lastError() const { return lastError_; }
     bool isAuthorized() const { return state_ != State::Stopped && state_ != State::Starting; }
     bool isBusy() const { return state_ == State::Scanning || state_ == State::Applying || state_ == State::Previewing; }
 
@@ -46,5 +47,6 @@ private:
     int lastApplyCode_ = -1;
     QJsonObject lastOutcomes_;
     QString lastReportDirectory_;
+    QString lastError_;
     State state_ = State::Stopped;
 };

@@ -10,7 +10,9 @@ BootSession::BootSession(QObject *parent) : QObject(parent)
 {
     connect(&process_, &QProcess::readyReadStandardOutput, this, &BootSession::receive);
     connect(&process_, &QProcess::readyReadStandardError, this, [this] {
-        emit output(QString::fromUtf8(process_.readAllStandardError()));
+        const QString text = QString::fromUtf8(process_.readAllStandardError());
+        lastError_ = text.trimmed().right(4096);
+        emit output(text);
     });
     connect(&process_, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
         if (error == QProcess::FailedToStart) fail(tr("Unable to start administrator authorization."));
@@ -87,6 +89,7 @@ bool BootSession::apply(const BootTransaction &transaction)
     lastApplyCode_ = -1;
     lastOutcomes_ = {};
     lastReportDirectory_.clear();
+    lastError_.clear();
     if (!transaction.count()) return false;
     return send({{QStringLiteral("action"), QStringLiteral("apply")},
                  {QStringLiteral("transaction"), QString::fromLatin1(transaction.encoded())}}, State::Applying);

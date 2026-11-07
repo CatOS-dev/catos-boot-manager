@@ -281,9 +281,11 @@ ApplyResult ApplyDialog::execute(QWidget *parent, BootSession &session, const Bo
         }
         results->setVisible(!outcomes.isEmpty());
         if (!session.lastReportDirectory().isEmpty()) log->appendPlainText(QObject::tr("Execution report: %1").arg(session.lastReportDirectory()));
+        const QString reason = session.lastError().trimmed();
         status->setText(success ? QObject::tr("Completed. Changes have been applied.")
             : session.lastApplyCode() == 2 || session.lastApplyCode() == 3
-                ? QObject::tr("Rejected before execution. No changes were applied.")
+                ? reason.isEmpty() ? QObject::tr("Rejected before execution. No changes were applied.")
+                    : QObject::tr("Rejected before execution: %1").arg(reason)
                 : QObject::tr("Execution incomplete. Some changes may have been applied. Save the log before retrying."));
         close->setEnabled(true);
     });
