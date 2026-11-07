@@ -55,4 +55,4 @@
 ## 工程
 
 - [x] **ENG-1** 依赖外部工具的测试在工具缺失时跳过（目前 `boot-security` 因缺少 `sbverify` 失败）。
-- [ ] **ENG-2** 声明 `binutils`（objdump）、`sbsigntools`、`mokutil` 等运行依赖，或在界面中提示缺失后的降级。
+- [x] **ENG-2** 声明 `binutils`（objdump）、`sbsigntools`、`mokutil` 等运行依赖，或在界面中提示缺失后的降级。

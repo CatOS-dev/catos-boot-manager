@@ -28,7 +28,7 @@ Limine 菜单使用相邻 `limine-tool` 项目的原生解析器，由 `catos-li
 
 ## 构建与验证
 
-依赖：Qt 6 Widgets、Concurrent、Test、LinguistTools，CMake、Ninja、C++17 编译器、Rust/Cargo、pkg-config、libefiboot 和 libefivar。
+依赖：Qt 6 Widgets、Concurrent、Test、LinguistTools，CMake、Ninja、C++17 编译器、Rust/Cargo、pkg-config、libefiboot 和 libefivar。运行时还需要 `binutils`（`objdump`）、`sbsigntools`（`sbverify`）、`mokutil`（安全启动 MOK 操作）以及按所选引导方式提供的 `pacman`、`efibootmgr`、`grub-install`、`grub-mkconfig`、`limine-install`、`bootctl` 和 `catos-firmware-boot-update`；缺少工具时对应检测或操作会显示不可用。
 
 默认从相邻 `../limine-tool` 目录构建 Limine 解析器，可通过 `-DLIMINE_TOOL_SOURCE=/path/to/limine-tool` 指定源码位置。
 
