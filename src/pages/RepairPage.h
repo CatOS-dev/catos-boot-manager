@@ -33,6 +33,7 @@ private:
     void install(const QString &action);
     void updateKernels();
     void updateActionText();
+    void updateRegistrationDefault();
     LoaderKind kind_;
     QJsonArray kernels_;
     QString binary_;
@@ -58,6 +59,9 @@ private:
     QCheckBox *registerFirmware_ = nullptr;
     QCheckBox *installFallback_ = nullptr;
     bool packagesReady_ = false;
+    bool uefi_ = false;
+    bool registered_ = false;
+    bool registerChosen_ = false;
     QPushButton *deploy_ = nullptr;
     QLabel *actionHelp_ = nullptr;
     QPushButton *addEntry_ = nullptr;

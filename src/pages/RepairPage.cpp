@@ -75,6 +75,12 @@ RepairPage::RepairPage(LoaderKind kind, QWidget *parent) : QWidget(parent), kind
 
     registerFirmware_ = new QCheckBox(tr("Register a UEFI firmware entry"), content);
     registerFirmware_->setChecked(false);
+    registerFirmware_->setObjectName(QStringLiteral("registerFirmwareEntry"));
+    if (kind == LoaderKind::Grub || kind == LoaderKind::SystemdBoot)
+        registerFirmware_->setToolTip(tr("%1 places the entry it registers first in the UEFI boot order, making it the default.").arg(loaderName(kind)));
+    else
+        registerFirmware_->setToolTip(tr("The new entry is added to the end of the UEFI boot order; the default does not change."));
+    connect(registerFirmware_, &QCheckBox::clicked, this, [this] { registerChosen_ = true; });
     layout->addWidget(registerFirmware_);
     installFallback_ = new QCheckBox(tr("Replace the removable EFI fallback loader (advanced)"), content);
     installFallback_->setChecked(false);
@@ -118,6 +124,7 @@ RepairPage::RepairPage(LoaderKind kind, QWidget *parent) : QWidget(parent), kind
 void RepairPage::updateTargets(const BootSnapshot &snapshot)
 {
     kernels_ = snapshot.kernels;
+    uefi_ = snapshot.uefi;
     devices_ = snapshot.devices;
     espMounts_ = snapshot.espMounts;
     mountSources_ = snapshot.mountSources;
@@ -216,8 +223,8 @@ void RepairPage::updateRepairChoices()
     form_->setRowVisible(rootSubvolume_, btrfs);
     rootSubvolume_->setEnabled(btrfs);
     registerFirmware_->setVisible(!bios);
-    registerFirmware_->setEnabled(!bios);
-    if (bios) registerFirmware_->setChecked(false);
+    registerFirmware_->setEnabled(!bios && uefi_);
+    updateRegistrationDefault();
     installFallback_->setVisible(!bios && loader != QLatin1String("systemd-boot"));
     installFallback_->setEnabled(!bios && loader != QLatin1String("systemd-boot"));
     if (!installFallback_->isEnabled()) installFallback_->setChecked(false);
@@ -336,6 +343,11 @@ void RepairPage::selectInstallation(const BootInstallation *installation)
     const bool changed = id != installationId_;
     installationId_ = id;
     binary_ = installation ? installation->binary : QString();
+    registered_ = installation && installation->firmwareRegistered;
+    if (changed) {
+        registerChosen_ = false;
+        updateRegistrationDefault();
+    }
     if (installation && changed) {
         const auto root = installation->settingValues.value("root");
         const int index = rootTarget_->findData(root);
@@ -343,6 +355,16 @@ void RepairPage::selectInstallation(const BootInstallation *installation)
         selectDestination(installation->esp);
     }
     updateRepairAvailability();
+}
+
+void RepairPage::updateRegistrationDefault()
+{
+    // Without a firmware entry a newly deployed loader cannot be started,
+    // so registration is proposed unless the selected instance already has
+    // one. A choice made by the user is kept until the selection changes.
+    const bool bios = firmwareMode_->currentData() == QLatin1String("bios");
+    if (bios || !uefi_) { registerFirmware_->setChecked(false); return; }
+    if (!registerChosen_) registerFirmware_->setChecked(!registered_);
 }
 
 void RepairPage::addImageBootEntry()

@@ -2325,6 +2325,14 @@ Replace removable EFI loader: %4</source>
         <source>Deploys every installed kernel with its initramfs using catos-firmware-boot.</source>
         <translation>使用 catos-firmware-boot 部署每个已安装内核及其 initramfs。</translation>
     </message>
+    <message>
+        <source>%1 places the entry it registers first in the UEFI boot order, making it the default.</source>
+        <translation>%1 会把注册的启动项放在 UEFI 启动顺序首位，使其成为默认项。</translation>
+    </message>
+    <message>
+        <source>The new entry is added to the end of the UEFI boot order; the default does not change.</source>
+        <translation>新启动项追加到 UEFI 启动顺序末尾，默认项不变。</translation>
+    </message>
 </context>
 <context>
     <name>SecurityPage</name>

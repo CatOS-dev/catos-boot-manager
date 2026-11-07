@@ -28,6 +28,7 @@ private slots:
     void showInstalledKernelsWithoutManualImageInputs();
     void deployAllNewMethodsWithIndependentInputs();
     void updateOnlyForSystemdBoot();
+    void proposeFirmwareRegistrationWhenMissing();
 };
 
 void MethodsPageTest::stageInstanceSelectionAndRejectChangedTarget()
@@ -340,6 +341,37 @@ void MethodsPageTest::updateOnlyForSystemdBoot()
     QCOMPARE(requested.size(), 2);
     QCOMPARE(BootRepair::arguments(requested[0]).value("action").toString(), QString("repair"));
     QCOMPARE(BootRepair::arguments(requested[1]).value("action").toString(), QString("update"));
+}
+
+void MethodsPageTest::proposeFirmwareRegistrationWhenMissing()
+{
+    BootSnapshot snapshot;
+    snapshot.uefi = true; snapshot.repairRoots = {"/"}; snapshot.espMounts = {"/test-esp"};
+    RepairPage page(LoaderKind::Grub);
+    page.updateTargets(snapshot);
+    page.selectInstallation(nullptr);
+    auto *registration = page.findChild<QCheckBox *>("registerFirmwareEntry");
+    QVERIFY(registration);
+    QVERIFY(registration->isChecked());
+    BootInstallation registered; registered.kind = LoaderKind::Grub; registered.id = "grub";
+    registered.esp = "/test-esp"; registered.binary = "/test-esp/EFI/GRUB/grubx64.efi"; registered.binaryPresent = true;
+    registered.firmwareRegistered = true;
+    page.selectInstallation(&registered);
+    QVERIFY(!registration->isChecked());
+    registration->click();
+    QVERIFY(registration->isChecked());
+    page.updateTargets(snapshot);
+    page.selectInstallation(&registered);
+    QVERIFY(registration->isChecked());
+    auto *mode = page.findChild<QComboBox *>("repairFirmwareMode");
+    mode->setCurrentIndex(mode->findData("bios"));
+    QVERIFY(!registration->isChecked());
+    snapshot.uefi = false;
+    RepairPage legacy(LoaderKind::Refind);
+    legacy.updateTargets(snapshot);
+    legacy.selectInstallation(nullptr);
+    QVERIFY(!legacy.findChild<QCheckBox *>("registerFirmwareEntry")->isChecked());
+    QVERIFY(!legacy.findChild<QCheckBox *>("registerFirmwareEntry")->isEnabled());
 }
 
 QTEST_MAIN(MethodsPageTest)
