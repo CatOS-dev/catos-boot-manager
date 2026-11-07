@@ -25,6 +25,7 @@ private slots:
     void limineEditNestedMenuOnSelectedEsp();
     void refindIncludesKeepOrderAndEffectiveSettings();
     void blsCreateEditDeleteAndRejectUnsafeTargets();
+    void preserveMultilineBlsOptions();
 };
 
 void BootMenusTest::limineEditNestedMenuOnSelectedEsp()
@@ -149,6 +150,17 @@ void BootMenusTest::blsCreateEditDeleteAndRejectUnsafeTargets()
     auto remove = menuOperation(path, changed, {{"format", "bls"}, {"remove", true}});
     QVERIFY2(BootMenus::validate(remove, snapshot, &error), qPrintable(error)); QVERIFY2(BootMenus::execute(remove, &error), qPrintable(error));
     QVERIFY(!QFileInfo::exists(path));
+}
+
+void BootMenusTest::preserveMultilineBlsOptions()
+{
+    QTemporaryDir dir; QVERIFY(dir.isValid());
+    const auto path = dir.filePath("entry.conf");
+    QVERIFY(fixture(path, "title Linux\nlinux /vmlinuz\noptions root=UUID=test\n  ro quiet\n"));
+    QString error;
+    const auto values = BootMenus::bls(path, &error).value("values").toObject();
+    QVERIFY(error.isEmpty());
+    QCOMPARE(values.value("options").toString(), QString("root=UUID=test ro quiet"));
 }
 QTEST_GUILESS_MAIN(BootMenusTest)
 #include "BootMenusTest.moc"

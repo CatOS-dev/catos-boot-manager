@@ -268,14 +268,22 @@ QJsonObject BootMenus::bls(const QString &path, QString *error)
     const auto text = readText(path, error);
     QJsonObject fields;
     QJsonArray initrds;
+    QString previousKey;
     for (const auto &line : text.split('\n')) {
         const auto clean = line.trimmed();
         if (clean.isEmpty() || clean.startsWith('#')) continue;
+        if (line.startsWith(QRegularExpression(QStringLiteral("\\s"))) && previousKey == QLatin1String("options")) {
+            fields.insert("options", fields.value("options").toString() + QLatin1Char(' ') + clean);
+            continue;
+        }
         const int space = clean.indexOf(QRegularExpression(QStringLiteral("\\s")));
         if (space < 0) continue;
         const QString key = clean.left(space).toLower();
         const QString value = clean.mid(space + 1).trimmed();
+        previousKey = key;
         if (key == QLatin1String("initrd")) initrds.append(value);
+        else if (key == QLatin1String("options") && fields.contains(key))
+            fields.insert(key, fields.value(key).toString() + QLatin1Char(' ') + value);
         else fields.insert(key, value);
     }
     fields.insert("initrd", initrds);
