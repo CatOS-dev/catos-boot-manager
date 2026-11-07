@@ -336,9 +336,10 @@ QJsonObject BootDeploy::profile(const QString &path, QString *error)
         }
         document = parsed.object();
     } else {
-        static QHash<QString, QPair<qint64, QJsonObject>> cache;
+        static QHash<QString, QPair<QString, QJsonObject>> cache;
         const QString configPath = configurationPath(root);
-        const qint64 stamp = QFileInfo(configPath).lastModified().toMSecsSinceEpoch();
+        const QFileInfo info(configPath);
+        const QString stamp = QString::number(info.lastModified().toMSecsSinceEpoch()) + QLatin1Char(':') + QString::number(info.size());
         const auto cached = cache.value(configPath);
         if (cached.first == stamp && !cached.second.isEmpty()) {
             document = cached.second;

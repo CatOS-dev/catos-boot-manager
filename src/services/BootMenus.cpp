@@ -272,7 +272,7 @@ QJsonObject BootMenus::bls(const QString &path, QString *error)
     for (const auto &line : text.split('\n')) {
         const auto clean = line.trimmed();
         if (clean.isEmpty() || clean.startsWith('#')) continue;
-        if (line.startsWith(QRegularExpression(QStringLiteral("\\s"))) && previousKey == QLatin1String("options")) {
+        if (!line.isEmpty() && line.at(0).isSpace() && previousKey == QLatin1String("options")) {
             fields.insert("options", fields.value("options").toString() + QLatin1Char(' ') + clean);
             continue;
         }

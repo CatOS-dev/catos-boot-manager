@@ -19,10 +19,11 @@ QString parseValue(QString text)
     text = text.trimmed();
     if (text.size() >= 2
         && ((text.startsWith(QLatin1Char('"')) && text.endsWith(QLatin1Char('"')))
-            || (text.startsWith(QLatin1Char('\'')) && text.endsWith(QLatin1Char('\'')))))
+            || (text.startsWith(QLatin1Char('\'')) && text.endsWith(QLatin1Char('\''))))) {
         const bool single = text.startsWith(QLatin1Char('\''));
         text = text.mid(1, text.size() - 2);
         if (single) text.replace(QStringLiteral("'\\''"), QStringLiteral("'"));
+    }
     return text;
 }
 

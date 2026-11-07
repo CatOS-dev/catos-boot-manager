@@ -30,6 +30,7 @@ void BootTransactionTest::toggleAndAutomaticallyQueueOrder()
 {
     BootSnapshot snapshot;
     snapshot.uefi = true;
+    snapshot.secureBoot = SecureBootState::Disabled;
     snapshot.bootOrder = {"0001", "0002"};
     snapshot.firmware = {{"0001", "First", "", "", true, true},
                          {"0002", "Second", "", "", true, false}};
@@ -169,6 +170,7 @@ void BootTransactionTest::restoreOrderThroughPage()
 {
     BootSnapshot snapshot;
     snapshot.uefi = true;
+    snapshot.secureBoot = SecureBootState::Disabled;
     snapshot.bootOrder = {"0001", "0002"};
     snapshot.firmware = {{"0001", "First", "", "", true, true},
                          {"0002", "Second", "", "", true, false}};
