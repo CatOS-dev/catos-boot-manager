@@ -30,7 +30,7 @@ static QDataStream &operator<<(QDataStream &s, const BootInstallation &v)
         << v.firmwareEntries << v.defaultEntry << v.nextEntry << v.evidence
         << v.imageType << v.architecture << v.signature << v.signatureDetails
         << v.settingValues << v.settingFiles << v.settingsEditable << v.settingsMessage << v.menuContent
-        << v.menuMessage << v.issues << v.espBytesAvailable;
+        << v.menuMessage << v.issues << v.espBytesAvailable << v.binaryBytes;
 }
 
 static QDataStream &operator>>(QDataStream &s, BootInstallation &v)
@@ -40,14 +40,14 @@ static QDataStream &operator>>(QDataStream &s, BootInstallation &v)
         >> v.firmwareEntries >> v.defaultEntry >> v.nextEntry >> v.evidence
         >> v.imageType >> v.architecture >> v.signature >> v.signatureDetails
         >> v.settingValues >> v.settingFiles >> v.settingsEditable >> v.settingsMessage >> v.menuContent
-        >> v.menuMessage >> v.issues >> v.espBytesAvailable;
+        >> v.menuMessage >> v.issues >> v.espBytesAvailable >> v.binaryBytes;
 }
 QByteArray BootSnapshotCodec::encode(const BootSnapshot &v)
 {
     QByteArray data;
     QDataStream s(&data, QIODevice::WriteOnly);
     s.setVersion(QDataStream::Qt_6_0);
-    s << quint32(3) << v.uefi << v.efiArchitecture << v.bootCurrent << v.bootNext
+    s << quint32(4) << v.uefi << v.efiArchitecture << v.bootCurrent << v.bootNext
         << v.bootOrder << v.firmware << v.installations << v.currentLoader
         << v.currentEvidence << v.messages << v.secureBoot << v.installedPackages
         << v.packageStateAvailable << v.setupMode << v.moduleSignatureEnforcement
@@ -63,7 +63,7 @@ bool BootSnapshotCodec::decode(const QByteArray &data, BootSnapshot *snapshot)
     quint32 version = 0;
     BootSnapshot v;
     s >> version;
-    if (version != 3) return false;
+    if (version != 4) return false;
     s >> v.uefi >> v.efiArchitecture >> v.bootCurrent >> v.bootNext
         >> v.bootOrder >> v.firmware >> v.installations >> v.currentLoader
         >> v.currentEvidence >> v.messages >> v.secureBoot >> v.installedPackages

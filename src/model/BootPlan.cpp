@@ -34,7 +34,7 @@ QString BootPlan::firmwareConflict(const QList<BootOperation> &operations, const
                     && !snapshot.efiArchitecture.isEmpty()
                     && installation.architecture == snapshot.efiArchitecture
                     && (installation.imageType == QLatin1String("pe") || installation.imageType == QLatin1String("uki"))
-                    && QFileInfo(installation.binary).size() > 0) ++matches;
+                    && installation.binaryBytes > 0) ++matches;
             if (matches != 1)
                 return QObject::tr("Unable to select this boot entry. Refresh and try again.");
             if (snapshot.secureBoot != SecureBootState::Disabled)

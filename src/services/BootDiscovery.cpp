@@ -62,6 +62,7 @@ void BootDiscovery::populate(BootSnapshot &snapshot, const QList<Esp> &partition
             installation.binary = binary;
             installation.config = config;
             installation.binaryPresent = !binary.isEmpty() && QFileInfo(binary).isFile();
+            installation.binaryBytes = installation.binaryPresent ? QFileInfo(binary).size() : -1;
             installation.configPresent = !installation.config.isEmpty() && QFileInfo(installation.config).isFile();
             installation.evidence = evidence;
             installation.imageType = image.type;
