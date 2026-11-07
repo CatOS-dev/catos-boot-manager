@@ -2,6 +2,7 @@
 #include "pages/MenuPage.h"
 #include "pages/SettingsPage.h"
 #include "pages/PendingPage.h"
+#include "pages/SecurityPage.h"
 #include "pages/FirmwarePage.h"
 #include "dialogs/ApplyDialog.h"
 #include <QLabel>
@@ -40,6 +41,7 @@ private slots:
     void queueBackupRestore();
     void readOnlyModeUntilAuthorized();
     void explainDisabledActions();
+    void showMokCertificates();
 };
 
 static BootSnapshot settingsSnapshot()
@@ -318,6 +320,37 @@ void BootManagerWindowTest::explainDisabledActions()
     auto *move = window.findChild<QPushButton *>("moveBootEntryDown");
     QVERIFY(!move->isEnabled());
     QVERIFY(!move->toolTip().isEmpty());
+}
+
+void BootManagerWindowTest::showMokCertificates()
+{
+    BootSession session;
+    BootManagerWindow window(&session);
+    QCoreApplication::processEvents();
+    auto snapshot = settingsSnapshot();
+    snapshot.uefi = true;
+    snapshot.enrolledMok = "[key 1]\nSHA1 Fingerprint: 11:22\n        Issuer: CN = Vendor\n        Subject: CN = Vendor Key\n";
+    snapshot.pendingMok = "[key 1]\nSHA1 Fingerprint: 33:44\n        Issuer: CN = Me\n        Subject: CN = My Key\n";
+    emit session.snapshotReady(snapshot);
+    auto *security = window.findChild<SecurityPage *>(); QVERIFY(security);
+    auto *enrolled = security->findChild<QTreeWidget *>("enrolledCertificates"); QVERIFY(enrolled);
+    auto *pending = security->findChild<QTreeWidget *>("pendingCertificates"); QVERIFY(pending);
+    QCOMPARE(enrolled->topLevelItemCount(), 1);
+    QCOMPARE(enrolled->topLevelItem(0)->text(0), QString("Vendor Key"));
+    QCOMPARE(pending->topLevelItem(0)->text(3), QString("33:44"));
+    QVERIFY(security->findChild<QLabel *>("mokGuidance")->text().contains("MokManager"));
+    auto *revoke = security->findChild<QPushButton *>("revokeMokEnrollment");
+    QVERIFY(revoke->isEnabled());
+    QSignalSpy requested(security, &SecurityPage::mokRequested);
+    QTimer::singleShot(0, &window, [] {
+        auto *box = qobject_cast<QMessageBox *>(QApplication::activeModalWidget()); QVERIFY(box);
+        box->button(QMessageBox::No)->click();
+    });
+    revoke->click();
+    QCOMPARE(requested.count(), 0);
+    snapshot.pendingMok.clear();
+    emit session.snapshotReady(snapshot);
+    QVERIFY(!revoke->isEnabled());
 }
 
 int main(int argc, char **argv)

@@ -3,6 +3,7 @@
 #include <QDir>
 #include <QFile>
 #include <QTemporaryDir>
+#include <QJsonObject>
 #include <QtTest>
 
 namespace {
@@ -20,6 +21,9 @@ private slots:
     void inspectFirmwareAndPublicCertificateListsWithoutMutation();
     void preserveUnknownOnMissingFirmwareAndFailedTools();
     void inspectRealUnsignedPeImage();
+    void parseMokCertificates();
+    void validateMokRequests();
+    void passPasswordOnlyToMokutil();
 };
 
 void BootSecurityTest::inspectFirmwareAndPublicCertificateListsWithoutMutation()
@@ -106,6 +110,65 @@ void BootSecurityTest::inspectRealUnsignedPeImage()
     const auto missing = BootSecurity::readCommand("/nonexistent/boot-manager-test-command", {});
     QVERIFY(!missing.completed);
     QVERIFY(!missing.error.isEmpty());
+}
+
+void BootSecurityTest::parseMokCertificates()
+{
+    const QString output =
+        "[key 1]\nSHA1 Fingerprint: 9b:2a:00:11\nCertificate:\n    Data:\n        Version: 3 (0x2)\n"
+        "        Issuer: CN = CatOS Machine Owner Key, O = CatOS\n        Validity\n"
+        "            Not Before: Nov  1 00:00:00 2026 GMT\n            Not After : Oct 29 00:00:00 2036 GMT\n"
+        "        Subject: CN = CatOS Machine Owner Key, O = CatOS\n"
+        "[key 2]\nSHA1 Fingerprint: aa:bb\nCertificate:\n        Issuer: O=Vendor, CN=Vendor CA\n"
+        "            Not After : Jan  1 00:00:00 2030 GMT\n        Subject: O=Vendor, CN=Vendor Signing\n";
+    const auto certificates = BootSecurity::certificates(output);
+    QCOMPARE(certificates.size(), 2);
+    QCOMPARE(certificates[0].commonName, QString("CatOS Machine Owner Key"));
+    QCOMPARE(certificates[0].fingerprint, QString("9b:2a:00:11"));
+    QCOMPARE(certificates[0].notAfter, QString("Oct 29 00:00:00 2036 GMT"));
+    QCOMPARE(certificates[1].commonName, QString("Vendor Signing"));
+    QCOMPARE(certificates[1].issuer, QString("O=Vendor, CN=Vendor CA"));
+    QVERIFY(BootSecurity::certificates("MokListRT is empty\n").isEmpty());
+}
+
+void BootSecurityTest::validateMokRequests()
+{
+    QByteArray der(128, '\x01'); der[0] = '\x30';
+    const QJsonObject valid{{"operation", "import"}, {"certificate", QString::fromLatin1(der.toBase64())}, {"password", "secret"}};
+    QString error;
+    QVERIFY2(BootSecurity::validateMokRequest(valid, &error), qPrintable(error));
+    QVERIFY(BootSecurity::validateMokRequest({{"operation", "revoke-import"}}, &error));
+    auto invalid = valid; invalid.insert("password", "");
+    QVERIFY(!BootSecurity::validateMokRequest(invalid, &error));
+    invalid = valid; invalid.insert("password", "line\nbreak");
+    QVERIFY(!BootSecurity::validateMokRequest(invalid, &error));
+    invalid = valid; invalid.insert("certificate", QString::fromLatin1(QByteArray("-----BEGIN CERTIFICATE-----").repeated(4).toBase64()));
+    QVERIFY(!BootSecurity::validateMokRequest(invalid, &error));
+    QVERIFY(!BootSecurity::validateMokRequest({{"operation", "delete"}}, &error));
+}
+
+void BootSecurityTest::passPasswordOnlyToMokutil()
+{
+    QTemporaryDir directory; QVERIFY(directory.isValid());
+    QFile mokutil(directory.filePath("mokutil"));
+    QVERIFY(mokutil.open(QIODevice::WriteOnly));
+    mokutil.write("#!/bin/sh\nprintf '%s\\n' \"$*\" > \"$0.args\"\nwhile read -r line; do printf '%s\\n' \"$line\" >> \"$0.input\"; done\n");
+    mokutil.close();
+    QVERIFY(mokutil.setPermissions(QFileDevice::ReadOwner | QFileDevice::ExeOwner));
+    const auto oldPath = qgetenv("PATH");
+    qputenv("PATH", directory.path().toUtf8() + ':' + oldPath);
+    QByteArray der(128, '\x01'); der[0] = '\x30';
+    QString error;
+    const bool done = BootSecurity::executeMokRequest({{"operation", "import"}, {"certificate", QString::fromLatin1(der.toBase64())},
+                                                      {"password", "secret"}}, &error);
+    qputenv("PATH", oldPath);
+    QVERIFY2(done, qPrintable(error));
+    QFile input(directory.filePath("mokutil.input")); QVERIFY(input.open(QIODevice::ReadOnly));
+    QCOMPARE(input.readAll(), QByteArray("secret\nsecret\n"));
+    QFile args(directory.filePath("mokutil.args")); QVERIFY(args.open(QIODevice::ReadOnly));
+    const QByteArray arguments = args.readAll();
+    QVERIFY(arguments.startsWith("--import "));
+    QVERIFY(!arguments.contains("secret"));
 }
 
 QTEST_GUILESS_MAIN(BootSecurityTest)

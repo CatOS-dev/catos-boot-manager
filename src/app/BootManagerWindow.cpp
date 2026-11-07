@@ -14,6 +14,8 @@
 #include "services/BootScan.h"
 
 #include <QApplication>
+#include <QEventLoop>
+#include <QJsonObject>
 #include <QCloseEvent>
 #include <QFrame>
 #include <QHBoxLayout>
@@ -175,6 +177,7 @@ BootManagerWindow::BootManagerWindow(BootSession *session, QWidget *parent, std:
     connect(recovery_, &RecoveryPage::installationRequested, this, executeNow);
     connect(recovery_, &RecoveryPage::operationRequested, this, &BootManagerWindow::queue);
     connect(firmware_, &FirmwarePage::operationRequested, this, &BootManagerWindow::queue);
+    connect(security_, &SecurityPage::mokRequested, this, &BootManagerWindow::runMokRequest);
     connect(pendingPage_, &PendingPage::removalRequested, this, [this](const QString &key) {
         for (const auto &operation : transaction_.operations())
             if (operation.key() == key) settings_->discardOperation(operation);
@@ -204,6 +207,40 @@ void BootManagerWindow::setReadOnly(bool readOnly)
     readOnly_ = readOnly;
     readOnlyBanner_->setVisible(readOnly);
     updateFooter();
+}
+
+void BootManagerWindow::runMokRequest(const QJsonObject &request, const QString &description)
+{
+    if (readOnly_) {
+        QMessageBox::information(this, tr("Administrator access required"),
+            tr("This action needs administrator access. Use Authorize at the top of the window, then try again."));
+        return;
+    }
+    if (isBusy()) return;
+    QString log;
+    bool success = false;
+    QEventLoop loop;
+    const auto output = connect(session_, &BootSession::output, this, [&log](const QString &text) { log += text; });
+    const auto finished = connect(session_, &BootSession::operationFinished, &loop, [&](bool ok) { success = ok; loop.quit(); });
+    const auto lost = connect(session_, &BootSession::failed, &loop, &QEventLoop::quit);
+    const bool started = session_->secureBoot(request);
+    if (started) {
+        pages_->setEnabled(false);
+        statusBar()->showMessage(description + QStringLiteral("…"));
+        loop.exec();
+        statusBar()->clearMessage();
+        pages_->setEnabled(true);
+    }
+    disconnect(output); disconnect(finished); disconnect(lost);
+    if (!started && !session_->isAuthorized()) return;
+    QMessageBox result(success ? QMessageBox::Information : QMessageBox::Warning, tr("Secure Boot"),
+        success ? (request.value(QStringLiteral("operation")).toString() == QLatin1String("import")
+                      ? tr("The enrollment request was saved. Restart and confirm it in MokManager with the password you set.")
+                      : tr("The pending enrollment was cancelled."))
+                : tr("%1 did not complete.").arg(description), QMessageBox::Close, this);
+    if (!log.isEmpty()) result.setDetailedText(log);
+    result.exec();
+    if (session_->isAuthorized()) rescan(true);
 }
 
 bool BootManagerWindow::isBusy() const

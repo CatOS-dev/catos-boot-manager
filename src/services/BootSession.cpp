@@ -92,6 +92,14 @@ bool BootSession::apply(const BootTransaction &transaction)
                  {QStringLiteral("transaction"), QString::fromLatin1(transaction.encoded())}}, State::Applying);
 }
 
+bool BootSession::secureBoot(const QJsonObject &request)
+{
+    lastApplyCode_ = -1;
+    lastOutcomes_ = {};
+    lastReportDirectory_.clear();
+    return send({{QStringLiteral("action"), QStringLiteral("secure-boot")}, {QStringLiteral("request"), request}}, State::Applying);
+}
+
 bool BootSession::preview(const BootTransaction &transaction)
 {
     if (!transaction.count()) return false;

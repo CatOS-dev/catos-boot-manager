@@ -15,6 +15,8 @@ public:
     void stop();
     bool scan();
     bool apply(const BootTransaction &transaction);
+    // Runs a MOK enrollment request (see BootSecurity::executeMokRequest).
+    bool secureBoot(const QJsonObject &request);
     // Asks the privileged side which files the transaction would change.
     bool preview(const BootTransaction &transaction);
     QJsonObject lastOutcomes() const { return lastOutcomes_; }

@@ -10,6 +10,7 @@
 #include "services/BootMenus.h"
 #include "services/BootDeploy.h"
 #include "services/BootPreview.h"
+#include "services/BootSecurity.h"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -464,6 +465,16 @@ int main(int argc, char **argv)
             if (!connected) return 2;
             if (!respond(responses, {{QStringLiteral("type"), QStringLiteral("snapshot")},
                 {QStringLiteral("data"), QString::fromLatin1(BootSnapshotCodec::encode(snapshot))}})) return 2;
+        } else if (action == QLatin1String("secure-boot")) {
+            // MOK requests run immediately. The password goes only to mokutil's
+            // standard input; it is not written to the log or a backup.
+            QString error;
+            const bool success = BootSecurity::mokAvailable(&error)
+                && BootSecurity::executeMokRequest(request.value(QStringLiteral("request")).toObject(), &error);
+            if (!success) QTextStream(stderr) << error << Qt::endl;
+            if (!respond(responses, {{QStringLiteral("type"), QStringLiteral("result")}, {QStringLiteral("success"), success},
+                                    {QStringLiteral("code"), success ? 0 : 4}, {QStringLiteral("outcomes"), QJsonObject{}},
+                                    {QStringLiteral("reportDirectory"), QString()}})) return 2;
         } else if (action == QLatin1String("preview")) {
             // Read-only: renders the files the transaction would change.
             QString error;

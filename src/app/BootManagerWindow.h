@@ -45,6 +45,7 @@ private:
     void queue(const BootOperation &operation);
     void updateFooter();
     void applyTransaction();
+    void runMokRequest(const QJsonObject &request, const QString &description);
 
     bool updatingSnapshot_ = false;
     bool readOnly_ = false;

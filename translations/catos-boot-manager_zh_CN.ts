@@ -169,6 +169,18 @@
         <source>There are no pending changes.</source>
         <translation>没有待应用的修改。</translation>
     </message>
+    <message>
+        <source>The enrollment request was saved. Restart and confirm it in MokManager with the password you set.</source>
+        <translation>注册请求已保存。请重启并在 MokManager 中用所设密码确认。</translation>
+    </message>
+    <message>
+        <source>The pending enrollment was cancelled.</source>
+        <translation>已取消待确认的注册。</translation>
+    </message>
+    <message>
+        <source>%1 did not complete.</source>
+        <translation>%1 未完成。</translation>
+    </message>
 </context>
 <context>
     <name>BootSession</name>
@@ -2347,6 +2359,50 @@ They are checked again before applying.</source>
         <source>%1 · generated</source>
         <translation>%1 · 自动生成</translation>
     </message>
+    <message>
+        <source>Name</source>
+        <translation>名称</translation>
+    </message>
+    <message>
+        <source>Issuer</source>
+        <translation>颁发者</translation>
+    </message>
+    <message>
+        <source>Expires</source>
+        <translation>到期时间</translation>
+    </message>
+    <message>
+        <source>SHA1 fingerprint</source>
+        <translation>SHA1 指纹</translation>
+    </message>
+    <message>
+        <source>MOK management requires UEFI and the mokutil program.</source>
+        <translation>MOK 管理需要 UEFI 和 mokutil 程序。</translation>
+    </message>
+    <message>
+        <source>Unsupported Secure Boot operation.</source>
+        <translation>不支持的安全启动操作。</translation>
+    </message>
+    <message>
+        <source>Choose a certificate in DER format.</source>
+        <translation>请选择 DER 格式的证书。</translation>
+    </message>
+    <message>
+        <source>Enter a password of 1 to 256 characters.</source>
+        <translation>请输入 1 到 256 个字符的密码。</translation>
+    </message>
+    <message>
+        <source>The password cannot contain control characters.</source>
+        <translation>密码不能包含控制字符。</translation>
+    </message>
+    <message>
+        <source>Unable to prepare the certificate.</source>
+        <translation>无法准备证书。</translation>
+    </message>
+    <message>
+        <source>mokutil did not complete the request.</source>
+        <translation>mokutil 未能完成请求。</translation>
+    </message>
 </context>
 <context>
     <name>RepairPage</name>
@@ -2678,6 +2734,118 @@ State: %2
         <translation>程序：%1
 状态：%2
 %3</translation>
+    </message>
+    <message>
+        <source>Firmware state, Machine Owner Keys (MOK) and signature information for deployed EFI programs.</source>
+        <translation>固件状态、机器所有者密钥（MOK）以及已部署 EFI 程序的签名信息。</translation>
+    </message>
+    <message>
+        <source>Machine Owner Keys</source>
+        <translation>机器所有者密钥</translation>
+    </message>
+    <message>
+        <source>Enrolled certificates:</source>
+        <translation>已注册的证书：</translation>
+    </message>
+    <message>
+        <source>Waiting for confirmation at the next restart:</source>
+        <translation>等待下次重启时确认：</translation>
+    </message>
+    <message>
+        <source>Request enrollment…</source>
+        <translation>请求注册…</translation>
+    </message>
+    <message>
+        <source>Cancel pending enrollment</source>
+        <translation>取消待确认的注册</translation>
+    </message>
+    <message>
+        <source>mokutil output</source>
+        <translation>mokutil 输出</translation>
+    </message>
+    <message>
+        <source>Remove all certificates waiting for enrollment? MokManager will not ask for them at the next restart.</source>
+        <translation>移除所有等待注册的证书？下次重启时 MokManager 将不再询问。</translation>
+    </message>
+    <message>
+        <source>Cancel pending MOK enrollment</source>
+        <translation>取消待确认的 MOK 注册</translation>
+    </message>
+    <message>
+        <source>Machine Owner Keys are only available on UEFI systems.</source>
+        <translation>机器所有者密钥仅适用于 UEFI 系统。</translation>
+    </message>
+    <message>
+        <source>Restart to finish: MokManager opens before the system starts. Choose “Enroll MOK”, confirm the certificate and enter the password set for this request.</source>
+        <translation>重启以完成注册：系统启动前会打开 MokManager。选择“Enroll MOK”，确认证书，并输入为此请求设置的密码。</translation>
+    </message>
+    <message>
+        <source>To trust a kernel or boot loader signed with your own key, request enrollment of its certificate, then restart.</source>
+        <translation>要信任用自己的密钥签名的内核或引导器，请先请求注册其证书，然后重启。</translation>
+    </message>
+    <message>
+        <source>This system was not started in UEFI mode.</source>
+        <translation>本系统未以 UEFI 模式启动。</translation>
+    </message>
+    <message>
+        <source>mokutil is not available. Install the mokutil package.</source>
+        <translation>mokutil 不可用，请安装 mokutil 软件包。</translation>
+    </message>
+    <message>
+        <source>No enrollment is waiting.</source>
+        <translation>没有等待确认的注册。</translation>
+    </message>
+    <message>
+        <source>Choose a certificate to enroll</source>
+        <translation>选择要注册的证书</translation>
+    </message>
+    <message>
+        <source>DER certificates (*.der *.cer *.crt);;All files (*)</source>
+        <translation>DER 证书 (*.der *.cer *.crt);;所有文件 (*)</translation>
+    </message>
+    <message>
+        <source>Request enrollment</source>
+        <translation>请求注册</translation>
+    </message>
+    <message>
+        <source>Unable to read the certificate.</source>
+        <translation>无法读取证书。</translation>
+    </message>
+    <message>
+        <source>This file is not a DER certificate. Convert a PEM certificate with: openssl x509 -in key.pem -outform DER -out key.der</source>
+        <translation>此文件不是 DER 格式的证书。可用以下命令转换 PEM 证书：openssl x509 -in key.pem -outform DER -out key.der</translation>
+    </message>
+    <message>
+        <source>Set a one-time password</source>
+        <translation>设置一次性密码</translation>
+    </message>
+    <message>
+        <source>At the next restart MokManager asks for this password to confirm the enrollment. Choose something you can type on the boot screen; it is used once and is not stored or logged.</source>
+        <translation>下次重启时 MokManager 会要求输入此密码以确认注册。请选择在启动界面能输入的密码；它只使用一次，不会被保存或记录到日志。</translation>
+    </message>
+    <message>
+        <source>Password:</source>
+        <translation>密码：</translation>
+    </message>
+    <message>
+        <source>Repeat:</source>
+        <translation>再次输入：</translation>
+    </message>
+    <message>
+        <source>Enter a password.</source>
+        <translation>请输入密码。</translation>
+    </message>
+    <message>
+        <source>Use at most 256 characters.</source>
+        <translation>最多 256 个字符。</translation>
+    </message>
+    <message>
+        <source>The passwords do not match.</source>
+        <translation>两次输入的密码不一致。</translation>
+    </message>
+    <message>
+        <source>Request enrollment of %1</source>
+        <translation>请求注册 %1</translation>
     </message>
 </context>
 <context>
