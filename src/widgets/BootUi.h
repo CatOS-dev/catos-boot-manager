@@ -18,6 +18,8 @@ void section(QVBoxLayout *layout, QWidget *parent, const QString &name);
 void line(QVBoxLayout *layout, QWidget *parent, const QString &name, const QString &description,
           const QString &icon);
 QLabel *muted(const QString &message, QWidget *parent);
+// Enables or disables a control; when disabled, the tooltip explains why.
+void setAvailable(QWidget *widget, bool enabled, const QString &reason, const QString &help = {});
 QPushButton *action(QVBoxLayout *layout, QWidget *parent, const QString &name,
                     const QString &description, const QString &icon);
 }

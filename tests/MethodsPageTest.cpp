@@ -332,6 +332,11 @@ void MethodsPageTest::updateOnlyForSystemdBoot()
     QVERIFY(update->isVisibleTo(&page));
     QVERIFY(deploy->isEnabled());
     QVERIFY(!update->isEnabled());
+    QCOMPARE(update->toolTip(), QString("systemd-boot is not installed at this location yet."));
+    page.setPackagesReady(false);
+    QVERIFY(!deploy->isEnabled());
+    QCOMPARE(deploy->toolTip(), QString("Install the required software packages for this method first."));
+    page.setPackagesReady(true);
     BootInstallation installed; installed.kind = LoaderKind::SystemdBoot; installed.id = "sd";
     installed.esp = "/test-esp"; installed.binary = "/test-esp/EFI/systemd/systemd-bootx64.efi"; installed.binaryPresent = true;
     page.selectInstallation(&installed);

@@ -154,7 +154,8 @@ void MethodsPage::showInstance()
     current_->packages->setText(!packages.error.isEmpty() ? packages.error
         : packages.missing.isEmpty() ? tr("Software packages installed")
         : tr("Missing: %1").arg(packages.missing.join(QStringLiteral(", "))));
-    current_->installPackages->setEnabled(packages.error.isEmpty() && !packages.missing.isEmpty());
+    BootUi::setAvailable(current_->installPackages, packages.error.isEmpty() && !packages.missing.isEmpty(),
+        !packages.error.isEmpty() ? packages.error : tr("All required software packages are installed."));
     if (current_->repair) {
         current_->repair->selectInstallation(detected ? &installations[index] : nullptr);
         current_->repair->setPackagesReady(packages.error.isEmpty() && packages.missing.isEmpty());
@@ -176,8 +177,8 @@ void MethodsPage::updateActions()
     const bool selected = index >= 0 && index < selector_->installations().size();
     const bool registered = current_->entries->count() > 0;
     current_->addEntry->setVisible(selected && snapshot_.uefi && !registered);
-    current_->addEntry->setEnabled(selected && snapshot_.uefi && !registered
-        && selector_->installations()[index].binaryPresent);
+    BootUi::setAvailable(current_->addEntry, selected && snapshot_.uefi && !registered
+        && selector_->installations()[index].binaryPresent, tr("The EFI program of this installation is missing."));
     const auto *entry = selectedEntry();
     if (!entry) {
         current_->status->clear();
@@ -191,6 +192,8 @@ void MethodsPage::updateActions()
         if (op.target == entry->number && (op.kind == QLatin1String("firmware-remove")
             || op.kind == QLatin1String("firmware-rename") || op.kind == QLatin1String("firmware-toggle"))) {
             current_->status->setText(tr("Cancel pending changes to this firmware entry before selecting it."));
+            current_->setDefault->setToolTip(current_->status->text());
+            current_->once->setToolTip(current_->status->text());
             return;
         }
     }
@@ -198,12 +201,15 @@ void MethodsPage::updateActions()
     const QString conflict = BootPlan::firmwareConflict({check}, snapshot_);
     if (!snapshot_.uefi || !entry->enabled || !conflict.isEmpty()) {
         current_->status->setText(!conflict.isEmpty() ? conflict : tr("An enabled UEFI entry is required."));
+        current_->setDefault->setToolTip(current_->status->text());
+        current_->once->setToolTip(current_->status->text());
         return;
     }
     current_->status->setText(tr("Current: %1 · Default: %2 · Next: %3")
         .arg(snapshot_.bootCurrent, order.join(QStringLiteral(", ")), next));
-    current_->setDefault->setEnabled(order.isEmpty() || order.first() != entry->number);
-    current_->once->setEnabled(next != entry->number);
+    BootUi::setAvailable(current_->setDefault, order.isEmpty() || order.first() != entry->number,
+        tr("This entry is already the firmware default."));
+    BootUi::setAvailable(current_->once, next != entry->number, tr("This entry is already selected for the next boot."));
 }
 
 void MethodsPage::queueSelection(bool once)

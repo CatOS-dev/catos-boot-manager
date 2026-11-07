@@ -174,3 +174,9 @@ QPushButton *BootUi::action(QVBoxLayout *layout, QWidget *parent, const QString 
     layout->addWidget(button);
     return button;
 }
+
+void BootUi::setAvailable(QWidget *widget, bool enabled, const QString &reason, const QString &help)
+{
+    widget->setEnabled(enabled);
+    widget->setToolTip(enabled ? help : reason);
+}

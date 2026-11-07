@@ -98,7 +98,6 @@ RepairPage::RepairPage(LoaderKind kind, QWidget *parent, Mode mode) : QWidget(pa
     actions->addWidget(deploy_);
     update_ = new QPushButton(tr("Update boot loader"), content);
     update_->setObjectName("updateBootLoader");
-    update_->setToolTip(tr("Replace the installed systemd-boot program with the packaged version (bootctl update)."));
     update_->setVisible(kind == LoaderKind::SystemdBoot);
     actions->addWidget(update_);
     addEntry_ = new QPushButton(tr("Add boot entry"), content);
@@ -248,8 +247,14 @@ void RepairPage::updateRepairAvailability()
     const bool chosen = bios ? !diskTarget_->currentData().toString().isEmpty()
         : (limine && !automatic) || (espTarget_->isEditable() ? espTarget_->currentText().startsWith('/') : !espTarget_->currentData().toString().isEmpty());
     const bool ready = !root.isEmpty() && supported && chosen && (root != QLatin1String("/") || packagesReady_);
-    deploy_->setEnabled(ready);
-    update_->setEnabled(ready && !binary_.isEmpty());
+    const QString reason = root.isEmpty() ? tr("Choose a target system.")
+        : !supported ? tr("Only GRUB can be installed for BIOS firmware.")
+        : !chosen ? (bios ? tr("Choose the disk to install GRUB on.") : automatic ? tr("Choose the EFI system partition of the target system.")
+                          : tr("Choose an installation directory."))
+        : tr("Install the required software packages for this method first.");
+    BootUi::setAvailable(deploy_, ready, reason);
+    BootUi::setAvailable(update_, ready && !binary_.isEmpty(), ready ? tr("systemd-boot is not installed at this location yet.") : reason,
+        tr("Replace the installed systemd-boot program with the packaged version (bootctl update)."));
     updateActionText();
 }
 

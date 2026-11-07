@@ -70,13 +70,22 @@ FirmwarePage::FirmwarePage(QWidget *parent) : QWidget(parent)
     connect(table_, &QTableWidget::itemSelectionChanged, this, [this, up, down, next, rename] {
         const auto *entry = snapshot_.entry(selectedId());
         const int position = displayOrder_.indexOf(selectedId());
-        up->setEnabled(position > 0 && position < snapshot_.bootOrder.size());
-        down->setEnabled(position >= 0 && position + 1 < snapshot_.bootOrder.size());
-        next->setEnabled(entry && pendingEnabled_.value(entry->number, entry->enabled) && !pendingRemovals_.contains(entry->number));
-        rename->setEnabled(entry && !pendingRemovals_.contains(entry->number));
-        toggle_->setEnabled(entry && !pendingRemovals_.contains(entry->number));
+        const QString select = tr("Select a firmware entry first.");
+        const bool removing = entry && pendingRemovals_.contains(entry->number);
+        const QString removal = tr("This entry is queued for removal. Cancel the removal in Pending changes to edit it.");
+        const bool ordered = position >= 0 && position < snapshot_.bootOrder.size();
+        const QString orderReason = !entry ? select : !ordered ? tr("This entry is not part of BootOrder.")
+            : tr("The entry is already at this end of the boot order.");
+        BootUi::setAvailable(up, ordered && position > 0, orderReason);
+        BootUi::setAvailable(down, ordered && position + 1 < snapshot_.bootOrder.size(), orderReason);
+        BootUi::setAvailable(next, entry && pendingEnabled_.value(entry->number, entry->enabled) && !removing,
+            !entry ? select : removing ? removal : tr("Enable this entry before selecting it for the next boot."));
+        BootUi::setAvailable(rename, entry && !removing, !entry ? select : removal);
+        BootUi::setAvailable(toggle_, entry && !removing, !entry ? select : removal);
         toggle_->setText(entry && pendingEnabled_.value(entry->number, entry->enabled) ? tr("Disable") : tr("Enable"));
-        remove_->setEnabled(entry && !entry->current && !pendingRemovals_.contains(entry->number));
+        BootUi::setAvailable(remove_, entry && !entry->current && !removing,
+            !entry ? select : removing ? tr("This entry is already queued for removal.")
+                                       : tr("The entry used to start this system cannot be removed."));
     });
     layout->addStretch();
     connect(up, &QPushButton::clicked, this, [this] { moveSelected(-1); });
@@ -101,8 +110,9 @@ void FirmwarePage::updateSnapshot(const BootSnapshot &snapshot)
         if (!displayOrder_.contains(entry.number)) displayOrder_.append(entry.number);
     const bool available = snapshot.uefi && !snapshot.firmware.isEmpty();
     for (auto *button : actions_) button->setEnabled(available);
-    if (!actions_.isEmpty()) actions_.last()->setEnabled(snapshot.uefi && !snapshot.espMounts.isEmpty());
-    clearNext_->setEnabled(snapshot.uefi && !snapshot.bootNext.isEmpty());
+    if (!actions_.isEmpty()) BootUi::setAvailable(actions_.last(), snapshot.uefi && !snapshot.espMounts.isEmpty(),
+        !snapshot.uefi ? tr("This system was not started in UEFI mode.") : tr("No mounted EFI system partition was detected."));
+    BootUi::setAvailable(clearNext_, snapshot.uefi && !snapshot.bootNext.isEmpty(), tr("No one-time boot entry is set."));
     if (snapshot.uefi && snapshot.firmware.isEmpty()) {
         detail_->setText(tr("Unable to read boot entries. Refresh and try again."));
     } else {
@@ -133,7 +143,7 @@ void FirmwarePage::updateTransaction(const BootTransaction &transaction)
     displayOrder_ = order;
     for (const auto &entry : snapshot_.firmware)
         if (!displayOrder_.contains(entry.number)) displayOrder_.append(entry.number);
-    clearNext_->setEnabled(snapshot_.uefi && !pendingNext_.isEmpty());
+    BootUi::setAvailable(clearNext_, snapshot_.uefi && !pendingNext_.isEmpty(), tr("No one-time boot entry is set."));
     detail_->setText(tr("Current: %1 · Next (including pending): %2 · BootOrder (including pending): %3")
         .arg(snapshot_.bootCurrent.isEmpty() ? tr("unknown") : snapshot_.bootCurrent,
              pendingNext_.isEmpty() ? tr("not set") : pendingNext_,

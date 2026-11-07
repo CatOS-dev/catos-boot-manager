@@ -322,15 +322,20 @@ void MenuPage::loadMenu()
     indent_->setVisible(limine); outdent_->setVisible(limine);
     rebuild_->setVisible(kind == LoaderKind::Grub || limine || image);
     rebuild_->setText(image ? tr("Rebuild image") : tr("Rebuild boot menu"));
-    rebuild_->setEnabled(loader && loader->settingsEditable && (image || loader->esp.isEmpty()));
+    const QString unavailable = !loader ? tr("No installation of this boot method was detected.")
+        : !loader->settingsMessage.isEmpty() ? loader->settingsMessage : tr("This configuration cannot be edited.");
+    BootUi::setAvailable(rebuild_, loader && loader->settingsEditable && (image || loader->esp.isEmpty()),
+        loader && loader->settingsEditable ? tr("Select the GRUB configuration of this system to rebuild its menu.") : unavailable);
     if (limine) {
-        rebuild_->setEnabled(loader && loader->settingsEditable && !drafts_.contains(loader->config));
-        rebuild_->setToolTip(loader && drafts_.contains(loader->config) ? tr("Apply menu changes before rebuilding.") : QString());
+        const bool drafted = loader && drafts_.contains(loader->config);
+        BootUi::setAvailable(rebuild_, loader && loader->settingsEditable && !drafted,
+            drafted ? tr("Apply menu changes before rebuilding.") : unavailable);
     }
-    for (auto *button : {add_, edit_, group_, remove_, up_, down_, indent_, outdent_}) button->setEnabled(false);
+    for (auto *button : {add_, edit_, group_, remove_, up_, down_, indent_, outdent_})
+        BootUi::setAvailable(button, false, tr("Select a boot entry first."));
     if (!loader) { details_->setPlainText(tr("No installed boot entry was detected.")); return; }
-    add_->setEnabled(loader->settingsEditable && !image);
-    group_->setEnabled(limine && loader->settingsEditable);
+    BootUi::setAvailable(add_, loader->settingsEditable && !image, unavailable);
+    BootUi::setAvailable(group_, limine && loader->settingsEditable, unavailable);
     if (!loader->menuMessage.isEmpty()) { details_->setPlainText(loader->menuMessage); return; }
     if (limine || refind) {
         auto document = QJsonDocument::fromJson(loader->menuContent.toUtf8()).object();
@@ -421,9 +426,13 @@ void MenuPage::showSelected(QTreeWidgetItem *item)
     const bool bls = loader->kind == LoaderKind::SystemdBoot;
     const bool editable = selected && loader->settingsEditable && (loader->kind == LoaderKind::Limine || loader->kind == LoaderKind::Refind
         || (bls && entry.value("type").toString() == QLatin1String("type1")));
-    edit_->setEnabled(editable || (selected && bls && entry.value("type").toString() == QLatin1String("type2")));
-    remove_->setEnabled(editable);
-    for (auto *button : {up_, down_, indent_, outdent_}) button->setEnabled(editable);
+    const QString reason = !selected ? tr("Select a boot entry first.")
+        : !loader->settingsEditable ? (loader->settingsMessage.isEmpty() ? tr("This configuration cannot be edited.") : loader->settingsMessage)
+        : tr("Unified kernel images are listed automatically; open the UKI to change it.");
+    const bool uki = selected && bls && entry.value("type").toString() == QLatin1String("type2");
+    BootUi::setAvailable(edit_, editable || uki, reason, uki ? tr("Switches to the UKI to change its settings.") : QString());
+    BootUi::setAvailable(remove_, editable, reason);
+    for (auto *button : {up_, down_, indent_, outdent_}) BootUi::setAvailable(button, editable, reason);
     if (!item) return;
     const auto fields = loader->kind == LoaderKind::Limine ? limineValues(entry)
         : bls ? entry.value("configuration").toObject().value("values").toObject() : entry.value("values").toObject();

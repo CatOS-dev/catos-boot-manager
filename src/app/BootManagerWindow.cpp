@@ -25,6 +25,7 @@
 #include <QPushButton>
 #include <QShortcut>
 #include "widgets/LoaderSelector.h"
+#include "widgets/BootUi.h"
 #include <QStackedWidget>
 #include <QTimer>
 #include <QStatusBar>
@@ -271,9 +272,13 @@ void BootManagerWindow::updateFooter()
     pending_->setText(settings_->hasInvalidDrafts() ? tr("Correct invalid settings before applying.")
         : scanning ? (scanStage_.isEmpty() ? tr("Detecting boot state…") : tr("Detecting boot state: %1…").arg(scanStage_))
         : count ? tr("%1 pending change(s)").arg(count) : tr("No pending changes"));
-    apply_->setEnabled(!readOnly_ && !scanning && count > 0 && conflict.isEmpty() && !settings_->hasInvalidDrafts());
-    apply_->setToolTip(readOnly_ ? tr("Authorize to apply changes.") : conflict);
-    discard_->setEnabled(!scanning && hasChanges());
+    const QString reason = readOnly_ ? tr("Authorize to apply changes.")
+        : scanning ? tr("Wait for detection to finish.")
+        : !count ? tr("There are no pending changes.")
+        : !conflict.isEmpty() ? conflict
+        : tr("Correct invalid settings before applying.");
+    BootUi::setAvailable(apply_, !readOnly_ && !scanning && count > 0 && conflict.isEmpty() && !settings_->hasInvalidDrafts(), reason);
+    BootUi::setAvailable(discard_, !scanning && hasChanges(), scanning ? tr("Wait for detection to finish.") : tr("There are no pending changes."));
 }
 
 void BootManagerWindow::applyTransaction()

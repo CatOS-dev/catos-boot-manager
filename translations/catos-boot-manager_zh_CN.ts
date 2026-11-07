@@ -161,6 +161,14 @@
         <source>Authorize to apply changes.</source>
         <translation>授权后才能应用修改。</translation>
     </message>
+    <message>
+        <source>Wait for detection to finish.</source>
+        <translation>请等待检测完成。</translation>
+    </message>
+    <message>
+        <source>There are no pending changes.</source>
+        <translation>没有待应用的修改。</translation>
+    </message>
 </context>
 <context>
     <name>BootSession</name>
@@ -434,6 +442,46 @@
     <message>
         <source>Pending removal</source>
         <translation>待删除</translation>
+    </message>
+    <message>
+        <source>Select a firmware entry first.</source>
+        <translation>请先选择一个固件启动项。</translation>
+    </message>
+    <message>
+        <source>This entry is queued for removal. Cancel the removal in Pending changes to edit it.</source>
+        <translation>此启动项已排队等待删除。请先在“待应用更改”中取消删除，再进行编辑。</translation>
+    </message>
+    <message>
+        <source>This entry is not part of BootOrder.</source>
+        <translation>此启动项不在 BootOrder 中。</translation>
+    </message>
+    <message>
+        <source>The entry is already at this end of the boot order.</source>
+        <translation>此启动项已位于启动顺序的这一端。</translation>
+    </message>
+    <message>
+        <source>Enable this entry before selecting it for the next boot.</source>
+        <translation>请先启用此启动项，再将其设为下次启动。</translation>
+    </message>
+    <message>
+        <source>This entry is already queued for removal.</source>
+        <translation>此启动项已排队等待删除。</translation>
+    </message>
+    <message>
+        <source>The entry used to start this system cannot be removed.</source>
+        <translation>不能删除本次启动所用的启动项。</translation>
+    </message>
+    <message>
+        <source>This system was not started in UEFI mode.</source>
+        <translation>本系统未以 UEFI 模式启动。</translation>
+    </message>
+    <message>
+        <source>No mounted EFI system partition was detected.</source>
+        <translation>未检测到已挂载的 EFI 系统分区。</translation>
+    </message>
+    <message>
+        <source>No one-time boot entry is set.</source>
+        <translation>未设置单次启动项。</translation>
     </message>
 </context>
 <context>
@@ -778,6 +826,30 @@
         <source>Hide configuration</source>
         <translation>收起配置</translation>
     </message>
+    <message>
+        <source>No installation of this boot method was detected.</source>
+        <translation>未检测到此引导方式的安装。</translation>
+    </message>
+    <message>
+        <source>This configuration cannot be edited.</source>
+        <translation>此配置无法编辑。</translation>
+    </message>
+    <message>
+        <source>Select the GRUB configuration of this system to rebuild its menu.</source>
+        <translation>请选择本系统的 GRUB 配置以重新生成菜单。</translation>
+    </message>
+    <message>
+        <source>Select a boot entry first.</source>
+        <translation>请先选择一个启动项。</translation>
+    </message>
+    <message>
+        <source>Unified kernel images are listed automatically; open the UKI to change it.</source>
+        <translation>统一内核镜像会自动列出；请打开对应的 UKI 进行修改。</translation>
+    </message>
+    <message>
+        <source>Switches to the UKI to change its settings.</source>
+        <translation>切换到该 UKI 以修改其设置。</translation>
+    </message>
 </context>
 <context>
     <name>MethodsPage</name>
@@ -880,6 +952,22 @@
     <message>
         <source>To repair a system that is not running, use Repair and recovery.</source>
         <translation>要修复未在运行的系统，请使用“修复与恢复”。</translation>
+    </message>
+    <message>
+        <source>All required software packages are installed.</source>
+        <translation>所需软件包均已安装。</translation>
+    </message>
+    <message>
+        <source>The EFI program of this installation is missing.</source>
+        <translation>此安装的 EFI 程序缺失。</translation>
+    </message>
+    <message>
+        <source>This entry is already the firmware default.</source>
+        <translation>此启动项已是固件默认项。</translation>
+    </message>
+    <message>
+        <source>This entry is already selected for the next boot.</source>
+        <translation>此启动项已设为下次启动。</translation>
     </message>
 </context>
 <context>
@@ -2466,6 +2554,34 @@ They are checked again before applying.</source>
     <message>
         <source>The new entry is added to the end of the UEFI boot order; the default does not change.</source>
         <translation>新启动项追加到 UEFI 启动顺序末尾，默认项不变。</translation>
+    </message>
+    <message>
+        <source>Choose a target system.</source>
+        <translation>请选择目标系统。</translation>
+    </message>
+    <message>
+        <source>Only GRUB can be installed for BIOS firmware.</source>
+        <translation>BIOS 固件只能安装 GRUB。</translation>
+    </message>
+    <message>
+        <source>Choose the disk to install GRUB on.</source>
+        <translation>请选择安装 GRUB 的磁盘。</translation>
+    </message>
+    <message>
+        <source>Choose the EFI system partition of the target system.</source>
+        <translation>请选择目标系统的 EFI 系统分区。</translation>
+    </message>
+    <message>
+        <source>Choose an installation directory.</source>
+        <translation>请选择安装目录。</translation>
+    </message>
+    <message>
+        <source>Install the required software packages for this method first.</source>
+        <translation>请先安装此引导方式所需的软件包。</translation>
+    </message>
+    <message>
+        <source>systemd-boot is not installed at this location yet.</source>
+        <translation>此位置尚未安装 systemd-boot。</translation>
     </message>
 </context>
 <context>

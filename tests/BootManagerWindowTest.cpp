@@ -2,6 +2,7 @@
 #include "pages/MenuPage.h"
 #include "pages/SettingsPage.h"
 #include "pages/PendingPage.h"
+#include "pages/FirmwarePage.h"
 #include "dialogs/ApplyDialog.h"
 #include <QLabel>
 #include <QTableWidget>
@@ -38,6 +39,7 @@ private slots:
     void separateConfigurationAndRecoveryPages();
     void queueBackupRestore();
     void readOnlyModeUntilAuthorized();
+    void explainDisabledActions();
 };
 
 static BootSnapshot settingsSnapshot()
@@ -286,6 +288,36 @@ void BootManagerWindowTest::readOnlyModeUntilAuthorized()
     QVERIFY(!window.isReadOnly());
     QVERIFY(!banner->isVisibleTo(&window));
     QCOMPARE(pending->count(), 1);
+}
+
+void BootManagerWindowTest::explainDisabledActions()
+{
+    BootSession session;
+    BootManagerWindow window(&session);
+    QCoreApplication::processEvents();
+    auto snapshot = settingsSnapshot();
+    snapshot.uefi = true;
+    snapshot.bootCurrent = "0001";
+    snapshot.bootOrder = {"0001", "0002"};
+    snapshot.firmware = {{"0001", "Current", "\\EFI\\a.efi", "uuid", true, true}, {"0002", "Other", "\\EFI\\b.efi", "uuid", true, false}};
+    emit session.snapshotReady(snapshot);
+    auto *apply = window.findChild<QPushButton *>("applyTransaction");
+    QVERIFY(!apply->isEnabled());
+    QCOMPARE(apply->toolTip(), QString("There are no pending changes."));
+    auto *table = window.findChild<FirmwarePage *>()->findChild<QTableWidget *>(); QVERIFY(table);
+    table->selectRow(0);
+    QPushButton *remove = nullptr;
+    for (auto *button : window.findChild<FirmwarePage *>()->findChildren<QPushButton *>())
+        if (button->text() == "Remove entry") remove = button;
+    QVERIFY(remove);
+    QVERIFY(!remove->isEnabled());
+    QCOMPARE(remove->toolTip(), QString("The entry used to start this system cannot be removed."));
+    table->selectRow(1);
+    QVERIFY(remove->isEnabled());
+    QVERIFY(remove->toolTip().isEmpty());
+    auto *move = window.findChild<QPushButton *>("moveBootEntryDown");
+    QVERIFY(!move->isEnabled());
+    QVERIFY(!move->toolTip().isEmpty());
 }
 
 int main(int argc, char **argv)
