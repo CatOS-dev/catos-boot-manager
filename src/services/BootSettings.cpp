@@ -72,6 +72,7 @@ QList<BootSettings::Setting> BootSettings::settings(LoaderKind loader)
     }
     case LoaderKind::Grub:
         return {{QStringLiteral("GRUB_DEFAULT"), QObject::tr("Default entry"), QObject::tr("Entry index, ID or saved")},
+                {QStringLiteral("GRUB_SAVEDEFAULT"), QObject::tr("Save selected entry"), QObject::tr("true / false")},
                 {QStringLiteral("GRUB_TIMEOUT"), QObject::tr("Menu timeout (seconds)"), QObject::tr("Time to wait before starting the default entry")},
                 {QStringLiteral("GRUB_CMDLINE_LINUX_DEFAULT"), QObject::tr("Kernel parameters"), QObject::tr("Linux kernel parameters for normal boot")},
                 {QStringLiteral("GRUB_GFXMODE"), QObject::tr("Menu resolution"), QObject::tr("For example: auto or 1920x1080")},
@@ -183,6 +184,8 @@ bool BootSettings::allowed(LoaderKind loader, const QString &key, const QString 
             .match(value).hasMatch();
     if (key == QLatin1String("GRUB_DISABLE_OS_PROBER")
         || key == QLatin1String("GRUB_DISABLE_LINUX_UUID"))
+        return value.isEmpty() || value == QLatin1String("true") || value == QLatin1String("false");
+    if (key == QLatin1String("GRUB_SAVEDEFAULT"))
         return value.isEmpty() || value == QLatin1String("true") || value == QLatin1String("false");
     if (loader == LoaderKind::SystemdBoot && QStringList{"editor", "auto-entries", "auto-firmware", "beep"}.contains(key))
         return value.isEmpty() || value == QLatin1String("yes") || value == QLatin1String("no");

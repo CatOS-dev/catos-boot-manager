@@ -744,6 +744,10 @@ void MenuPage::setDefault()
     pendingDefaults_.insert(BootSettings::operationTarget(*loader, key), value);
     emit operationRequested({BootSettings::operationKind(loader->kind), BootSettings::operationTarget(*loader, key), value,
         loader->settingValues.value(key), tr("Set default boot entry: %1").arg(selectedName), {}, menu});
+    if (loader->kind == LoaderKind::Grub && value == QLatin1String("saved")) {
+        emit operationRequested({QStringLiteral("grub-setting"), QStringLiteral("GRUB_SAVEDEFAULT"), QStringLiteral("true"),
+            loader->settingValues.value(QStringLiteral("GRUB_SAVEDEFAULT")), tr("Remember the last selected GRUB entry")});
+    }
     updateDefaultChoices();
 }
 

@@ -30,7 +30,7 @@
 ## P2 边界问题
 
 - [ ] **P2-10** BLS 条目有多行 `options` 时，编辑后只保留最后一行，丢失其余参数。
-- [ ] **P2-11** GRUB“上次选择的项”只写 `GRUB_DEFAULT=saved`，未设置 `GRUB_SAVEDEFAULT=true`。
+- [x] **P2-11** GRUB“上次选择的项”只写 `GRUB_DEFAULT=saved`，未设置 `GRUB_SAVEDEFAULT=true`。
 - [ ] **P2-12** Limine 删除当前默认项后，默认值静默回到第 1 项，没有提示。
 - [ ] **P2-13** GRUB 值中的单引号转义后读回不还原；带行尾注释的行无法解析。
 - [ ] **P2-14** 软件包只按当前主机检查和安装，不检查修复目标系统；`pacman -S` 前不同步数据库。
