@@ -8,6 +8,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QSignalBlocker>
+#include <QTimer>
 #include <QPushButton>
 #include <QVBoxLayout>
 
@@ -112,13 +113,17 @@ void SettingsPage::showSettings()
         auto *help = BootUi::muted(valid ? QString() : invalid, fields_->parentWidget());
         help->setObjectName(setting.key + "Help");
         help->setVisible(!valid);
+        // A correction clears the error at once, but a new error waits until
+        // typing pauses or the field loses focus, so a half-typed value such
+        // as "1920x" is not flagged. Values are still staged on every change.
         const auto changed = [this, loader, i, help, setting, invalid](const QString &value) {
             const bool valid = value == drafts_.value(loader.id).baseline.value(i)
                 || BootSettings::allowed(loader.kind, setting.key, value);
             help->setText(valid ? QString() : invalid);
-            help->setVisible(!valid);
+            if (valid) help->setVisible(false);
             stageValue(loader, i, value);
         };
+        const auto reveal = [help] { help->setVisible(!help->text().isEmpty()); };
         if (setting.key == QLatin1String("default_kernel")) {
             auto *combo = new QComboBox(fields_->parentWidget());
             BootUi::enableCopy(combo);
@@ -138,7 +143,7 @@ void SettingsPage::showSettings()
             }
             edit = combo;
             setEditorValue(edit, draft.values.value(i));
-            connect(combo, &QComboBox::currentIndexChanged, this, [combo, changed] { changed(combo->currentData().toString()); });
+            connect(combo, &QComboBox::currentIndexChanged, this, [combo, changed, reveal] { changed(combo->currentData().toString()); reveal(); });
         } else if (switchValue || wallpaperStyle) {
             auto *combo = new QComboBox(fields_->parentWidget());
             BootUi::enableCopy(combo);
@@ -153,11 +158,16 @@ void SettingsPage::showSettings()
             }
             edit = combo;
             setEditorValue(edit, draft.values.value(i));
-            connect(combo, &QComboBox::currentIndexChanged, this, [combo, changed] { changed(combo->currentData().toString()); });
+            connect(combo, &QComboBox::currentIndexChanged, this, [combo, changed, reveal] { changed(combo->currentData().toString()); reveal(); });
         } else {
             auto *text = new QLineEdit(draft.values.value(i), fields_->parentWidget());
             edit = text;
-            connect(text, &QLineEdit::textChanged, this, changed);
+            auto *pause = new QTimer(text);
+            pause->setSingleShot(true);
+            pause->setInterval(800);
+            connect(text, &QLineEdit::textChanged, this, [changed, pause](const QString &value) { changed(value); pause->start(); });
+            connect(pause, &QTimer::timeout, help, reveal);
+            connect(text, &QLineEdit::editingFinished, help, [pause, reveal] { pause->stop(); reveal(); });
         }
         edit->setObjectName(setting.key);
         auto *field = new QWidget(fields_->parentWidget());

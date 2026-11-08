@@ -114,6 +114,17 @@ void BootManagerWindowTest::invalidEditsBlockApplyAndConfirmDiscard()
     QVERIFY(discard->isEnabled());
     QVERIFY(settings->findChild<QLabel *>("GRUB_TIMEOUTHelp")->text().startsWith("Invalid value."));
     QVERIFY(settings->findChild<QLabel *>("GRUB_TIMEOUTHelp")->text().contains("Time to wait"));
+    auto *timeoutHelp = settings->findChild<QLabel *>("GRUB_TIMEOUTHelp");
+    QVERIFY(timeoutHelp->isHidden());
+    emit timeout->editingFinished();
+    QVERIFY(!timeoutHelp->isHidden());
+    timeout->setText("bad2");
+    QVERIFY(!timeoutHelp->isHidden());
+    timeout->setText("5");
+    QVERIFY(timeoutHelp->isHidden());
+    timeout->setText("bad");
+    QVERIFY(timeoutHelp->isHidden());
+    QTRY_VERIFY(!timeoutHelp->isHidden());
     QTimer::singleShot(0, &window, [] {
         auto *box = qobject_cast<QMessageBox *>(QApplication::activeModalWidget()); QVERIFY(box);
         box->button(QMessageBox::Cancel)->click();
