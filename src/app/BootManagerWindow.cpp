@@ -115,6 +115,8 @@ BootManagerWindow::BootManagerWindow(BootSession *session, QWidget *parent, std:
     menuPage->setObjectName(QStringLiteral("bootMenuPage"));
     auto *menuLayout = BootUi::page(menuPage);
     auto *menuContent = menuLayout->parentWidget();
+    BootUi::title(menuLayout, menuContent, tr("Boot menu"),
+                  tr("Edit boot entries and boot loader settings. Changes are staged until you apply them."));
     menu_ = new MenuPage(menuContent, true);
     settings_ = new SettingsPage(menuContent, true);
     menuLayout->addWidget(menu_);

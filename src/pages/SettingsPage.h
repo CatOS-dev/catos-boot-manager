@@ -49,4 +49,5 @@ private:
     };
     QHash<QString, Draft> drafts_;
     QVBoxLayout *layout_ = nullptr;
+    bool embedded_ = false;
 };

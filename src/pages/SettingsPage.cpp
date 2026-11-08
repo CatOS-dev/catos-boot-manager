@@ -33,9 +33,13 @@ SettingsPage::SettingsPage(QWidget *parent, bool embedded) : QWidget(parent)
     selector_->setObjectName(QStringLiteral("settingsInstallation"));
     selector_->setVisible(!embedded);
     layout_->addWidget(selector_);
+    // Embedded below the boot menu, the status line belongs to this section,
+    // so it goes under the heading rather than above it.
     location_ = BootUi::muted({}, content);
-    layout_->addWidget(location_);
+    if (!embedded) layout_->addWidget(location_);
     BootUi::section(layout_, content, tr("Configuration"));
+    if (embedded) layout_->addWidget(location_);
+    embedded_ = embedded;
     fields_ = new QFormLayout;
     fields_->setSpacing(11);
     layout_->addLayout(fields_);
@@ -67,11 +71,15 @@ void SettingsPage::showSettings()
     const int index = selector_->currentIndex();
     if (index < 0 || index >= manageable_.size()) {
         location_->setText(tr("No boot loader configuration is available."));
+        location_->setVisible(true);
         return;
     }
     const auto &loader = manageable_.at(index);
     const bool canEdit = loader.settingsEditable;
-    location_->setText(canEdit ? tr("Edits are added to pending changes automatically. Review and apply to save them.") : loader.settingsMessage);
+    // The embedding page already explains that edits are staged.
+    location_->setText(canEdit ? (embedded_ ? QString() : tr("Edits are added to pending changes automatically. Review and apply to save them."))
+                               : loader.settingsMessage);
+    location_->setVisible(!location_->text().isEmpty());
     if (!canEdit) return;
     const auto specs = BootSettings::settings(loader.kind);
     if (canEdit && !drafts_.contains(loader.id)) {

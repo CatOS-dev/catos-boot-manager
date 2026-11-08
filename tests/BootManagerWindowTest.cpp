@@ -244,6 +244,9 @@ void BootManagerWindowTest::separateConfigurationAndRecoveryPages()
     QVERIFY(layout->indexOf(menu) >= 0 && layout->indexOf(menu) < layout->indexOf(settings));
     QVERIFY(settings->findChild<QLineEdit *>("GRUB_TIMEOUT"));
     QVERIFY(!settings->selector()->isVisibleTo(settings));
+    bool titled = false;
+    for (auto *label : menuPage->findChildren<QLabel *>()) titled |= label->text() == QLatin1String("Boot menu");
+    QVERIFY(titled);
     navigation->setCurrentRow(5);
     QVERIFY(pages->currentWidget()->findChild<QWidget *>("recoveryForms"));
     QVERIFY(!window.findChild<QPushButton *>("showConfiguration"));

@@ -4,6 +4,10 @@
 <context>
     <name>BootManagerWindow</name>
     <message>
+        <source>Edit boot entries and boot loader settings. Changes are staged until you apply them.</source>
+        <translation>编辑启动项和引导器设置。修改会先暂存，应用后才写入。</translation>
+    </message>
+    <message>
         <location filename="../src/app/BootManagerWindow.cpp" line="30"/>
         <location filename="../src/app/BootManagerWindow.cpp" line="50"/>
         <source>CatOS Boot Manager</source>
