@@ -7,6 +7,7 @@
 #include <QMap>
 
 class QComboBox;
+class QLabel;
 class LoaderSelector;
 class QPlainTextEdit;
 class QPushButton;
@@ -40,6 +41,10 @@ private:
 
     QWidget *entries_ = nullptr;
     QPushButton *rebuild_ = nullptr;
+    // Visible reasons for disabled actions whose cause is not obvious from
+    // the page; tooltips alone are missed by keyboard and touch users.
+    QLabel *rebuildReason_ = nullptr;
+    QLabel *editReason_ = nullptr;
     BootSnapshot snapshot_;
     LoaderSelector *selector_ = nullptr;
     QTreeWidget *menu_ = nullptr;

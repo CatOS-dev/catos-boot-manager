@@ -203,7 +203,13 @@ MenuPage::MenuPage(QWidget *parent, bool embedded) : QWidget(parent)
     layout->addWidget(selector_);
     rebuild_ = new QPushButton(tr("Rebuild boot menu"), content);
     rebuild_->setObjectName("rebuildBootMenu");
-    layout->addWidget(rebuild_, 0, Qt::AlignRight);
+    auto *rebuildRow = new QHBoxLayout;
+    rebuildReason_ = BootUi::muted({}, content);
+    rebuildReason_->setObjectName("rebuildBootMenuReason");
+    rebuildReason_->hide();
+    rebuildRow->addWidget(rebuildReason_, 1);
+    rebuildRow->addWidget(rebuild_, 0, Qt::AlignRight | Qt::AlignTop);
+    layout->addLayout(rebuildRow);
     entries_ = new QWidget(content);
     auto *entries = new QVBoxLayout(entries_);
     entries->setContentsMargins(0, 0, 0, 0);
@@ -246,6 +252,10 @@ MenuPage::MenuPage(QWidget *parent, bool embedded) : QWidget(parent)
     for (auto *button : {up_, down_, indent_, outdent_}) { button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed); row->addWidget(button); }
     up_->setObjectName("moveMenuEntryUp"); down_->setObjectName("moveMenuEntryDown");
     row->addStretch(); entries->addLayout(row);
+    editReason_ = BootUi::muted({}, entries_);
+    editReason_->setObjectName("menuEditReason");
+    editReason_->hide();
+    entries->addWidget(editReason_);
     layout->addWidget(entries_);
     connect(selector_, &LoaderSelector::selectionChanged, this, &MenuPage::loadMenu);
     connect(selector_, &LoaderSelector::methodChanged, this, &MenuPage::methodChanged);
@@ -360,6 +370,13 @@ void MenuPage::loadMenu()
         BootUi::setAvailable(rebuild_, loader && loader->settingsEditable && !drafted,
             drafted ? tr("Apply menu changes before rebuilding.") : unavailable);
     }
+    // Without an installation the selector and details already say so.
+    const bool rebuildBlocked = loader && rebuild_->isVisibleTo(this) && !rebuild_->isEnabled();
+    rebuildReason_->setText(rebuildBlocked ? rebuild_->toolTip() : QString());
+    rebuildReason_->setVisible(rebuildBlocked);
+    const bool editBlocked = loader && !loader->settingsEditable && (limine || refind || systemd);
+    editReason_->setText(editBlocked ? unavailable : QString());
+    editReason_->setVisible(editBlocked);
     for (auto *button : {add_, edit_, group_, remove_, up_, down_, indent_, outdent_})
         BootUi::setAvailable(button, false, tr("Select a boot entry first."));
     if (!loader) { details_->setPlainText(tr("No installed boot entry was detected.")); return; }

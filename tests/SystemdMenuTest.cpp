@@ -45,6 +45,7 @@ private slots:
     void editLimineNestedDefaultAndPreserveDrafts();
     void addAndCancelNewBlsEntry();
     void markGeneratedEntries();
+    void showBlockedActionReasons();
 };
 
 void SystemdMenuTest::displayRealBootctlEntriesAndQueueExactDefault()
@@ -379,4 +380,32 @@ void SystemdMenuTest::markGeneratedEntries()
 }
 
 QTEST_MAIN(SystemdMenuTest)
+void SystemdMenuTest::showBlockedActionReasons()
+{
+    BootInstallation limine;
+    limine.kind = LoaderKind::Limine;
+    limine.id = "limine";
+    limine.config = "/boot/limine.conf";
+    limine.settingsEditable = true;
+    limine.menuContent = R"({"entries":[{"name":"Linux","lines":["protocol: linux","path: boot():/vmlinuz"]}]})";
+    BootSnapshot snapshot;
+    snapshot.installations = {limine};
+    MenuPage page;
+    page.updateSnapshot(snapshot);
+    auto *rebuildReason = page.findChild<QLabel *>("rebuildBootMenuReason"); QVERIFY(rebuildReason);
+    auto *editReason = page.findChild<QLabel *>("menuEditReason"); QVERIFY(editReason);
+    QVERIFY(rebuildReason->isHidden());
+    QVERIFY(editReason->isHidden());
+    BootTransaction transaction;
+    transaction.stage({"menu-write", limine.config, R"({"format":"limine","entries":[]})", {}, "Update boot menu"});
+    page.updateTransaction(transaction);
+    QVERIFY(!rebuildReason->isHidden());
+    QCOMPARE(rebuildReason->text(), QStringLiteral("Apply menu changes before rebuilding."));
+    snapshot.installations[0].settingsEditable = false;
+    snapshot.installations[0].settingsMessage = "Unable to read configuration: /boot/limine.conf";
+    page.updateSnapshot(snapshot);
+    QVERIFY(!editReason->isHidden());
+    QCOMPARE(editReason->text(), snapshot.installations[0].settingsMessage);
+}
+
 #include "SystemdMenuTest.moc"
