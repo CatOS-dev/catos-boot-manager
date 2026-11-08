@@ -27,6 +27,7 @@
 #include <QTreeWidget>
 #include <QJsonArray>
 #include <QStackedWidget>
+#include <QTabWidget>
 #include <QDir>
 #include <QtTest>
 
@@ -230,18 +231,22 @@ void BootManagerWindowTest::separateConfigurationAndRecoveryPages()
     auto *navigation = window.findChild<QListWidget *>("navigation"); QVERIFY(navigation);
     QStringList names;
     for (int i = 0; i < navigation->count(); ++i) names << navigation->item(i)->text();
-    QCOMPARE(names, QStringList({"Overview", "Boot methods", "Boot menu", "Configuration", "UEFI entries",
+    QCOMPARE(names, QStringList({"Overview", "Boot methods", "Boot menu", "UEFI entries",
         "Secure Boot", "Repair and recovery", "Pending changes"}));
-    auto *pages = window.findChild<QStackedWidget *>(); QVERIFY(pages);
-    navigation->setCurrentRow(3);
-    QVERIFY(qobject_cast<SettingsPage *>(pages->currentWidget()));
-    QVERIFY(pages->currentWidget()->findChild<QLineEdit *>("GRUB_TIMEOUT"));
-    navigation->setCurrentRow(6);
+    auto *pages = window.findChild<QStackedWidget *>("pages"); QVERIFY(pages);
+    navigation->setCurrentRow(2);
+    auto *tabs = qobject_cast<QTabWidget *>(pages->currentWidget()); QVERIFY(tabs);
+    QCOMPARE(tabs->count(), 2);
+    QVERIFY(qobject_cast<MenuPage *>(tabs->widget(0)));
+    tabs->setCurrentIndex(1);
+    QVERIFY(qobject_cast<SettingsPage *>(tabs->currentWidget()));
+    QVERIFY(tabs->currentWidget()->findChild<QLineEdit *>("GRUB_TIMEOUT"));
+    navigation->setCurrentRow(5);
     QVERIFY(pages->currentWidget()->findChild<QWidget *>("recoveryForms"));
     QVERIFY(!window.findChild<QPushButton *>("showConfiguration"));
     window.resize(1040, 700); window.show(); QVERIFY(QTest::qWaitForWindowActive(&window));
     QVERIFY(window.grab().save(QDir::tempPath() + "/catos-window-recovery.png"));
-    navigation->setCurrentRow(3);
+    navigation->setCurrentRow(2);
     QVERIFY(window.grab().save(QDir::tempPath() + "/catos-window-configuration.png"));
 }
 
