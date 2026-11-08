@@ -4,6 +4,7 @@
 
 #include <QComboBox>
 #include <QDir>
+#include <QIcon>
 #include <QTabBar>
 #include <QVBoxLayout>
 
@@ -95,8 +96,15 @@ void LoaderSelector::updateSnapshot(const BootSnapshot &snapshot)
         }
         const QString status = issue ? tr("Needs attention") : defaultEntry ? tr("Default entry")
             : program ? tr("Program detected") : count ? tr("Configuration only") : tr("Not detected");
-        tabs_->setTabText(i, loaderName(loaderKinds[i]) + QStringLiteral(" · ") + status);
-        tabs_->setTabToolTip(i, tr("Detected manageable installations: %1").arg(count));
+        // Tabs show only the method name so all six fit at the default window
+        // width; the status moves to an icon, a dimmed label and the tooltip.
+        const QString name = loaderName(loaderKinds[i]);
+        tabs_->setTabText(i, name);
+        tabs_->setTabIcon(i, issue ? QIcon::fromTheme(QStringLiteral("dialog-warning"))
+            : defaultEntry ? QIcon::fromTheme(QStringLiteral("emblem-default")) : QIcon());
+        tabs_->setTabTextColor(i, count ? QColor() : palette().color(QPalette::Disabled, QPalette::WindowText));
+        tabs_->setTabToolTip(i, status + QLatin1Char('\n') + tr("Detected manageable installations: %1").arg(count));
+        tabs_->setAccessibleTabName(i, name + QStringLiteral(" · ") + status);
     }
     tabs_->blockSignals(false);
     rebuild();
