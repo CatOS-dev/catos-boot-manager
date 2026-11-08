@@ -99,12 +99,14 @@ void SettingsPage::showSettings()
         QWidget *edit;
         const bool valid = draft.values.value(i) == draft.baseline.value(i)
             || BootSettings::allowed(loader.kind, setting.key, draft.values.value(i));
-        auto *help = BootUi::muted(valid ? setting.description : tr("Invalid value. %1").arg(setting.description), fields_->parentWidget());
+        auto *help = BootUi::muted(valid ? QString() : tr("Invalid value."), fields_->parentWidget());
         help->setObjectName(setting.key + "Help");
+        help->setVisible(!valid);
         const auto changed = [this, loader, i, help, setting](const QString &value) {
             const bool valid = value == drafts_.value(loader.id).baseline.value(i)
                 || BootSettings::allowed(loader.kind, setting.key, value);
-            help->setText(valid ? setting.description : tr("Invalid value. %1").arg(setting.description));
+            help->setText(valid ? QString() : tr("Invalid value."));
+            help->setVisible(!valid);
             stageValue(loader, i, value);
         };
         if (setting.key == QLatin1String("default_kernel")) {
@@ -144,8 +146,6 @@ void SettingsPage::showSettings()
             connect(combo, &QComboBox::currentIndexChanged, this, [combo, changed] { changed(combo->currentData().toString()); });
         } else {
             auto *text = new QLineEdit(draft.values.value(i), fields_->parentWidget());
-            text->setPlaceholderText(setting.description);
-            text->setToolTip(setting.description);
             edit = text;
             connect(text, &QLineEdit::textChanged, this, changed);
         }
@@ -185,7 +185,10 @@ void SettingsPage::reflectOperation(const BootOperation &operation)
             drafts_[loader.id].values[i] = operation.value;
             if (selector_->currentId() == loader.id) {
                 setEditorValue(edits_[i], operation.value);
-                if (auto *help = findChild<QLabel *>(specs[i].key + "Help")) help->setText(specs[i].description);
+                if (auto *help = findChild<QLabel *>(specs[i].key + "Help")) {
+                    help->clear();
+                    help->setVisible(false);
+                }
             }
         }
     }
@@ -205,7 +208,10 @@ void SettingsPage::discardOperation(const BootOperation &operation)
             found->values[i] = found->baseline[i];
             if (selector_->currentId() == loader.id) {
                 setEditorValue(edits_[i], found->values[i]);
-                if (auto *help = findChild<QLabel *>(specs[i].key + "Help")) help->setText(specs[i].description);
+                if (auto *help = findChild<QLabel *>(specs[i].key + "Help")) {
+                    help->clear();
+                    help->setVisible(false);
+                }
             }
         }
     }

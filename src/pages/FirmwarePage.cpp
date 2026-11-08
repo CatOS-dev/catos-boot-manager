@@ -21,6 +21,7 @@ FirmwarePage::FirmwarePage(QWidget *parent) : QWidget(parent)
                   tr("Manage the default and one-time boot entries."));
     BootUi::section(layout, content, tr("Firmware entries"));
     detail_ = BootUi::muted({}, content);
+    detail_->hide();
     layout->addWidget(detail_);
     table_ = new QTableWidget(content);
     BootUi::enableCopy(table_);
@@ -120,13 +121,13 @@ void FirmwarePage::updateSnapshot(const BootSnapshot &snapshot)
     BootUi::setAvailable(clearNext_, snapshot.uefi && !snapshot.bootNext.isEmpty(), tr("No one-time boot entry is set."));
     if (snapshot.uefi && snapshot.firmware.isEmpty()) {
         detail_->setText(tr("Unable to read boot entries. Refresh and try again."));
+        detail_->show();
     } else if (snapshot.secureBoot != SecureBootState::Disabled && snapshot.secureBoot != SecureBootState::Unsupported) {
         detail_->setText(tr("Secure Boot is enabled or its state is unknown; default and one-time firmware selection are unavailable."));
+        detail_->show();
     } else {
-        detail_->setText(tr("Current: %1 · Next: %2 · BootOrder: %3")
-            .arg(snapshot.bootCurrent.isEmpty() ? tr("unknown") : snapshot.bootCurrent,
-                 snapshot.bootNext.isEmpty() ? tr("not set") : snapshot.bootNext,
-                 snapshot.bootOrder.join(QStringLiteral(", "))));
+        detail_->clear();
+        detail_->hide();
     }
     redraw();
     emit table_->itemSelectionChanged();
@@ -151,10 +152,8 @@ void FirmwarePage::updateTransaction(const BootTransaction &transaction)
     for (const auto &entry : snapshot_.firmware)
         if (!displayOrder_.contains(entry.number)) displayOrder_.append(entry.number);
     BootUi::setAvailable(clearNext_, snapshot_.uefi && !pendingNext_.isEmpty(), tr("No one-time boot entry is set."));
-    detail_->setText(tr("Current: %1 · Next (including pending): %2 · BootOrder (including pending): %3")
-        .arg(snapshot_.bootCurrent.isEmpty() ? tr("unknown") : snapshot_.bootCurrent,
-             pendingNext_.isEmpty() ? tr("not set") : pendingNext_,
-             displayOrder_.join(QStringLiteral(", "))));
+    detail_->clear();
+    detail_->hide();
     redraw();
     emit table_->itemSelectionChanged();
 }

@@ -65,6 +65,8 @@ void BootManagerWindowTest::protectDraftsOnRefreshAndClose()
     emit session.snapshotReady(settingsSnapshot());
     auto *settings = window.findChild<SettingsPage *>(); QVERIFY(settings);
     auto *timeout = settings->findChild<QLineEdit *>("GRUB_TIMEOUT"); QVERIFY(timeout);
+    QCOMPARE(timeout->placeholderText(), QString());
+    QCOMPARE(settings->findChild<QLabel *>("GRUB_TIMEOUTHelp")->text(), QString());
     timeout->setText("7");
     QTimer::singleShot(0, &window, [] {
         auto *box = qobject_cast<QMessageBox *>(QApplication::activeModalWidget()); QVERIFY(box);

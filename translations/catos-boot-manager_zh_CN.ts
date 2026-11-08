@@ -3211,6 +3211,11 @@ State: %2
         <translation>值无效。%1</translation>
     </message>
     <message>
+        <location filename="../src/pages/SettingsPage.cpp" line="105"/>
+        <source>Invalid value.</source>
+        <translation>值无效。</translation>
+    </message>
+    <message>
         <source>Menu timeout, kernel parameters, appearance and other boot loader settings. Edits are staged until you apply them.</source>
         <translation>菜单等待时间、内核参数、外观等引导器设置。修改会先暂存，应用后才写入。</translation>
     </message>
