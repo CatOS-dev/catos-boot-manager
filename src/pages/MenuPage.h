@@ -29,6 +29,7 @@ signals:
 
 private:
     void loadMenu();
+    void fitMenuHeight();
     void editEntry(bool create, bool group = false);
     void removeEntry();
     void moveEntry(int direction);

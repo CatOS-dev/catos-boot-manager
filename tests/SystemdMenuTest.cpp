@@ -46,6 +46,7 @@ private slots:
     void addAndCancelNewBlsEntry();
     void markGeneratedEntries();
     void showBlockedActionReasons();
+    void growMenuListWithEntries();
 };
 
 void SystemdMenuTest::displayRealBootctlEntriesAndQueueExactDefault()
@@ -406,6 +407,34 @@ void SystemdMenuTest::showBlockedActionReasons()
     page.updateSnapshot(snapshot);
     QVERIFY(!editReason->isHidden());
     QCOMPARE(editReason->text(), snapshot.installations[0].settingsMessage);
+}
+
+void SystemdMenuTest::growMenuListWithEntries()
+{
+    const auto snapshotWith = [](int count) {
+        QJsonArray entries;
+        for (int i = 0; i < count; ++i)
+            entries.append(QJsonObject{{"name", QString("Linux %1").arg(i)}, {"lines", QJsonArray{"protocol: linux", "path: boot():/vmlinuz"}}});
+        BootInstallation limine;
+        limine.kind = LoaderKind::Limine;
+        limine.id = "limine";
+        limine.config = "/boot/limine.conf";
+        limine.settingsEditable = true;
+        limine.menuContent = QString::fromUtf8(QJsonDocument(QJsonObject{{"entries", entries}}).toJson());
+        BootSnapshot snapshot;
+        snapshot.installations = {limine};
+        return snapshot;
+    };
+    MenuPage page;
+    auto *tree = page.findChild<QTreeWidget *>("bootMenuEntries"); QVERIFY(tree);
+    page.updateSnapshot(snapshotWith(2));
+    const int small = tree->height();
+    page.updateSnapshot(snapshotWith(12));
+    const int large = tree->height();
+    QVERIFY(large > small);
+    page.updateSnapshot(snapshotWith(60));
+    QVERIFY(tree->height() > large);
+    QVERIFY(tree->height() < 60 * tree->sizeHintForRow(0));
 }
 
 #include "SystemdMenuTest.moc"

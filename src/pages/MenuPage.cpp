@@ -7,6 +7,7 @@
 #include "widgets/LoaderSelector.h"
 
 #include <QComboBox>
+#include <algorithm>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QFileInfo>
@@ -228,8 +229,10 @@ MenuPage::MenuPage(QWidget *parent, bool embedded) : QWidget(parent)
     menu_->setHeaderLabels({tr("Boot entry"), tr("Type")});
     menu_->header()->setSectionResizeMode(0, QHeaderView::Stretch);
     menu_->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
-    menu_->setMinimumHeight(180);
-    menu_->setMaximumHeight(260);
+    // The list grows with its entries so the page scrolls as one; only very
+    // long menus get a scrollbar of their own.
+    connect(menu_, &QTreeWidget::itemExpanded, this, &MenuPage::fitMenuHeight);
+    connect(menu_, &QTreeWidget::itemCollapsed, this, &MenuPage::fitMenuHeight);
     entries->addWidget(menu_);
     details_ = new QPlainTextEdit(entries_);
     details_->setReadOnly(true);
@@ -299,6 +302,19 @@ MenuPage::MenuPage(QWidget *parent, bool embedded) : QWidget(parent)
     layout->addStretch();
 }
 
+void MenuPage::fitMenuHeight()
+{
+    int rows = 0;
+    for (QTreeWidgetItemIterator it(menu_); *it; ++it) {
+        bool shown = !(*it)->isHidden();
+        for (auto *parent = (*it)->parent(); shown && parent; parent = parent->parent()) shown = parent->isExpanded();
+        rows += shown;
+    }
+    const int rowHeight = menu_->topLevelItemCount() ? menu_->sizeHintForRow(0) : fontMetrics().height() + 8;
+    const int chrome = menu_->header()->sizeHint().height() + 2 * menu_->frameWidth() + 4;
+    menu_->setFixedHeight(chrome + std::clamp(rows, 4, 18) * rowHeight);
+}
+
 const BootInstallation *MenuPage::installation() const
 {
     const auto &list = selector_->installations();
@@ -342,6 +358,7 @@ void MenuPage::loadMenu()
     const auto identity = [](const QJsonObject &entry) { return entry.value("selection").toString(entry.value("id").toString(entry.value("path").toString())); };
     const auto selected = identity(previous);
     const auto restore = qScopeGuard([&] {
+        fitMenuHeight();
         updateDefaultChoices();
         if (selected.isEmpty()) return;
         for (QTreeWidgetItemIterator it(menu_); *it; ++it)
