@@ -16,7 +16,9 @@ class QVBoxLayout;
 class SettingsPage : public QWidget {
     Q_OBJECT
 public:
-    explicit SettingsPage(QWidget *parent = nullptr);
+    // An embedded page sits below the boot menu and follows its installation
+// selector, so it shows no selector of its own.
+    explicit SettingsPage(QWidget *parent = nullptr, bool embedded = false);
     void updateSnapshot(const BootSnapshot &snapshot, bool preserveDrafts = false);
     void acknowledgeApplied(const BootTransaction &transaction);
     bool hasDraftChanges() const;

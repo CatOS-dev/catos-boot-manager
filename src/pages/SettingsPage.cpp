@@ -24,13 +24,14 @@ void setEditorValue(QWidget *widget, const QString &value)
 }
 }
 
-SettingsPage::SettingsPage(QWidget *parent) : QWidget(parent)
+SettingsPage::SettingsPage(QWidget *parent, bool embedded) : QWidget(parent)
 {
-    layout_ = BootUi::page(this);
-    auto *content = layout_->parentWidget();
-    BootUi::section(layout_, content, tr("Choose installation"));
+    layout_ = BootUi::page(this, embedded);
+    auto *content = embedded ? this : layout_->parentWidget();
+    if (!embedded) BootUi::section(layout_, content, tr("Choose installation"));
     selector_ = new LoaderSelector(content, true);
     selector_->setObjectName(QStringLiteral("settingsInstallation"));
+    selector_->setVisible(!embedded);
     layout_->addWidget(selector_);
     location_ = BootUi::muted({}, content);
     layout_->addWidget(location_);

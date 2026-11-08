@@ -90,8 +90,14 @@ void BootUi::enableCopy(QComboBox *combo)
     });
 }
 
-QVBoxLayout *BootUi::page(QWidget *parent)
+QVBoxLayout *BootUi::page(QWidget *parent, bool embedded)
 {
+    if (embedded) {
+        auto *layout = new QVBoxLayout(parent);
+        layout->setContentsMargins(0, 0, 0, 0);
+        layout->setSpacing(6);
+        return layout;
+    }
     auto *outer = new QVBoxLayout(parent);
     outer->setContentsMargins(0, 0, 0, 0);
     auto *scroll = new QScrollArea(parent);

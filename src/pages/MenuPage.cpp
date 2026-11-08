@@ -195,10 +195,10 @@ void addGrubEntries(const QString &content, QTreeWidget *tree)
 
 }
 
-MenuPage::MenuPage(QWidget *parent) : QWidget(parent)
+MenuPage::MenuPage(QWidget *parent, bool embedded) : QWidget(parent)
 {
-    auto *layout = BootUi::page(this);
-    auto *content = layout->parentWidget();
+    auto *layout = BootUi::page(this, embedded);
+    auto *content = embedded ? this : layout->parentWidget();
     selector_ = new LoaderSelector(content, true);
     layout->addWidget(selector_);
     rebuild_ = new QPushButton(tr("Rebuild boot menu"), content);

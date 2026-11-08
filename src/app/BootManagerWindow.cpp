@@ -29,7 +29,6 @@
 #include "widgets/LoaderSelector.h"
 #include "widgets/BootUi.h"
 #include <QStackedWidget>
-#include <QTabWidget>
 #include <QTimer>
 #include <QStatusBar>
 #include <QVBoxLayout>
@@ -111,18 +110,20 @@ BootManagerWindow::BootManagerWindow(BootSession *session, QWidget *parent, std:
     methods_ = new MethodsPage(pages_);
     security_ = new SecurityPage(pages_);
     // Menu entries and loader configuration describe the same boot menu, so
-    // they share one navigation item and switch with tabs.
-    auto *menuTabs = new QTabWidget(pages_);
-    menuTabs->setObjectName(QStringLiteral("bootMenuTabs"));
-    menuTabs->setDocumentMode(true);
-    menu_ = new MenuPage(menuTabs);
-    settings_ = new SettingsPage(menuTabs);
-    menuTabs->addTab(menu_, tr("Menu entries"));
-    menuTabs->addTab(settings_, tr("Configuration"));
+    // one page shows the menu with its configuration below it.
+    auto *menuPage = new QWidget(pages_);
+    menuPage->setObjectName(QStringLiteral("bootMenuPage"));
+    auto *menuLayout = BootUi::page(menuPage);
+    auto *menuContent = menuLayout->parentWidget();
+    menu_ = new MenuPage(menuContent, true);
+    settings_ = new SettingsPage(menuContent, true);
+    menuLayout->addWidget(menu_);
+    menuLayout->addWidget(settings_);
+    menuLayout->addStretch();
     firmware_ = new FirmwarePage(pages_);
     recovery_ = new RecoveryPage(pages_);
     pendingPage_ = new PendingPage(pages_);
-    for (QWidget *page : std::initializer_list<QWidget *>{overview_, methods_, menuTabs, firmware_, security_, recovery_, pendingPage_})
+    for (QWidget *page : std::initializer_list<QWidget *>{overview_, methods_, menuPage, firmware_, security_, recovery_, pendingPage_})
         pages_->addWidget(page);
     rightLayout->addWidget(pages_, 1);
     footer_ = new QFrame(right);

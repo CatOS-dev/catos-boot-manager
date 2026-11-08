@@ -20,10 +20,6 @@
         <translation>启动菜单</translation>
     </message>
     <message>
-        <source>Menu entries</source>
-        <translation>启动项</translation>
-    </message>
-    <message>
         <location filename="../src/app/BootManagerWindow.cpp" line="61"/>
         <source>UEFI entries</source>
         <translation>UEFI 启动项</translation>

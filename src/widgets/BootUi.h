@@ -12,7 +12,9 @@ class QWidget;
 namespace BootUi {
 void enableCopy(QAbstractItemView *view);
 void enableCopy(QComboBox *combo);
-QVBoxLayout *page(QWidget *parent);
+// Lays out a page in a scroll area; an embedded page lays out directly so it
+// can be stacked inside another page.
+QVBoxLayout *page(QWidget *parent, bool embedded = false);
 void title(QVBoxLayout *layout, QWidget *parent, const QString &name, const QString &description);
 void section(QVBoxLayout *layout, QWidget *parent, const QString &name);
 void line(QVBoxLayout *layout, QWidget *parent, const QString &name, const QString &description,

@@ -4,6 +4,7 @@
 #include "pages/PendingPage.h"
 #include "pages/SecurityPage.h"
 #include "pages/FirmwarePage.h"
+#include "widgets/LoaderSelector.h"
 #include "dialogs/ApplyDialog.h"
 #include <QLabel>
 #include <QTableWidget>
@@ -27,7 +28,7 @@
 #include <QTreeWidget>
 #include <QJsonArray>
 #include <QStackedWidget>
-#include <QTabWidget>
+#include <QLayout>
 #include <QDir>
 #include <QtTest>
 
@@ -235,12 +236,14 @@ void BootManagerWindowTest::separateConfigurationAndRecoveryPages()
         "Secure Boot", "Repair and recovery", "Pending changes"}));
     auto *pages = window.findChild<QStackedWidget *>("pages"); QVERIFY(pages);
     navigation->setCurrentRow(2);
-    auto *tabs = qobject_cast<QTabWidget *>(pages->currentWidget()); QVERIFY(tabs);
-    QCOMPARE(tabs->count(), 2);
-    QVERIFY(qobject_cast<MenuPage *>(tabs->widget(0)));
-    tabs->setCurrentIndex(1);
-    QVERIFY(qobject_cast<SettingsPage *>(tabs->currentWidget()));
-    QVERIFY(tabs->currentWidget()->findChild<QLineEdit *>("GRUB_TIMEOUT"));
+    auto *menuPage = pages->currentWidget();
+    QCOMPARE(menuPage->objectName(), QStringLiteral("bootMenuPage"));
+    auto *menu = menuPage->findChild<MenuPage *>(); QVERIFY(menu);
+    auto *settings = menuPage->findChild<SettingsPage *>(); QVERIFY(settings);
+    auto *layout = menu->parentWidget()->layout(); QVERIFY(layout);
+    QVERIFY(layout->indexOf(menu) >= 0 && layout->indexOf(menu) < layout->indexOf(settings));
+    QVERIFY(settings->findChild<QLineEdit *>("GRUB_TIMEOUT"));
+    QVERIFY(!settings->selector()->isVisibleTo(settings));
     navigation->setCurrentRow(5);
     QVERIFY(pages->currentWidget()->findChild<QWidget *>("recoveryForms"));
     QVERIFY(!window.findChild<QPushButton *>("showConfiguration"));

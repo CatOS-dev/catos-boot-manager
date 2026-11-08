@@ -16,7 +16,7 @@ class QTreeWidgetItem;
 class MenuPage : public QWidget {
     Q_OBJECT
 public:
-    explicit MenuPage(QWidget *parent = nullptr);
+    explicit MenuPage(QWidget *parent = nullptr, bool embedded = false);
     void updateSnapshot(const BootSnapshot &snapshot, bool preserveDrafts = false);
     void updateTransaction(const BootTransaction &transaction);
     void selectMethod(LoaderKind kind);
