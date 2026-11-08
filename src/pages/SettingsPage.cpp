@@ -106,13 +106,16 @@ void SettingsPage::showSettings()
         QWidget *edit;
         const bool valid = draft.values.value(i) == draft.baseline.value(i)
             || BootSettings::allowed(loader.kind, setting.key, draft.values.value(i));
-        auto *help = BootUi::muted(valid ? QString() : tr("Invalid value."), fields_->parentWidget());
+        // Fields carry no permanent description, so the error names the
+        // expected format to say what would be accepted.
+        const QString invalid = tr("Invalid value. %1").arg(setting.description);
+        auto *help = BootUi::muted(valid ? QString() : invalid, fields_->parentWidget());
         help->setObjectName(setting.key + "Help");
         help->setVisible(!valid);
-        const auto changed = [this, loader, i, help, setting](const QString &value) {
+        const auto changed = [this, loader, i, help, setting, invalid](const QString &value) {
             const bool valid = value == drafts_.value(loader.id).baseline.value(i)
                 || BootSettings::allowed(loader.kind, setting.key, value);
-            help->setText(valid ? QString() : tr("Invalid value."));
+            help->setText(valid ? QString() : invalid);
             help->setVisible(!valid);
             stageValue(loader, i, value);
         };

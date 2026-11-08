@@ -3202,22 +3202,12 @@ State: %2
         <translation>配置值无效</translation>
     </message>
     <message>
-        <location filename="../src/pages/SettingsPage.cpp" line="228"/>
-        <source>Invalid value for %1. Check the field description.</source>
-        <translation>%1 的值不合法，请查看输入框说明。</translation>
-    </message>
-    <message>
         <source>Edits are added to pending changes automatically. Review and apply to save them.</source>
         <translation>编辑会自动加入待办更改，审核并应用后才会保存。</translation>
     </message>
     <message>
         <source>Invalid value. %1</source>
         <translation>值无效。%1</translation>
-    </message>
-    <message>
-        <location filename="../src/pages/SettingsPage.cpp" line="105"/>
-        <source>Invalid value.</source>
-        <translation>值无效。</translation>
     </message>
     <message>
         <source>Menu timeout, kernel parameters, appearance and other boot loader settings. Edits are staged until you apply them.</source>
